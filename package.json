@@ -1,0 +1,80 @@
+{
+  "name": "WebUsdFramework",
+  "version": "1.0.0",
+  "description": "Library for converting GLB/GLTF 3D models to USDZ format.",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "main": "build/index.js",
+  "module": "build/index.esm.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.esm.js",
+      "require": "./build/index.js"
+    },
+    "./cli": {
+      "types": "./build/cli/index.d.ts",
+      "import": "./build/cli/index.esm.js",
+      "require": "./build/cli/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "build:demo": "cd apps/demo && pnpm run build",
+    "dev": "cd apps/demo && pnpm run dev",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:glb": "vitest run src/__tests__/sdk.test.ts",
+    "test:converters": "vitest run src/__tests__/converters.test.ts",
+    "test:validation": "vitest run src/__tests__/validation.test.ts",
+    "lint": "eslint . --ext .ts,.tsx",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf build test-output test-temp coverage",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.8",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "@types/node": "^24.8.1",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.38.0",
+    "prettier": "^3.6.2",
+    "rollup": "^4.52.5",
+    "rollup-plugin-dts": "^6.2.3",
+    "tslib": "^2.8.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "keywords": [
+    "usd",
+    "gltf",
+    "3d",
+    "web",
+    "conversion",
+    "usdz"
+  ],
+  "author": "Chris M <chrisperezsantiago1@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/chrismichaelps/WebUsdFramework#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrismichaelps/WebUsdFramework.git"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.2.1",
+    "@gltf-transform/extensions": "^4.2.1",
+    "@types/archiver": "^6.0.3",
+    "archiver": "^7.0.1",
+    "csv-parser": "^3.2.0",
+    "jszip": "^3.10.1",
+    "zod": "^4.1.12"
+  }
+}
