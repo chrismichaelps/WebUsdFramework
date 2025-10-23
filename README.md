@@ -2,6 +2,8 @@
 
 Library for converting GLB/GLTF 3D models to USDZ format.
 
+This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
+
 ### Current Status
 
 ⚠️ **This is a proof of concept (POC)** - The library is currently in active development and should be used for experimental purposes. While functional, it may not be production-ready for all use cases.
