@@ -142,23 +142,6 @@ function fixZipVersion(uint8Array: Uint8Array): void {
 }
 
 /**
- * Apply 64-byte alignment to ZIP entries for USDZ compatibility (DISABLED)
- * 
- * NOTE: Current implementation causes ZIP corruption. Needs proper rewrite.
- * Apple's USDZ specification recommends 64-byte alignment but it's not strictly required
- * for basic functionality. Most files work without it.
- * 
- * TODO: Implement proper alignment using:
- * - Proper ZIP local file header parsing
- * - Central directory offset updates
- * - End of central directory offset updates
- */
-function apply64ByteAlignment(zipData: Uint8Array): Uint8Array {
-  // Disabled - returns original data
-  return zipData;
-}
-
-/**
  * Creates USDZ blob from ZIP buffer
  */
 function createUsdzBlob(
