@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { DEFAULT_CONFIG } from '../constants/config';
 
 /**
  * Supported Up Axes Schema
@@ -42,7 +43,7 @@ export const GltfTransformConfigSchema = z.object({
 export const UsdzGenerationOptionsSchema = z.object({
   compression: CompressionSchema.optional().default('STORE'),
   mimeType: z.string().optional().default('model/vnd.usdz+zip'),
-  alignment: z.number().positive().optional().default(64),
+  alignment: z.number().positive().optional().default(DEFAULT_CONFIG.ALIGNMENT),
 });
 
 /**

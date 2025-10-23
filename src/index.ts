@@ -62,10 +62,13 @@ export class WebUsdFramework {
    * ```
    */
   async convert(input: string | ArrayBuffer): Promise<Blob> {
-    let glbBuffer: ArrayBuffer;
+    if (this.config.debug) {
+      console.log('Debug mode enabled');
+      console.log(`Debug output: ${this.config.debugOutputDir}`);
+    }
 
     if (typeof input === 'string') {
-      // Load from file path
+      // Handle file path input
       const filePath = path.resolve(input);
 
       if (!fs.existsSync(filePath)) {
@@ -75,21 +78,24 @@ export class WebUsdFramework {
         );
       }
 
+      const fileExtension = path.extname(filePath).toLowerCase();
+
+      // For GLTF files, pass the file path directly to handle external resources
+      if (fileExtension === '.gltf') {
+        return await convertGlbToUsdz(filePath, this.config);
+      }
+
+      // For GLB files, read as buffer
       const fileBuffer = fs.readFileSync(filePath);
-      glbBuffer = fileBuffer.buffer.slice(
+      const glbBuffer = fileBuffer.buffer.slice(
         fileBuffer.byteOffset,
         fileBuffer.byteOffset + fileBuffer.byteLength
       );
-    } else {
-      glbBuffer = input;
+      return await convertGlbToUsdz(glbBuffer, this.config);
     }
 
-    if (this.config.debug) {
-      console.log('Debug mode enabled');
-      console.log(`Debug output: ${this.config.debugOutputDir}`);
-    }
-
-    return await convertGlbToUsdz(glbBuffer, this.config);
+    // Handle ArrayBuffer input (GLB only)
+    return await convertGlbToUsdz(input, this.config);
   }
 
   /**

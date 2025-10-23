@@ -12,6 +12,7 @@ dist/
 
 # Test files
 test-converter.js
+rebuild.sh
 
 # Example files
 glb-files-examples/

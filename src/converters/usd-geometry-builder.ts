@@ -337,6 +337,8 @@ export function wrapGeometryInUsdFile(geometryContent: string, meshName: string 
   return `#usda 1.0
 (
     defaultPrim = "${meshName}"
+    metersPerUnit = 1
+    upAxis = "Y"
 )
 
 def Mesh "${meshName}"

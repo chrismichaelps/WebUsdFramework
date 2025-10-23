@@ -112,7 +112,7 @@ export class UsdNode {
     const nodeName = this.getName() || "Unnamed";
     // Use "over" if the typeName starts with "over", otherwise use "def"
     const defOrOver = this._typeName.startsWith('over') ? 'over' : `def ${this._typeName}`;
-    usda += `${space}${defOrOver} "${nodeName}" (\n`;
+
     let propertiesAndMetadata = "";
 
     // Add metadata
@@ -123,8 +123,8 @@ export class UsdNode {
     // Handle special _usdContent property for inline material definitions
     const usdContentProp = this._properties.find(p => p.key === "_usdContent");
     if (usdContentProp) {
-      // Close the node definition and add the content directly
-      usda += `${space})\n`;
+      // Add node definition without parentheses
+      usda += `${space}${defOrOver} "${nodeName}"\n`;
       usda += `${space}{\n`;
       const contentLines = usdContentProp.value.split('\n');
       for (const line of contentLines) {
@@ -194,11 +194,13 @@ export class UsdNode {
       }
     }
 
+    // Only add parentheses if there are properties/metadata
     if (propertiesAndMetadata) {
+      usda += `${space}${defOrOver} "${nodeName}" (\n`;
       usda += propertiesAndMetadata;
       usda += `${space})\n`;
     } else {
-      usda += `${space})\n`;
+      usda += `${space}${defOrOver} "${nodeName}"\n`;
     }
 
     if (this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0) {

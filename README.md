@@ -30,6 +30,9 @@ const usd = defineConfig();
 // Convert GLB file to USDZ
 const usdzBlob = await usd.convert('./model.glb');
 
+// Convert GLTF file to USDZ
+const usdzBlob2 = await usd.convert('./model.gltf');
+
 // Save the result
 const fs = require('fs');
 const buffer = await usdzBlob.arrayBuffer();
@@ -65,9 +68,12 @@ const fs = require('fs');
 
 const usd = defineConfig();
 
-// From file system (Node.js)
+// From file system (Node.js) - GLB files
 const glbBuffer = fs.readFileSync('model.glb').buffer;
 const usdzBlob = await usd.convert(glbBuffer);
+
+// From file path - GLTF files
+const usdzBlob2 = await usd.convert('./model.gltf');
 
 // Save the result
 const buffer = await usdzBlob.arrayBuffer();
@@ -88,7 +94,10 @@ const config = {
 };
 
 const usd = defineConfig(config);
-const usdzBlob = await usd.convert('./model.glb');
+
+// Works with both GLB and GLTF files
+const usdzBlob = await usd.convert('./model.glb'); // GLB file
+const usdzBlob2 = await usd.convert('./model.gltf'); // GLTF file with external resources
 
 // Save the result
 const buffer = await usdzBlob.arrayBuffer();

@@ -7,6 +7,7 @@
 
 import { Material, Texture } from '@gltf-transform/core';
 import { UsdNode } from '../core/usd-node';
+import { sanitizeName } from '../utils/name-utils';
 
 /**
  * Texture reference info
@@ -193,13 +194,6 @@ function createTextureShaderNetwork(
   textureShader.setProperty('float3 outputs:rgb', '');
 
   return { textureShader, uvReader };
-}
-
-/**
- * Sanitize name for USD paths
- */
-function sanitizeName(name: string): string {
-  return name.replace(/[^A-Za-z0-9_]/g, '_');
 }
 
 /**
