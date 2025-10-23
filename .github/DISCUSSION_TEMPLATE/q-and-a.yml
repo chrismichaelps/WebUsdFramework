@@ -1,0 +1,155 @@
+name: Q&A
+description: Technical questions and support for WebUsdFramework implementation
+title: '[Q&A] '
+labels: ['question', 'support', 'help']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Technical Support Guidelines
+
+        **Before asking your question, please:**
+        1. Check the [documentation](https://github.com/chrismichaelps/WebUsdFramework#readme)
+        2. Search existing discussions for similar questions
+        3. Provide complete information about your environment and use case
+
+        **For faster resolution, include:**
+        - Clear problem description
+        - Relevant code examples
+        - Error messages (if any)
+        - Environment details
+        - Expected vs actual behavior
+
+  - type: textarea
+    id: problem_description
+    attributes:
+      label: Problem Description
+      description: Clearly describe the issue you're facing
+      placeholder: |
+        **What are you trying to achieve?**
+        Describe your goal and what you're trying to accomplish.
+
+        **What's happening?**
+        Describe the current behavior or issue you're experiencing.
+
+        **What did you expect to happen?**
+        Describe the expected behavior or outcome.
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: technical_area
+    attributes:
+      label: Technical Area
+      description: Which area of WebUsdFramework does your question relate to?
+      options:
+        - GLB/GLTF file conversion
+        - USDZ package generation
+        - Material and texture handling
+        - Geometry processing
+        - Debug output and logging
+        - Performance optimization
+        - Installation and setup
+        - API integration
+        - Error handling
+        - File format support
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How urgent is this question?
+      options:
+        - Low - General question
+        - Medium - Blocking development
+        - High - Production issue
+        - Critical - System down
+    validations:
+      required: true
+
+  - type: textarea
+    id: code_example
+    attributes:
+      label: Code Example
+      description: Share your code that's causing issues or questions
+      placeholder: |
+        ```javascript
+        const { defineConfig } = require('./build/index.js');
+
+        // Your code here
+        const usd = defineConfig({
+          debug: true,
+          debugOutputDir: './output'
+        });
+
+        // Problematic code or question area
+        ```
+      render: markdown
+
+  - type: textarea
+    id: error_details
+    attributes:
+      label: Error Information
+      description: If you're experiencing errors, provide complete error details
+      placeholder: |
+        **Error Message:**
+        ```
+        Paste the complete error message here
+        ```
+
+        **Stack Trace:**
+        ```
+        Include the full stack trace if available
+        ```
+
+        **When does the error occur?**
+        Describe the steps that lead to the error.
+
+  - type: textarea
+    id: environment_info
+    attributes:
+      label: Environment Information
+      description: Provide details about your development environment
+      placeholder: |
+        **System Information:**
+        - Operating System: [e.g., macOS 14.0, Windows 11, Ubuntu 22.04]
+        - Node.js version: [e.g., v18.17.0]
+        - Package manager: [npm, yarn, pnpm]
+        - WebUsdFramework version: [e.g., 1.0.0]
+
+        **File Information:**
+        - Input file format: [GLB/GLTF]
+        - Input file size: [e.g., 2.5MB]
+        - Input file complexity: [e.g., 50 meshes, 10 materials]
+
+        **Browser/Environment:**
+        - Browser: [if applicable]
+        - Framework: [if using with React, Vue, etc.]
+
+  - type: textarea
+    id: attempted_solutions
+    attributes:
+      label: Attempted Solutions
+      description: What have you already tried to resolve this issue?
+      placeholder: |
+        - Searched documentation for...
+        - Tried different configuration options...
+        - Tested with different file formats...
+        - Other approaches attempted...
+
+  - type: checkboxes
+    id: support_guidelines
+    attributes:
+      label: Support Guidelines
+      description: By submitting this question, you agree to our support guidelines
+      options:
+        - label: I have searched existing discussions and documentation before asking
+          required: true
+        - label: I agree to follow the community guidelines and code of conduct
+          required: true
+        - label: I understand this is a community-driven support channel
+          required: true

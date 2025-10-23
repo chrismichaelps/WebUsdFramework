@@ -1,0 +1,99 @@
+name: General Discussion
+description: Community discussions, questions, and collaborative problem-solving for WebUsdFramework
+title: '[General] '
+labels: ['discussion', 'community']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Community Discussion Guidelines
+
+        Welcome to the WebUsdFramework community! This space is for:
+        - Collaborative problem-solving
+        - Knowledge sharing and best practices
+        - Community-driven discussions
+        - General questions and ideas
+
+        **Please ensure your discussion is:**
+        - Clear and well-structured
+        - Respectful and constructive
+        - Relevant to WebUsdFramework
+        - Helpful to the community
+
+  - type: textarea
+    id: topic
+    attributes:
+      label: Discussion Topic
+      description: What would you like to discuss with the community?
+      placeholder: |
+        Provide a clear, concise description of your discussion topic.
+        Include any relevant background information that would help others understand the context.
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: discussion_type
+    attributes:
+      label: Discussion Type
+      description: What type of community discussion is this?
+      options:
+        - Community question
+        - Best practices sharing
+        - Workflow discussion
+        - Integration patterns
+        - Performance optimization
+        - Architecture discussion
+        - Documentation feedback
+        - Community suggestion
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: expertise_level
+    attributes:
+      label: Target Audience
+      description: Who would benefit most from this discussion?
+      options:
+        - Beginners
+        - Intermediate users
+        - Advanced developers
+        - All levels
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any additional information, examples, or resources that would be helpful
+      placeholder: |
+        - Relevant code examples
+        - Links to documentation or resources
+        - Screenshots or diagrams
+        - Related issues or discussions
+      render: markdown
+
+  - type: textarea
+    id: expected_outcome
+    attributes:
+      label: Expected Outcome
+      description: What would you like to achieve from this discussion?
+      placeholder: |
+        - Learn best practices
+        - Find solutions to specific problems
+        - Share knowledge with others
+        - Get feedback on ideas
+        - Other...
+
+  - type: checkboxes
+    id: community_guidelines
+    attributes:
+      label: Community Guidelines
+      description: By participating in this discussion, you agree to follow our community standards
+      options:
+        - label: I agree to follow the WebUsdFramework community guidelines and code of conduct
+          required: true
+        - label: I understand this is a public discussion and will maintain professional communication
+          required: true

@@ -1,0 +1,207 @@
+name: Technical Discussion
+description: Deep technical discussions, architecture, and implementation details
+title: '[Technical] '
+labels: ['technical', 'architecture', 'implementation']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Technical Discussion Guidelines
+
+        **This space is for:**
+        - Deep technical discussions
+        - Architecture and design patterns
+        - Implementation strategies
+        - Performance analysis
+        - Code review and optimization
+        - Technical decision-making
+
+        **Please ensure your discussion:**
+        - Is technically focused and detailed
+        - Includes relevant code examples
+        - Considers multiple perspectives
+        - Is backed by research or experience
+        - Contributes to the technical knowledge base
+
+  - type: textarea
+    id: technical_topic
+    attributes:
+      label: Technical Topic
+      description: What technical aspect would you like to discuss?
+      placeholder: |
+        **Topic Summary:**
+        Provide a clear, concise summary of the technical topic.
+
+        **Technical Context:**
+        What specific technical challenge or question are you addressing?
+
+        **Scope:**
+        What aspects of WebUsdFramework does this relate to?
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: technical_area
+    attributes:
+      label: Technical Area
+      description: Which technical area does this discussion focus on?
+      options:
+        - Architecture & Design
+        - Performance Optimization
+        - Memory Management
+        - File Format Handling
+        - API Design
+        - Error Handling
+        - Testing Strategies
+        - Security Considerations
+        - Scalability
+        - Integration Patterns
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: discussion_level
+    attributes:
+      label: Technical Level
+      description: What level of technical detail is this discussion?
+      options:
+        - Beginner - Basic concepts
+        - Intermediate - Moderate complexity
+        - Advanced - Complex implementation
+        - Expert - Cutting-edge techniques
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical_details
+    attributes:
+      label: Technical Details
+      description: Provide detailed technical information and context
+      placeholder: |
+        **Current Implementation:**
+        How is this currently implemented in WebUsdFramework?
+
+        **Technical Challenges:**
+        What specific technical challenges are you facing?
+
+        **Research & Analysis:**
+        What research or analysis have you done on this topic?
+
+        **Constraints:**
+        What technical constraints need to be considered?
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: code_analysis
+    attributes:
+      label: Code Analysis
+      description: Share relevant code examples and analysis
+      placeholder: |
+        ```javascript
+        // Current implementation
+        // Your code example here
+        ```
+
+        ```javascript
+        // Proposed alternative
+        // Alternative implementation
+        ```
+
+        **Performance Analysis:**
+        - Current performance: [metrics]
+        - Bottlenecks identified: [specific issues]
+        - Optimization opportunities: [potential improvements]
+
+  - type: textarea
+    id: technical_considerations
+    attributes:
+      label: Technical Considerations
+      description: What technical factors need to be considered?
+      placeholder: |
+        **Performance Impact:**
+        How would this affect performance?
+
+        **Memory Usage:**
+        What are the memory implications?
+
+        **Compatibility:**
+        How does this affect backward compatibility?
+
+        **Dependencies:**
+        What dependencies or requirements are involved?
+
+        **Security:**
+        Are there any security considerations?
+
+  - type: textarea
+    id: alternatives_comparison
+    attributes:
+      label: Alternatives & Comparison
+      description: What alternatives have you considered and how do they compare?
+      placeholder: |
+        **Alternative Approaches:**
+        - Approach 1: [Description and pros/cons]
+        - Approach 2: [Description and pros/cons]
+        - Approach 3: [Description and pros/cons]
+
+        **Trade-offs:**
+        What are the key trade-offs between different approaches?
+
+        **Recommendation:**
+        Which approach do you recommend and why?
+
+  - type: textarea
+    id: implementation_plan
+    attributes:
+      label: Implementation Plan
+      description: How would you implement this technically?
+      placeholder: |
+        **Implementation Steps:**
+        1. [Step 1]
+        2. [Step 2]
+        3. [Step 3]
+
+        **Testing Strategy:**
+        How would you test this implementation?
+
+        **Rollout Plan:**
+        How would you roll this out safely?
+
+        **Monitoring:**
+        How would you monitor the success of this implementation?
+
+  - type: textarea
+    id: community_input
+    attributes:
+      label: Community Input Needed
+      description: What specific input or feedback are you looking for?
+      placeholder: |
+        **Questions for the Community:**
+        - Question 1: [Specific technical question]
+        - Question 2: [Specific technical question]
+        - Question 3: [Specific technical question]
+
+        **Areas for Feedback:**
+        What aspects would you like feedback on?
+
+        **Decision Points:**
+        What decisions need to be made?
+
+  - type: checkboxes
+    id: technical_guidelines
+    attributes:
+      label: Technical Discussion Guidelines
+      description: By participating in this technical discussion, you agree to our guidelines
+      options:
+        - label: I will maintain a professional and constructive tone
+          required: true
+        - label: I will provide evidence and reasoning for my technical opinions
+          required: true
+        - label: I am open to alternative viewpoints and technical challenges
+          required: true
+        - label: I agree to follow the community guidelines and code of conduct
+          required: true

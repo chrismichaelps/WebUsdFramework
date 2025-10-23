@@ -1,0 +1,218 @@
+name: Show and Tell
+description: Showcase projects, success stories, and innovative uses of WebUsdFramework
+title: '[Show & Tell] '
+labels: ['showcase', 'community', 'success-story']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Project Showcase Guidelines
+
+        **Share your success stories!** We love seeing how the community uses WebUsdFramework.
+
+        **Great showcases include:**
+        - Clear project description
+        - Technical implementation details
+        - Challenges overcome
+        - Results and impact
+        - Lessons learned
+        - Code examples (if applicable)
+
+        **This helps the community by:**
+        - Inspiring other developers
+        - Sharing best practices
+        - Demonstrating real-world applications
+        - Building knowledge base
+
+  - type: textarea
+    id: project_overview
+    attributes:
+      label: Project Overview
+      description: Tell us about your project and how you used WebUsdFramework
+      placeholder: |
+        **Project Name:**
+        [Your project name]
+
+        **Project Description:**
+        What does your project do? What problem does it solve?
+
+        **WebUsdFramework Integration:**
+        How did you use WebUsdFramework in your project?
+
+        **Key Features:**
+        What are the main features of your project?
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: project_category
+    attributes:
+      label: Project Category
+      description: What type of project is this?
+      options:
+        - Web application
+        - Mobile application
+        - AR/VR experience
+        - 3D visualization tool
+        - Game or interactive media
+        - Educational platform
+        - Research project
+        - Enterprise solution
+        - Open source project
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity_level
+    attributes:
+      label: Project Complexity
+      description: How complex is this project?
+      options:
+        - Simple - Basic implementation
+        - Intermediate - Moderate complexity
+        - Advanced - Complex integration
+        - Enterprise - Large-scale solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical_implementation
+    attributes:
+      label: Technical Implementation
+      description: Share technical details about your implementation
+      placeholder: |
+        **Architecture:**
+        How is your project structured?
+
+        **WebUsdFramework Usage:**
+        - File formats processed: [GLB/GLTF]
+        - File sizes handled: [e.g., 1MB - 100MB]
+        - Conversion volume: [e.g., 100 files/day]
+        - Performance requirements: [e.g., <5s conversion time]
+
+        **Integration Approach:**
+        How did you integrate WebUsdFramework into your stack?
+
+        **Custom Configuration:**
+        Any custom configuration or modifications made?
+      render: markdown
+
+  - type: textarea
+    id: challenges_solutions
+    attributes:
+      label: Challenges & Solutions
+      description: What challenges did you face and how did you solve them?
+      placeholder: |
+        **Technical Challenges:**
+        - Challenge 1: [Description and solution]
+        - Challenge 2: [Description and solution]
+        - Challenge 3: [Description and solution]
+
+        **Performance Optimizations:**
+        What optimizations did you implement?
+
+        **Lessons Learned:**
+        What would you do differently next time?
+      render: markdown
+
+  - type: textarea
+    id: code_examples
+    attributes:
+      label: Code Examples
+      description: Share relevant code snippets that might help others
+      placeholder: |
+        ```javascript
+        // Key integration code
+        const { defineConfig } = require('webusd-framework');
+
+        const usd = defineConfig({
+          debug: true,
+          // Your custom configuration
+        });
+
+        // Your implementation
+        ```
+
+        ```javascript
+        // Performance optimization example
+        // Your optimized code here
+        ```
+      render: markdown
+
+  - type: textarea
+    id: results_metrics
+    attributes:
+      label: Results & Metrics
+      description: Share the results and impact of your project
+      placeholder: |
+        **Performance Results:**
+        - Conversion speed: [e.g., 2x faster than before]
+        - File size optimization: [e.g., 30% smaller USDZ files]
+        - Memory usage: [e.g., 50% reduction]
+
+        **User Impact:**
+        - User feedback: [Any positive feedback received]
+        - Adoption metrics: [e.g., 1000+ users]
+        - Business impact: [e.g., 40% increase in engagement]
+
+        **Technical Achievements:**
+        - Scalability: [e.g., handles 10x more files]
+        - Reliability: [e.g., 99.9% uptime]
+        - Maintainability: [e.g., 50% less support tickets]
+
+  - type: textarea
+    id: resources_links
+    attributes:
+      label: Resources & Links
+      description: Share links to your project and related resources
+      placeholder: |
+        **Project Links:**
+        - Live Demo: [URL]
+        - GitHub Repository: [URL]
+        - Documentation: [URL]
+        - Case Study: [URL]
+
+        **Media:**
+        - Screenshots: [Links to images]
+        - Video Demo: [YouTube/Vimeo link]
+        - Architecture Diagram: [Link to diagram]
+
+        **Additional Resources:**
+        - Blog Post: [URL]
+        - Tutorial: [URL]
+        - Related Projects: [URLs]
+
+  - type: textarea
+    id: community_benefit
+    attributes:
+      label: Community Benefit
+      description: How does this project benefit the WebUsdFramework community?
+      placeholder: |
+        **Knowledge Sharing:**
+        What insights can others learn from your project?
+
+        **Best Practices:**
+        What best practices did you discover?
+
+        **Open Source Contributions:**
+        Are you planning to contribute any improvements back to WebUsdFramework?
+
+        **Documentation:**
+        Would you be willing to help document your approach for others?
+
+  - type: checkboxes
+    id: showcase_guidelines
+    attributes:
+      label: Showcase Guidelines
+      description: By sharing your project, you agree to our showcase guidelines
+      options:
+        - label: I confirm this is my original work or I have permission to share it
+          required: true
+        - label: I agree to follow the community guidelines and code of conduct
+          required: true
+        - label: I understand this showcase will be public and visible to the community
+          required: true
+        - label: I am open to questions and feedback from the community
+          required: true

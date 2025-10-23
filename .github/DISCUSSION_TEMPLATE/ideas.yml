@@ -1,0 +1,172 @@
+name: Ideas
+description: Propose enhancements, features, and improvements for WebUsdFramework
+title: '[Idea] '
+labels: ['enhancement', 'feature-request', 'improvement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Enhancement Proposal Guidelines
+
+        **Before submitting your idea, please:**
+        1. Check existing [issues](https://github.com/chrismichaelps/WebUsdFramework/issues) and discussions
+        2. Consider if this aligns with WebUsdFramework's core mission
+        3. Provide clear rationale and use cases
+        4. Think about implementation complexity and impact
+
+        **Great ideas include:**
+        - Clear problem statement
+        - Specific use cases
+        - Potential implementation approaches
+        - Community benefit analysis
+
+  - type: textarea
+    id: enhancement_proposal
+    attributes:
+      label: Enhancement Proposal
+      description: Describe your idea for improving WebUsdFramework
+      placeholder: |
+        **Problem Statement:**
+        What specific problem or limitation does this idea address?
+
+        **Proposed Solution:**
+        How would you like to see this problem solved?
+
+        **Key Benefits:**
+        What advantages would this provide to users?
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: enhancement_category
+    attributes:
+      label: Enhancement Category
+      description: What type of improvement are you proposing?
+      options:
+        - Core functionality enhancement
+        - Performance optimization
+        - API/Developer experience
+        - File format support
+        - Documentation improvement
+        - Error handling enhancement
+        - Debugging capabilities
+        - Integration features
+        - User interface improvement
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact_level
+    attributes:
+      label: Impact Level
+      description: What is the expected impact of this enhancement?
+      options:
+        - Low - Minor improvement
+        - Medium - Significant enhancement
+        - High - Major feature addition
+        - Critical - Core functionality change
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity_estimate
+    attributes:
+      label: Implementation Complexity
+      description: How complex do you think this would be to implement?
+      options:
+        - Low - Simple change
+        - Medium - Moderate effort
+        - High - Significant development
+        - Very High - Major undertaking
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_cases
+    attributes:
+      label: Use Cases
+      description: Provide specific examples of how this would be used
+      placeholder: |
+        **Primary Use Case:**
+        Describe the main scenario where this would be valuable.
+
+        **Additional Use Cases:**
+        - Scenario 1: [Description]
+        - Scenario 2: [Description]
+        - Scenario 3: [Description]
+
+        **Target Users:**
+        Who would benefit from this enhancement?
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical_considerations
+    attributes:
+      label: Technical Considerations
+      description: Any technical details, implementation thoughts, or considerations
+      placeholder: |
+        **Implementation Approach:**
+        How do you envision this being implemented?
+
+        **Technical Challenges:**
+        What potential technical challenges do you foresee?
+
+        **Dependencies:**
+        Are there any external dependencies or requirements?
+
+        **Backward Compatibility:**
+        How would this affect existing users and APIs?
+
+  - type: textarea
+    id: alternatives_analysis
+    attributes:
+      label: Alternatives Analysis
+      description: What alternatives have you considered?
+      placeholder: |
+        **Current Workarounds:**
+        How do users currently solve this problem?
+
+        **Alternative Solutions:**
+        What other approaches could address this need?
+
+        **Why This Approach:**
+        Why is your proposed solution better than alternatives?
+
+  - type: textarea
+    id: success_metrics
+    attributes:
+      label: Success Metrics
+      description: How would we measure the success of this enhancement?
+      placeholder: |
+        **Performance Metrics:**
+        - Conversion speed improvement
+        - Memory usage reduction
+        - File size optimization
+
+        **User Experience Metrics:**
+        - Developer satisfaction
+        - Adoption rate
+        - Support ticket reduction
+
+        **Technical Metrics:**
+        - Code maintainability
+        - Test coverage
+        - Documentation completeness
+
+  - type: checkboxes
+    id: contribution_guidelines
+    attributes:
+      label: Contribution Guidelines
+      description: By submitting this idea, you agree to our contribution guidelines
+      options:
+        - label: I have searched existing issues and discussions for similar ideas
+          required: true
+        - label: I understand this is a proposal and may require community discussion
+          required: true
+        - label: I agree to follow the community guidelines and code of conduct
+          required: true
+        - label: I am willing to contribute to the implementation if accepted
