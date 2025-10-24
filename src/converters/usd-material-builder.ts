@@ -18,7 +18,7 @@ export interface TextureReference {
   /** Unique texture identifier */
   id: string;
   /** Texture usage type */
-  type: 'diffuse' | 'normal' | 'metallicRoughness';
+  type: 'diffuse' | 'normal' | 'metallicRoughness' | 'emissive' | 'occlusion';
 }
 
 /**
@@ -123,12 +123,116 @@ export function buildUsdMaterial(
     );
   }
 
-  // Process metallic and roughness (always add these for consistency)
-  const metallicFactor = material.getMetallicFactor();
-  surfaceShader.setProperty('float inputs:metallic', (metallicFactor ?? 1.0).toString(), 'float');
+  // Process emissive texture
+  const emissiveTexture = material.getEmissiveTexture();
+  if (emissiveTexture) {
+    const textureId = `${materialIndex}_emissive`;
+    const textureNodeName = `Texture_${textureId}`;
+    textures.push({
+      texture: emissiveTexture,
+      id: textureId,
+      type: 'emissive'
+    });
 
-  const roughnessFactor = material.getRoughnessFactor();
-  surfaceShader.setProperty('float inputs:roughness', (roughnessFactor ?? 0.5).toString(), 'float');
+    // Create texture shader network for emissive
+    const { textureShader, uvReader } = createTextureShaderNetwork(
+      materialPath,
+      textureId,
+      textureNodeName,
+      false
+    );
+
+    materialNode.addChild(textureShader);
+    materialNode.addChild(uvReader);
+
+    // Connect to PreviewSurface
+    surfaceShader.setProperty(
+      'color3f inputs:emissiveColor.connect',
+      `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+      'connection'
+    );
+  } else {
+    // Use emissive factor if no texture
+    const emissiveFactor = material.getEmissiveFactor();
+    if (emissiveFactor && (emissiveFactor[0] > 0 || emissiveFactor[1] > 0 || emissiveFactor[2] > 0)) {
+      surfaceShader.setProperty(
+        'color3f inputs:emissiveColor',
+        `(${emissiveFactor[0]}, ${emissiveFactor[1]}, ${emissiveFactor[2]})`
+      );
+    }
+  }
+
+  // Process occlusion texture
+  const occlusionTexture = material.getOcclusionTexture();
+  if (occlusionTexture) {
+    const textureId = `${materialIndex}_occlusion`;
+    const textureNodeName = `Texture_${textureId}`;
+    textures.push({
+      texture: occlusionTexture,
+      id: textureId,
+      type: 'occlusion'
+    });
+
+    // Create texture shader network for occlusion
+    const { textureShader, uvReader } = createTextureShaderNetwork(
+      materialPath,
+      textureId,
+      textureNodeName,
+      false
+    );
+
+    materialNode.addChild(textureShader);
+    materialNode.addChild(uvReader);
+
+    // Connect to PreviewSurface via occlusion input
+    surfaceShader.setProperty(
+      'float inputs:occlusion.connect',
+      `<${materialPath}/${textureNodeName}.outputs:r>`,
+      'connection'
+    );
+  }
+
+  // Process metallic/roughness texture
+  const metallicRoughnessTexture = material.getMetallicRoughnessTexture();
+  if (metallicRoughnessTexture) {
+    const textureId = `${materialIndex}_metallicRoughness`;
+    const textureNodeName = `Texture_${textureId}`;
+    textures.push({
+      texture: metallicRoughnessTexture,
+      id: textureId,
+      type: 'metallicRoughness'
+    });
+
+    // Create texture shader network for metallic/roughness
+    const { textureShader, uvReader } = createTextureShaderNetwork(
+      materialPath,
+      textureId,
+      textureNodeName,
+      false
+    );
+
+    materialNode.addChild(textureShader);
+    materialNode.addChild(uvReader);
+
+    // Connect metallic and roughness channels
+    surfaceShader.setProperty(
+      'float inputs:metallic.connect',
+      `<${materialPath}/${textureNodeName}.outputs:b>`,
+      'connection'
+    );
+    surfaceShader.setProperty(
+      'float inputs:roughness.connect',
+      `<${materialPath}/${textureNodeName}.outputs:g>`,
+      'connection'
+    );
+  } else {
+    // Process metallic and roughness factors (only if no texture)
+    const metallicFactor = material.getMetallicFactor();
+    surfaceShader.setProperty('float inputs:metallic', (metallicFactor ?? 1.0).toString(), 'float');
+
+    const roughnessFactor = material.getRoughnessFactor();
+    surfaceShader.setProperty('float inputs:roughness', (roughnessFactor ?? 0.5).toString(), 'float');
+  }
 
   // Add standard PBR properties
   surfaceShader.setProperty('float inputs:opacity', '1', 'float');
@@ -191,6 +295,10 @@ function createTextureShaderNetwork(
     textureShader.setProperty('float4 inputs:bias', '(-1, -1, -1, -1)', 'float4');
   }
 
+  // Add outputs - include individual channel outputs for packed textures
+  textureShader.setProperty('float outputs:r', '');
+  textureShader.setProperty('float outputs:g', '');
+  textureShader.setProperty('float outputs:b', '');
   textureShader.setProperty('float3 outputs:rgb', '');
 
   return { textureShader, uvReader };

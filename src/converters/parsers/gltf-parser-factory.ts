@@ -29,7 +29,39 @@ class GlbParser implements IGltfParser {
     if (typeof input === 'string') {
       throw new Error('GlbParser expects ArrayBuffer, received string path');
     }
-    return await this.io.readBinary(new Uint8Array(input));
+    const document = await this.io.readBinary(new Uint8Array(input));
+    this.convertSpecGlossToMetalRough(document);
+    return document;
+  }
+
+  /**
+   * Convert KHR_materials_pbrSpecularGlossiness to standard metallic-roughness
+   * This is a lightweight conversion that only copies texture/color references
+   */
+  private convertSpecGlossToMetalRough(document: Document): void {
+    const root = document.getRoot();
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Copy diffuse texture to base color
+        const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
+        if (diffuseTexture && !material.getBaseColorTexture()) {
+          material.setBaseColorTexture(diffuseTexture);
+        }
+
+        // Copy diffuse factor to base color factor
+        const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
+        if (diffuseFactor && diffuseFactor.length >= 3) {
+          material.setBaseColorFactor(diffuseFactor);
+        }
+
+        // Set reasonable defaults for metallic/roughness
+        material.setMetallicFactor(0.0);
+        material.setRoughnessFactor(0.9);
+      }
+    }
   }
 
   getType(): string {
@@ -53,7 +85,38 @@ class GltfParser implements IGltfParser {
     }
 
     // Use NodeIO.read() which handles external .bin and texture files
-    return await this.io.read(input);
+    const document = await this.io.read(input);
+    this.convertSpecGlossToMetalRough(document);
+    return document;
+  }
+
+  /**
+   * Convert KHR_materials_pbrSpecularGlossiness to standard metallic-roughness
+   */
+  private convertSpecGlossToMetalRough(document: Document): void {
+    const root = document.getRoot();
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Copy diffuse texture to base color
+        const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
+        if (diffuseTexture && !material.getBaseColorTexture()) {
+          material.setBaseColorTexture(diffuseTexture);
+        }
+
+        // Copy diffuse factor to base color factor
+        const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
+        if (diffuseFactor && diffuseFactor.length >= 3) {
+          material.setBaseColorFactor(diffuseFactor);
+        }
+
+        // Set reasonable defaults for metallic/roughness
+        material.setMetallicFactor(0.0);
+        material.setRoughnessFactor(0.9);
+      }
+    }
   }
 
   getType(): string {
@@ -80,13 +143,58 @@ class GltfParserWithFallback implements IGltfParser {
 
     try {
       // Try to load with all resources
-      return await this.io.read(input);
+      const document = await this.io.read(input);
+
+      // Use glTF Transform's metalRough function for proper conversion
+      try {
+        console.log('Attempting to use metalRough transform...');
+        const { metalRough } = await import('@gltf-transform/functions');
+        await document.transform(metalRough());
+        console.log('metalRough transform completed successfully');
+      } catch (transformError: any) {
+        // Fallback to manual conversion if metalRough fails
+        console.warn('metalRough transform failed, using manual conversion:', transformError?.message);
+        this.convertSpecGlossToMetalRough(document);
+      }
+
+      return document;
     } catch (error: any) {
       // Handle missing external resources (textures)
       if (error?.message && error.message.includes('ENOENT')) {
-        return await this.parseWithPartialResources(input, error);
+        const document = await this.parseWithPartialResources(input, error);
+        this.convertSpecGlossToMetalRough(document);
+        return document;
       }
       throw error;
+    }
+  }
+
+  /**
+   * Convert KHR_materials_pbrSpecularGlossiness to standard metallic-roughness
+   */
+  private convertSpecGlossToMetalRough(document: Document): void {
+    const root = document.getRoot();
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Copy diffuse texture to base color
+        const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
+        if (diffuseTexture && !material.getBaseColorTexture()) {
+          material.setBaseColorTexture(diffuseTexture);
+        }
+
+        // Copy diffuse factor to base color factor
+        const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
+        if (diffuseFactor && diffuseFactor.length >= 3) {
+          material.setBaseColorFactor(diffuseFactor);
+        }
+
+        // Set reasonable defaults for metallic/roughness
+        material.setMetallicFactor(0.0);
+        material.setRoughnessFactor(0.9);
+      }
     }
   }
 
