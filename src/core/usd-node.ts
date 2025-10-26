@@ -18,7 +18,7 @@ import { UsdPathSchema } from '../validation';
 interface USDProperty {
   key: string;
   value: any;
-  type?: string;
+  type?: string | undefined;
 }
 
 /**

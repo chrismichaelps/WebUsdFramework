@@ -117,7 +117,7 @@ function buildTexturePath(textureId: string): string {
  */
 async function generateZipBuffer(
   zip: JSZip,
-  compression: 'STORE' | 'DEFLATE'
+  _compression: 'STORE' | 'DEFLATE'
 ): Promise<Uint8Array> {
   // Generate ZIP with streamFiles to control alignment
   const buffer = await zip.generateAsync({

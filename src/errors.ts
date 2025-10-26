@@ -16,7 +16,7 @@ export abstract class BaseUsdError extends Error {
   abstract readonly _tag: string;
   abstract readonly code: string;
   readonly timestamp: Date;
-  readonly context?: Record<string, unknown>;
+  readonly context?: Record<string, unknown> | undefined;
 
   constructor(message: string, context?: Record<string, unknown>) {
     super(message);
@@ -49,7 +49,7 @@ export class UsdSchemaError extends BaseUsdError {
   readonly _tag = 'UsdSchemaError' as const;
   readonly code = ERROR_CODES.SCHEMA_VALIDATION_ERROR;
   readonly path: string;
-  readonly zodError?: ZodError;
+  readonly zodError?: ZodError | undefined;
 
   constructor(message: string, path: string, zodError?: ZodError) {
     super(message, { path, zodError });

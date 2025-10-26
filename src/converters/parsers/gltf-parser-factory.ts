@@ -129,11 +129,9 @@ class GltfParser implements IGltfParser {
  */
 class GltfParserWithFallback implements IGltfParser {
   private io: NodeIO;
-  private filePath: string;
 
-  constructor(filePath: string) {
+  constructor(_filePath: string) {
     this.io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-    this.filePath = filePath;
   }
 
   async parse(input: ArrayBuffer | string): Promise<Document> {
@@ -200,7 +198,7 @@ class GltfParserWithFallback implements IGltfParser {
 
   private async parseWithPartialResources(
     filePath: string,
-    originalError: Error
+    _originalError: Error
   ): Promise<Document> {
     const fs = require('fs');
     const path = require('path');

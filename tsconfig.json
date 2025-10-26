@@ -5,17 +5,23 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "outDir": "build",
-    "rootDir": ".",
+    "rootDir": "src",
     "declaration": true,
-    "declarationMap": false,
-    "sourceMap": false,
+    "declarationMap": true,
+    "sourceMap": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
     "noEmit": false,
-    "composite": false
+    "composite": false,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "apps/**/*", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["node_modules", "build", "dist", "apps/**/*", "**/*.test.ts", "**/*.spec.ts"]
 }

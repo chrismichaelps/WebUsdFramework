@@ -33,11 +33,11 @@ export interface LoggerOptions {
  * Logger Context Interface
  */
 export interface LoggerContext {
-  operation?: string;
-  stage?: string;
-  filePath?: string;
-  fileSize?: number;
-  duration?: number;
+  operation?: string | undefined;
+  stage?: string | undefined;
+  filePath?: string | undefined;
+  fileSize?: number | undefined;
+  duration?: number | undefined;
   [key: string]: unknown;
 }
 
