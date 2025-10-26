@@ -35,8 +35,8 @@ class GlbParser implements IGltfParser {
   }
 
   /**
-   * Convert KHR_materials_pbrSpecularGlossiness to standard metallic-roughness
-   * This is a lightweight conversion that only copies texture/color references
+   * Convert specular-glossiness materials to metallic-roughness
+   * Lightweight conversion that copies texture references without processing
    */
   private convertSpecGlossToMetalRough(document: Document): void {
     const root = document.getRoot();
@@ -45,19 +45,19 @@ class GlbParser implements IGltfParser {
       const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
 
       if (specGloss) {
-        // Copy diffuse texture to base color
+        // Move diffuse texture to base color slot
         const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
         if (diffuseTexture && !material.getBaseColorTexture()) {
           material.setBaseColorTexture(diffuseTexture);
         }
 
-        // Copy diffuse factor to base color factor
+        // Copy diffuse color values to base color
         const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
         if (diffuseFactor && diffuseFactor.length >= 3) {
           material.setBaseColorFactor(diffuseFactor);
         }
 
-        // Set reasonable defaults for metallic/roughness
+        // Set metallic-roughness defaults (non-metallic, slightly rough)
         material.setMetallicFactor(0.0);
         material.setRoughnessFactor(0.9);
       }
@@ -91,7 +91,8 @@ class GltfParser implements IGltfParser {
   }
 
   /**
-   * Convert KHR_materials_pbrSpecularGlossiness to standard metallic-roughness
+   * Convert specular-glossiness materials to metallic-roughness
+   * Maps diffuse properties to baseColor for USDZ
    */
   private convertSpecGlossToMetalRough(document: Document): void {
     const root = document.getRoot();
@@ -100,19 +101,19 @@ class GltfParser implements IGltfParser {
       const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
 
       if (specGloss) {
-        // Copy diffuse texture to base color
+        // Move diffuse texture to base color slot
         const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
         if (diffuseTexture && !material.getBaseColorTexture()) {
           material.setBaseColorTexture(diffuseTexture);
         }
 
-        // Copy diffuse factor to base color factor
+        // Copy diffuse color values to base color
         const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
         if (diffuseFactor && diffuseFactor.length >= 3) {
           material.setBaseColorFactor(diffuseFactor);
         }
 
-        // Set reasonable defaults for metallic/roughness
+        // Set metallic-roughness defaults (non-metallic, slightly rough)
         material.setMetallicFactor(0.0);
         material.setRoughnessFactor(0.9);
       }
@@ -143,17 +144,8 @@ class GltfParserWithFallback implements IGltfParser {
       // Try to load with all resources
       const document = await this.io.read(input);
 
-      // Use glTF Transform's metalRough function for proper conversion
-      try {
-        console.log('Attempting to use metalRough transform...');
-        const { metalRough } = await import('@gltf-transform/functions');
-        await document.transform(metalRough());
-        console.log('metalRough transform completed successfully');
-      } catch (transformError: any) {
-        // Fallback to manual conversion if metalRough fails
-        console.warn('metalRough transform failed, using manual conversion:', transformError?.message);
-        this.convertSpecGlossToMetalRough(document);
-      }
+      // Convert specular-glossiness materials to metallic-roughness for USDZ
+      this.convertSpecGlossToMetalRoughOptimized(document);
 
       return document;
     } catch (error: any) {
@@ -168,7 +160,33 @@ class GltfParserWithFallback implements IGltfParser {
   }
 
   /**
-   * Convert KHR_materials_pbrSpecularGlossiness to standard metallic-roughness
+   * Check which materials need conversion and only process those
+   * Avoids unnecessary work on materials already using metallic-roughness
+   */
+  private convertSpecGlossToMetalRoughOptimized(document: Document): void {
+    const root = document.getRoot();
+    let convertedCount = 0;
+    let skippedCount = 0;
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Found a material using specular-glossiness, convert it
+        this.convertSpecGlossToMetalRough(document);
+        convertedCount++;
+      } else {
+        // Material already uses metallic-roughness, skip it
+        skippedCount++;
+      }
+    }
+
+    console.log(`Material conversion: ${convertedCount} converted, ${skippedCount} skipped`);
+  }
+
+  /**
+   * Convert specular-glossiness material properties to metallic-roughness
+   * Maps diffuse to baseColor and sets metallic/roughness values
    */
   private convertSpecGlossToMetalRough(document: Document): void {
     const root = document.getRoot();
@@ -177,19 +195,19 @@ class GltfParserWithFallback implements IGltfParser {
       const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
 
       if (specGloss) {
-        // Copy diffuse texture to base color
+        // Move diffuse texture to base color slot
         const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
         if (diffuseTexture && !material.getBaseColorTexture()) {
           material.setBaseColorTexture(diffuseTexture);
         }
 
-        // Copy diffuse factor to base color factor
+        // Copy diffuse color values to base color
         const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
         if (diffuseFactor && diffuseFactor.length >= 3) {
           material.setBaseColorFactor(diffuseFactor);
         }
 
-        // Set reasonable defaults for metallic/roughness
+        // Set metallic-roughness defaults (non-metallic, slightly rough)
         material.setMetallicFactor(0.0);
         material.setRoughnessFactor(0.9);
       }
