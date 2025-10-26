@@ -88,10 +88,24 @@ export async function convertGlbToUsdz(
   try {
     const inputType = typeof input === 'string' ? STRING_CONSTANTS.INPUT_TYPES.GLTF_FILE : STRING_CONSTANTS.INPUT_TYPES.GLB_BUFFER;
 
+    // Get file size for logging
+    let fileSize: number | string = STRING_CONSTANTS.PLACEHOLDERS.NOT_APPLICABLE;
+    if (typeof input === 'string') {
+      try {
+        const fs = require('fs');
+        const stats = fs.statSync(input);
+        fileSize = stats.size;
+      } catch {
+        fileSize = STRING_CONSTANTS.PLACEHOLDERS.NOT_APPLICABLE;
+      }
+    } else {
+      fileSize = input.byteLength;
+    }
+
     logger.info('Starting GLB/GLTF to USDZ conversion', {
       stage: CONVERSION_STAGES.START,
       inputType,
-      bufferSize: typeof input === 'string' ? STRING_CONSTANTS.PLACEHOLDERS.NOT_APPLICABLE : input.byteLength
+      bufferSize: fileSize
     });
 
     // Parse GLB/GLTF document using factory pattern
