@@ -23,7 +23,6 @@ const external = [
   '@gltf-transform/core',
   '@gltf-transform/extensions',
   '@gltf-transform/functions',
-  'jszip',
   'zod',
 ];
 
@@ -89,7 +88,6 @@ const config = [
         '@gltf-transform/core': 'GLTFTransformCore',
         '@gltf-transform/extensions': 'GLTFTransformExtensions',
         '@gltf-transform/functions': 'GLTFTransformFunctions',
-        jszip: 'JSZip',
         zod: 'z',
         // Node.js built-ins
         fs: 'fs',
@@ -111,7 +109,6 @@ const config = [
       '@gltf-transform/core',
       '@gltf-transform/extensions',
       '@gltf-transform/functions',
-      'jszip',
       'zod',
       // Node.js built-ins
       'fs',

@@ -79,7 +79,7 @@
     "@gltf-transform/core": "^4.2.1",
     "@gltf-transform/extensions": "^4.2.1",
     "@gltf-transform/functions": "^4.2.1",
-    "jszip": "^3.10.1",
+    "crc-32": "^1.2.2",
     "zod": "^4.1.12"
   }
 }
