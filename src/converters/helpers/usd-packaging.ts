@@ -36,7 +36,6 @@ export async function createUsdzPackage(
   content: PackageContent,
   config?: PackageConfig
 ): Promise<Blob> {
-  console.log('[Packaging] Creating USDZ with custom ZIP writer...');
 
   // Create ZIP writer with proper alignment for optimal performance
   const zipWriter = new UsdzZipWriter({
@@ -50,7 +49,9 @@ export async function createUsdzPackage(
 
   // Add texture files
   for (const [textureId, textureData] of content.textureFiles) {
-    const textureName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}${FILE_EXTENSIONS.PNG}`;
+    // Determine the correct file extension based on texture data
+    const textureExtension = getTextureExtensionFromData(textureData);
+    const textureName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}.${textureExtension}`;
     const texturePath = `${DIRECTORY_NAMES.TEXTURES}/${textureName}`;
     zipWriter.addFile(texturePath, new Uint8Array(textureData));
   }
@@ -58,10 +59,35 @@ export async function createUsdzPackage(
   // Generate the USDZ package
   const usdzBuffer = zipWriter.generate();
 
-  console.log(`[Packaging] USDZ created successfully: ${usdzBuffer.length} bytes`);
-
   // Create and return USDZ blob
   return createUsdzBlob(usdzBuffer, config?.mimeType);
+}
+
+/**
+ * Get the correct file extension for a texture based on its data
+ */
+export function getTextureExtensionFromData(textureData: ArrayBuffer): string {
+  const uint8Array = new Uint8Array(textureData);
+
+  // Check for JPEG magic bytes (FF D8 FF)
+  if (uint8Array.length >= 3 &&
+    uint8Array[0] === 0xFF &&
+    uint8Array[1] === 0xD8 &&
+    uint8Array[2] === 0xFF) {
+    return 'jpg';
+  }
+
+  // Check for PNG magic bytes (89 50 4E 47)
+  if (uint8Array.length >= 8 &&
+    uint8Array[0] === 0x89 &&
+    uint8Array[1] === 0x50 &&
+    uint8Array[2] === 0x4E &&
+    uint8Array[3] === 0x47) {
+    return 'png';
+  }
+
+  // Default to PNG if format cannot be determined
+  return 'png';
 }
 
 /**

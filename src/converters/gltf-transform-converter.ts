@@ -7,7 +7,7 @@
 
 import { Document } from '@gltf-transform/core';
 import { GltfTransformConfig } from '../schemas';
-import { LoggerFactory } from '../utils';
+import { Logger, LoggerFactory } from '../utils';
 import { GltfParserFactory } from './parsers/gltf-parser-factory';
 import { createRootStructure } from './helpers/usd-root-builder';
 import { processGeometries } from './helpers/geometry-processor';
@@ -117,10 +117,12 @@ export async function convertGlbToUsdz(
     const sceneName = scene.getName();
     const rootStructure = createRootStructure(sceneName);
 
-    // Process geometries
+    // Process geometries using embedded approach for optimal USDZ compatibility
+    // Geometry data is embedded directly in the main USD file instead of separate files
+    // This ensures proper rendering across different USD viewers and platforms
     const geometryResult = processGeometries(root.listMeshes());
 
-    logger.info(`Generated ${geometryResult.geometryCounter} geometry files`, {
+    logger.info(`Processed ${geometryResult.geometryCounter} geometries (embedded approach)`, {
       stage: CONVERSION_STAGES.GEOMETRY
     });
 
@@ -141,6 +143,9 @@ export async function convertGlbToUsdz(
         hierarchyContext
       );
     }
+
+    // Add materials to root level for proper USDZ structure
+    rootStructure.rootNode.addChild(rootStructure.materialsNode);
 
     logger.info(
       `Generated ${hierarchyContext.materialCounter} materials with ${hierarchyContext.textureFiles.size} textures`,
@@ -196,7 +201,7 @@ export async function convertGlbToUsdz(
  */
 async function parseGltfOrGlbDocument(
   input: ArrayBuffer | string,
-  logger: any
+  logger: Logger
 ): Promise<Document> {
   const inputType = typeof input === 'string' ? STRING_CONSTANTS.INPUT_TYPES.FILE : STRING_CONSTANTS.INPUT_TYPES.BUFFER;
   const fileType = typeof input === 'string'
@@ -227,10 +232,10 @@ async function parseGltfOrGlbDocument(
     });
 
     return document;
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`Failed to parse ${fileType}`, {
       stage: CONVERSION_STAGES.ERROR,
-      error: error?.message || String(error)
+      error: error instanceof Error ? error.message : String(error)
     });
     throw error;
   }

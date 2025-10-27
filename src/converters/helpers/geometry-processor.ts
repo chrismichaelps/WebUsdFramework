@@ -4,6 +4,7 @@
  * Processes GLTF meshes and creates USD geometry files.
  */
 
+import { Mesh } from '@gltf-transform/core';
 import { buildUsdGeometry, wrapGeometryInUsdFile } from '../usd-geometry-builder';
 import { buildGeometryPath, buildGeometryName } from './usd-packaging';
 import { PrimitiveMetadata } from './usd-hierarchy-builder';
@@ -18,9 +19,12 @@ export interface GeometryProcessingResult {
 }
 
 /**
- * Processes all meshes and creates geometry files
+ * Processes all meshes for embedded geometry approach
+ * Instead of creating separate geometry files, we collect the data to embed directly in the main USD
+ * This approach ensures optimal USDZ compatibility across different viewers and platforms
  */
-export function processGeometries(meshes: any[]): GeometryProcessingResult {
+export function processGeometries(meshes: Mesh[]): GeometryProcessingResult {
+  // We're not creating separate files anymore - everything goes into the main USD
   const geometryFiles = new Map<string, ArrayBuffer>();
   const primitiveMetadata: PrimitiveMetadata[] = [];
   let geometryCounter = 0;
@@ -29,9 +33,12 @@ export function processGeometries(meshes: any[]): GeometryProcessingResult {
     const primitives = mesh.listPrimitives();
 
     for (let i = 0; i < primitives.length; i++) {
+      // Process the primitive to collect geometry data for embedding
+      // Data will be embedded directly in the main USD file for optimal compatibility
       const result = processPrimitive(mesh, i, geometryCounter);
 
-      geometryFiles.set(result.filePath, result.buffer);
+      // Skip adding to geometryFiles - we're embedding everything in the main USD now
+      // geometryFiles.set(result.filePath, result.buffer);
       primitiveMetadata.push(result.metadata);
 
       geometryCounter++;
@@ -40,7 +47,7 @@ export function processGeometries(meshes: any[]): GeometryProcessingResult {
 
   return {
     primitiveMetadata,
-    geometryFiles,
+    geometryFiles, // Empty - all geometry data embedded in main USD
     geometryCounter
   };
 }
@@ -55,7 +62,7 @@ interface PrimitiveProcessingResult {
 }
 
 function processPrimitive(
-  mesh: any,
+  mesh: Mesh,
   primitiveIndex: number,
   geometryCounter: number
 ): PrimitiveProcessingResult {

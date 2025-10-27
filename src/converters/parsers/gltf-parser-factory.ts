@@ -148,9 +148,9 @@ class GltfParserWithFallback implements IGltfParser {
       this.convertSpecGlossToMetalRoughOptimized(document);
 
       return document;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle missing external resources (textures)
-      if (error?.message && error.message.includes('ENOENT')) {
+      if (error instanceof Error && error.message.includes('ENOENT')) {
         const document = await this.parseWithPartialResources(input, error);
         this.convertSpecGlossToMetalRough(document);
         return document;
@@ -234,8 +234,8 @@ class GltfParserWithFallback implements IGltfParser {
           try {
             const bufferData = fs.readFileSync(bufferPath);
             resources[buffer.uri] = new Uint8Array(bufferData);
-          } catch (bufferError: any) {
-            console.warn(`Failed to load buffer: ${buffer.uri}`, bufferError?.message);
+          } catch (bufferError: unknown) {
+            console.warn(`Failed to load buffer: ${buffer.uri}`, bufferError instanceof Error ? bufferError.message : String(bufferError));
           }
         }
       }

@@ -109,9 +109,36 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
   if (uvs) {
     const uvArray = uvs.getArray();
     if (uvArray && uvArray.length > 0) {
+      // Normalize UV coordinates to [0,1] range for proper texture mapping
+
+      // Find min/max values for normalization
+      let minU = Infinity, maxU = -Infinity;
+      let minV = Infinity, maxV = -Infinity;
+
+      for (let i = 0; i < uvArray.length; i += 2) {
+        const u = uvArray[i];
+        const v = uvArray[i + 1];
+        minU = Math.min(minU, u);
+        maxU = Math.max(maxU, u);
+        minV = Math.min(minV, v);
+        maxV = Math.max(maxV, v);
+      }
+
+      // Calculate normalization factors
+      const uSpan = maxU - minU;
+      const vSpan = maxV - minV;
+
+      // Generate normalized UV tuples
       const uvTuples: string[] = [];
       for (let i = 0; i < uvArray.length; i += 2) {
-        uvTuples.push(`(${uvArray[i]}, ${uvArray[i + 1]})`);
+        const originalU = uvArray[i];
+        const originalV = uvArray[i + 1];
+
+        // Normalize to [0,1] range
+        const normalizedU = uSpan > 0 ? (originalU - minU) / uSpan : 0;
+        const normalizedV = vSpan > 0 ? (originalV - minV) / vSpan : 0;
+
+        uvTuples.push(`(${normalizedU}, ${normalizedV})`);
       }
       result.uvs = `[${uvTuples.join(', ')}]`;
     }
@@ -251,17 +278,17 @@ function calculateBounds(positions: Float32Array | Int8Array | Int16Array | Uint
  */
 function generatePositions(positions: Float32Array | Int8Array | Int16Array | Uint8Array | Uint16Array | Uint32Array): string {
   const pointCount = positions.length / 3;
-  let content = `    point3f[] points = [`;
+  let content = `    point3f[] points = [\n`;
 
   for (let i = 0; i < pointCount; i++) {
     const x = positions[i * 3];
     const y = positions[i * 3 + 1];
     const z = positions[i * 3 + 2];
-    content += `(${x}, ${y}, ${z})`;
-    if (i < pointCount - 1) content += `, `;
+    content += `        (${x}, ${y}, ${z})`;
+    if (i < pointCount - 1) content += `,\n`;
   }
 
-  content += `]\n`;
+  content += `\n    ]\n`;
   return content;
 }
 
@@ -272,12 +299,12 @@ function generateFaceData(indices: Uint32Array | Uint16Array | Uint8Array | Int8
   const faceCount = indices.length / 3;
   let content = `    int[] faceVertexCounts = [${Array(faceCount).fill(3).join(', ')}]\n`;
 
-  content += `    int[] faceVertexIndices = [`;
+  content += `    int[] faceVertexIndices = [\n`;
   for (let i = 0; i < indices.length; i++) {
-    content += `${indices[i]}`;
-    if (i < indices.length - 1) content += `, `;
+    content += `        ${indices[i]}`;
+    if (i < indices.length - 1) content += `,\n`;
   }
-  content += `]\n`;
+  content += `\n    ]\n`;
 
   return content;
 }
@@ -287,38 +314,62 @@ function generateFaceData(indices: Uint32Array | Uint16Array | Uint8Array | Int8
  */
 function generateNormals(normals: Float32Array | Int8Array | Int16Array | Uint8Array | Uint16Array | Uint32Array): string {
   const normalCount = normals.length / 3;
-  let content = `    normal3f[] normals = [`;
+  let content = `    normal3f[] normals = [\n`;
 
   for (let i = 0; i < normalCount; i++) {
     const x = normals[i * 3];
     const y = normals[i * 3 + 1];
     const z = normals[i * 3 + 2];
-    content += `(${x}, ${y}, ${z})`;
-    if (i < normalCount - 1) content += `, `;
+    content += `        (${x}, ${y}, ${z})`;
+    if (i < normalCount - 1) content += `,\n`;
   }
 
-  content += `]\n`;
+  content += `\n    ]\n`;
   content += `    uniform token primvars:normals:interpolation = "vertex"\n`;
 
   return content;
 }
 
 /**
- * Generate USD UV array
+ * Generate USD UV array with normalized coordinates
  */
 function generateUVs(uvs: Float32Array | Int8Array | Int16Array | Uint8Array | Uint16Array | Uint32Array): string {
   const uvCount = uvs.length / 2;
-  let content = `    float2[] primvars:st = [`;
+
+  // Normalize UV coordinates to [0,1] range for proper texture mapping
+
+  // Find min/max values for normalization
+  let minU = Infinity, maxU = -Infinity;
+  let minV = Infinity, maxV = -Infinity;
 
   for (let i = 0; i < uvCount; i++) {
     const u = uvs[i * 2];
-    const v = 1.0 - uvs[i * 2 + 1]; // Flip V for USD
-    content += `(${u}, ${v})`;
-    if (i < uvCount - 1) content += `, `;
+    const v = uvs[i * 2 + 1];
+    minU = Math.min(minU, u);
+    maxU = Math.max(maxU, u);
+    minV = Math.min(minV, v);
+    maxV = Math.max(maxV, v);
   }
 
-  content += `]\n`;
-  content += `    uniform token primvars:st:interpolation = "vertex"\n`;
+  // Calculate normalization factors
+  const uSpan = maxU - minU;
+  const vSpan = maxV - minV;
+
+  // Generate USD content with normalized UV coordinates
+  let content = `    texCoord2f[] primvars:st = [\n`;
+  for (let i = 0; i < uvCount; i++) {
+    const originalU = uvs[i * 2];
+    const originalV = uvs[i * 2 + 1];
+
+    // Normalize to [0,1] range
+    const normalizedU = uSpan > 0 ? (originalU - minU) / uSpan : 0;
+    const normalizedV = vSpan > 0 ? (originalV - minV) / vSpan : 0;
+
+    content += `        (${normalizedU}, ${normalizedV})`;
+    if (i < uvCount - 1) content += `,\n`;
+  }
+  content += `\n    ]\n`;
+  content += `    primvars:st:interpolation = "vertex"\n`;
 
   return content;
 }
@@ -339,6 +390,7 @@ export function wrapGeometryInUsdFile(geometryContent: string, meshName: string 
     defaultPrim = "${meshName}"
     metersPerUnit = 1
     upAxis = "Y"
+    
 )
 
 def Mesh "${meshName}"

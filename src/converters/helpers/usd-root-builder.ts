@@ -95,6 +95,7 @@ function createMaterialsNode(rootNode: UsdNode): UsdNode {
     USD_NODE_TYPES.SCOPE
   );
 
+  // Add materials node as child of root
   rootNode.addChild(materialsNode);
   return materialsNode;
 }

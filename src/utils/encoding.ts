@@ -37,7 +37,7 @@ export function generateUniqueId(prefix: string = ''): string {
  * @param type - The type of object (e.g., 'Texture', 'Material', 'Mesh')
  * @returns A deterministic ID based on object properties
  */
-export function generateObjectId(object: any, type: string): string {
+export function generateObjectId(object: { getName?: () => string; toString: () => string }, type: string): string {
   const name = object.getName?.() || '';
   const input = `${type}_${name}_${object.toString()}`;
   return generateId(input);
