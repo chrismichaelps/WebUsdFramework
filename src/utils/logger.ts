@@ -20,31 +20,31 @@ export enum LogLevel {
 export interface LoggerOptions {
   level?: LogLevel;
   timestamp?: boolean;
-  collapsed?: boolean | ((getState: () => any, operation: any) => boolean);
+  collapsed?: boolean | ((getState: () => unknown, operation: unknown) => boolean);
   duration?: boolean;
   diff?: boolean;
   prefix?: string;
-  predicate?: (getState: () => any, operation: any) => boolean;
-  stateTransformer?: (state: any) => any;
-  operationTransformer?: (operation: any) => any;
+  predicate?: (getState: () => unknown, operation: unknown) => boolean;
+  stateTransformer?: (state: unknown) => unknown;
+  operationTransformer?: (operation: unknown) => unknown;
 }
 
 /**
  * Logger Context Interface
  */
 export interface LoggerContext {
-  operation?: string;
-  stage?: string;
-  filePath?: string;
-  fileSize?: number;
-  duration?: number;
+  operation?: string | undefined;
+  stage?: string | undefined;
+  filePath?: string | undefined;
+  fileSize?: number | undefined;
+  duration?: number | undefined;
   [key: string]: unknown;
 }
 
 /**
  * Internal Logger Class
  */
-export class InternalLogger {
+export class Logger {
   private options: Required<LoggerOptions>;
   private startTimes: Map<string, number> = new Map();
 
@@ -277,7 +277,7 @@ export class InternalLogger {
   /**
    * Log operation with state transitions
    */
-  logOperation(operation: string, prevState?: any, nextState?: any, duration?: number): void {
+  logOperation(operation: string, prevState?: unknown, nextState?: unknown, duration?: number): void {
     const colors = this.getStructuredColors();
     const time = this.formatTimestamp();
     const timeStr = time ? ` @ ${time}` : '';
@@ -305,7 +305,7 @@ export class InternalLogger {
   /**
    * Log state differences
    */
-  logStateDiff(prevState: any, nextState: any, operation?: string): void {
+  logStateDiff(prevState: unknown, nextState: unknown, operation?: string): void {
     const colors = this.getStructuredColors();
 
     if (operation) {
@@ -342,7 +342,7 @@ export class InternalLogger {
 /**
  * Default logger instance
  */
-export const logger = new InternalLogger({
+export const logger = new Logger({
   level: LogLevel.INFO,
   timestamp: true,
   collapsed: false,
@@ -354,8 +354,8 @@ export const logger = new InternalLogger({
 /**
  * Create logger with custom options
  */
-export function createLogger(options: LoggerOptions): InternalLogger {
-  return new InternalLogger(options);
+export function createLogger(options: LoggerOptions): Logger {
+  return new Logger(options);
 }
 
 /**
@@ -365,7 +365,7 @@ export const LoggerFactory = {
   /**
    * Create logger for conversion operations
    */
-  forConversion(): InternalLogger {
+  forConversion(): Logger {
     return createLogger({
       level: LogLevel.INFO,
       timestamp: true,
@@ -377,7 +377,7 @@ export const LoggerFactory = {
   /**
    * Create logger for debug operations
    */
-  forDebug(): InternalLogger {
+  forDebug(): Logger {
     return createLogger({
       level: LogLevel.DEBUG,
       timestamp: true,
@@ -389,7 +389,7 @@ export const LoggerFactory = {
   /**
    * Create logger for file operations
    */
-  forFileOperations(): InternalLogger {
+  forFileOperations(): Logger {
     return createLogger({
       level: LogLevel.INFO,
       timestamp: true,
@@ -401,7 +401,7 @@ export const LoggerFactory = {
   /**
    * Create structured logger with diff support
    */
-  forStructuredLogging(): InternalLogger {
+  forStructuredLogging(): Logger {
     return createLogger({
       level: LogLevel.INFO,
       timestamp: true,

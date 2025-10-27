@@ -29,7 +29,39 @@ class GlbParser implements IGltfParser {
     if (typeof input === 'string') {
       throw new Error('GlbParser expects ArrayBuffer, received string path');
     }
-    return await this.io.readBinary(new Uint8Array(input));
+    const document = await this.io.readBinary(new Uint8Array(input));
+    this.convertSpecGlossToMetalRough(document);
+    return document;
+  }
+
+  /**
+   * Convert specular-glossiness materials to metallic-roughness
+   * Lightweight conversion that copies texture references without processing
+   */
+  private convertSpecGlossToMetalRough(document: Document): void {
+    const root = document.getRoot();
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Move diffuse texture to base color slot
+        const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
+        if (diffuseTexture && !material.getBaseColorTexture()) {
+          material.setBaseColorTexture(diffuseTexture);
+        }
+
+        // Copy diffuse color values to base color
+        const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
+        if (diffuseFactor && diffuseFactor.length >= 3) {
+          material.setBaseColorFactor(diffuseFactor);
+        }
+
+        // Set metallic-roughness defaults (non-metallic, slightly rough)
+        material.setMetallicFactor(0.0);
+        material.setRoughnessFactor(0.9);
+      }
+    }
   }
 
   getType(): string {
@@ -53,7 +85,39 @@ class GltfParser implements IGltfParser {
     }
 
     // Use NodeIO.read() which handles external .bin and texture files
-    return await this.io.read(input);
+    const document = await this.io.read(input);
+    this.convertSpecGlossToMetalRough(document);
+    return document;
+  }
+
+  /**
+   * Convert specular-glossiness materials to metallic-roughness
+   * Maps diffuse properties to baseColor for USDZ
+   */
+  private convertSpecGlossToMetalRough(document: Document): void {
+    const root = document.getRoot();
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Move diffuse texture to base color slot
+        const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
+        if (diffuseTexture && !material.getBaseColorTexture()) {
+          material.setBaseColorTexture(diffuseTexture);
+        }
+
+        // Copy diffuse color values to base color
+        const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
+        if (diffuseFactor && diffuseFactor.length >= 3) {
+          material.setBaseColorFactor(diffuseFactor);
+        }
+
+        // Set metallic-roughness defaults (non-metallic, slightly rough)
+        material.setMetallicFactor(0.0);
+        material.setRoughnessFactor(0.9);
+      }
+    }
   }
 
   getType(): string {
@@ -66,11 +130,9 @@ class GltfParser implements IGltfParser {
  */
 class GltfParserWithFallback implements IGltfParser {
   private io: NodeIO;
-  private filePath: string;
 
-  constructor(filePath: string) {
+  constructor(_filePath: string) {
     this.io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-    this.filePath = filePath;
   }
 
   async parse(input: ArrayBuffer | string): Promise<Document> {
@@ -80,19 +142,81 @@ class GltfParserWithFallback implements IGltfParser {
 
     try {
       // Try to load with all resources
-      return await this.io.read(input);
-    } catch (error: any) {
+      const document = await this.io.read(input);
+
+      // Convert specular-glossiness materials to metallic-roughness for USDZ
+      this.convertSpecGlossToMetalRoughOptimized(document);
+
+      return document;
+    } catch (error: unknown) {
       // Handle missing external resources (textures)
-      if (error?.message && error.message.includes('ENOENT')) {
-        return await this.parseWithPartialResources(input, error);
+      if (error instanceof Error && error.message.includes('ENOENT')) {
+        const document = await this.parseWithPartialResources(input, error);
+        this.convertSpecGlossToMetalRough(document);
+        return document;
       }
       throw error;
     }
   }
 
+  /**
+   * Check which materials need conversion and only process those
+   * Avoids unnecessary work on materials already using metallic-roughness
+   */
+  private convertSpecGlossToMetalRoughOptimized(document: Document): void {
+    const root = document.getRoot();
+    let convertedCount = 0;
+    let skippedCount = 0;
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Found a material using specular-glossiness, convert it
+        this.convertSpecGlossToMetalRough(document);
+        convertedCount++;
+      } else {
+        // Material already uses metallic-roughness, skip it
+        skippedCount++;
+      }
+    }
+
+    console.log(`Material conversion: ${convertedCount} converted, ${skippedCount} skipped`);
+  }
+
+  /**
+   * Convert specular-glossiness material properties to metallic-roughness
+   * Maps diffuse to baseColor and sets metallic/roughness values
+   */
+  private convertSpecGlossToMetalRough(document: Document): void {
+    const root = document.getRoot();
+
+    for (const material of root.listMaterials()) {
+      const specGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness');
+
+      if (specGloss) {
+        // Move diffuse texture to base color slot
+        const diffuseTexture = (specGloss as any).getDiffuseTexture?.();
+        if (diffuseTexture && !material.getBaseColorTexture()) {
+          material.setBaseColorTexture(diffuseTexture);
+        }
+
+        // Copy diffuse color values to base color
+        const diffuseFactor = (specGloss as any).getDiffuseFactor?.();
+        if (diffuseFactor && diffuseFactor.length >= 3) {
+          material.setBaseColorFactor(diffuseFactor);
+        }
+
+        // Set metallic-roughness defaults (non-metallic, slightly rough)
+        material.setMetallicFactor(0.0);
+        material.setRoughnessFactor(0.9);
+      }
+    }
+  }
+
   private async parseWithPartialResources(
     filePath: string,
-    originalError: Error
+    _originalError: Error
   ): Promise<Document> {
     const fs = require('fs');
     const path = require('path');
@@ -110,8 +234,8 @@ class GltfParserWithFallback implements IGltfParser {
           try {
             const bufferData = fs.readFileSync(bufferPath);
             resources[buffer.uri] = new Uint8Array(bufferData);
-          } catch (bufferError: any) {
-            console.warn(`Failed to load buffer: ${buffer.uri}`, bufferError?.message);
+          } catch (bufferError: unknown) {
+            console.warn(`Failed to load buffer: ${buffer.uri}`, bufferError instanceof Error ? bufferError.message : String(bufferError));
           }
         }
       }

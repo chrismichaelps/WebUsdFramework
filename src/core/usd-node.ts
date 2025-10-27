@@ -17,8 +17,8 @@ import { UsdPathSchema } from '../validation';
  */
 interface USDProperty {
   key: string;
-  value: any;
-  type?: string;
+  value: string | number | boolean | string[] | number[] | boolean[] | object;
+  type?: string | undefined;
 }
 
 /**
@@ -62,7 +62,13 @@ export class UsdNode {
   /**
    * Set a property on this node (for USDZ generation)
    */
-  setProperty(key: string, value: any, type?: string): this {
+  setProperty(key: string, value: string | number | boolean | string[] | number[] | boolean[] | object, type?: string): this {
+    // Check if property already exists and remove it (ignore type for comparison)
+    const existingIndex = this._properties.findIndex(p => p.key === key);
+    if (existingIndex !== -1) {
+      this._properties.splice(existingIndex, 1);
+    }
+
     this._properties.push({ key, value, type });
     return this;
   }
@@ -126,7 +132,7 @@ export class UsdNode {
       // Add node definition without parentheses
       usda += `${space}${defOrOver} "${nodeName}"\n`;
       usda += `${space}{\n`;
-      const contentLines = usdContentProp.value.split('\n');
+      const contentLines = (usdContentProp.value as string).split('\n');
       for (const line of contentLines) {
         if (line.trim()) {
           usda += `${space}    ${line}\n`;
@@ -139,12 +145,24 @@ export class UsdNode {
     // For shader nodes, move all properties to the node body
     const isShaderNode = this._typeName === "Shader";
 
-    // Separate token attributes, transform properties, and rel properties from other properties
+    // Separate token attributes, transform properties, rel properties, and array properties from other properties
     const tokenAttributes = isShaderNode ? [] : this._properties.filter(p => p.key.includes(":") && p.type === "token" && !p.key.includes(".connect"));
-    const tokenConnections = this._properties.filter(p => p.key.includes(".connect") && p.type === "token");
+    const tokenConnections = this._properties.filter(p => p.key.includes(".connect") && (p.type === "token" || p.type === "connection") && !isShaderNode);
     const transformProperties = this._properties.filter(p => p.key === "xformOp:transform" || p.key === "xformOpOrder");
     const relProperties = this._properties.filter(p => p.type === "rel");
-    const otherProperties = isShaderNode ? [] : this._properties.filter(p => !(p.key.includes(":") && p.type === "token") && p.key !== "xformOp:transform" && p.key !== "xformOpOrder" && p.type !== "rel" && !p.key.includes(".connect"));
+    const interpolationProperties = this._properties.filter(p => p.type === "interpolation");
+    const arrayProperties = this._properties.filter(p =>
+      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st') || p.key === 'uniform token primvars:st:interpolation' || p.key === 'subdivisionScheme')
+    );
+    const otherProperties = isShaderNode ? [] : this._properties.filter(p =>
+      !(p.key.includes(":") && p.type === "token") &&
+      p.key !== "xformOp:transform" &&
+      p.key !== "xformOpOrder" &&
+      p.type !== "rel" &&
+      p.type !== "interpolation" && // Exclude interpolation properties
+      !p.key.includes(".connect") &&
+      !arrayProperties.some(ap => ap.key === p.key) // Exclude array properties from otherProperties
+    );
     const shaderProperties = isShaderNode ? this._properties : [];
 
     // Add properties (excluding token attributes)
@@ -155,15 +173,26 @@ export class UsdNode {
         continue;
       }
 
-      const value = Array.isArray(prop.value)
-        ? `[${prop.value.map(v => JSON.stringify(v)).join(", ")}]`
-        : JSON.stringify(prop.value);
+      // Handle arrays properly - don't double-quote them
+      let value;
+      if (Array.isArray(prop.value)) {
+        // For arrays, don't wrap in quotes - just output the raw array
+        value = `[${prop.value.join(", ")}]`;
+      } else {
+        value = JSON.stringify(prop.value);
+      }
 
       if (prop.key === "prepend references") {
         // Don't JSON.stringify references, they should be raw strings
         propertiesAndMetadata += `${space}    prepend references = ${prop.value}\n`;
       } else if (prop.key === "prepend apiSchemas") {
-        propertiesAndMetadata += `${space}    prepend apiSchemas = ${value}\n`;
+        // For apiSchemas, quote each element as a string
+        if (Array.isArray(prop.value)) {
+          const quotedArray = prop.value.map(item => `"${item}"`).join(", ");
+          propertiesAndMetadata += `${space}    prepend apiSchemas = [${quotedArray}]\n`;
+        } else {
+          propertiesAndMetadata += `${space}    prepend apiSchemas = ${value}\n`;
+        }
       } else if (prop.key === "xformOp:transform") {
         // Special handling for transform to match original format
         propertiesAndMetadata += `${space}    matrix4d ${prop.key} = ${prop.value}\n`;
@@ -203,8 +232,42 @@ export class UsdNode {
       usda += `${space}${defOrOver} "${nodeName}"\n`;
     }
 
-    if (this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0) {
+    if (this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0) {
       usda += `${space}{\n`;
+
+      // Add array properties first (in node body)
+      for (const prop of arrayProperties) {
+        // Extract type declaration from the key (e.g., 'int[] faceVertexCounts' -> 'int[]')
+        const typeDeclaration = prop.key.split(' ')[0];
+        const propertyName = prop.key.split(' ').slice(1).join(' ');
+
+        if (typeDeclaration) {
+          // Check if this is a texCoord2f property and if we have interpolation metadata
+          if (prop.type === 'texcoord') {
+            // Find the associated interpolation property
+            const interpolationProp = interpolationProperties.find(ip => ip.key.includes(propertyName));
+            if (interpolationProp) {
+              usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
+              usda += `${space}        interpolation = "${interpolationProp.value}"\n`;
+              usda += `${space}    )\n`;
+            } else {
+              usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+            }
+          } else if (prop.type === 'raw') {
+            // Handle raw type properties (geometry data) - don't quote the value
+            usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+          } else {
+            usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+          }
+        } else {
+          // Handle raw type properties without type declaration
+          if (prop.type === 'raw') {
+            usda += `${space}    ${propertyName} = ${prop.value}\n`;
+          } else {
+            usda += `${space}    ${propertyName} = ${prop.value}\n`;
+          }
+        }
+      }
 
       // Add shader properties first (in node body)
       for (const prop of shaderProperties) {
@@ -222,7 +285,8 @@ export class UsdNode {
             usda += `${space}    ${prop.key} = ${prop.value}\n`;
             continue;
           } else if (Array.isArray(prop.value)) {
-            value = `[${prop.value.map(v => JSON.stringify(v)).join(", ")}]`;
+            // For arrays, don't wrap in quotes - just output the raw array
+            value = `[${prop.value.join(", ")}]`;
           } else if (prop.type === 'asset' || prop.key.includes("inputs:file")) {
             // For asset types, don't quote the value (it's already formatted with @...@)
             usda += `${space}    asset ${prop.key.replace('asset ', '')} = ${prop.value}\n`;
@@ -244,7 +308,8 @@ export class UsdNode {
             value = JSON.stringify(prop.value);
           } else if (prop.type === 'token') {
             // For token types, don't quote if it's not already quoted
-            value = prop.value.startsWith('"') ? prop.value : JSON.stringify(prop.value);
+            const valueStr = prop.value as string;
+            value = valueStr.startsWith('"') ? valueStr : JSON.stringify(valueStr);
           } else {
             value = JSON.stringify(prop.value);
           }
@@ -272,14 +337,18 @@ export class UsdNode {
       // Add token connections (in node body, without quotes)
       for (const prop of tokenConnections) {
         // Remove quotes from connection paths
-        const value = prop.value.replace(/"([^"]+)"/g, '$1');
-        usda += `${space}    token ${prop.key} = ${value}\n`;
+        const valueStr = prop.value as string;
+        const value = valueStr.replace(/"([^"]+)"/g, '$1');
+        // Don't add 'token' prefix if the key already contains 'token'
+        const key = prop.key.startsWith('token ') ? prop.key.substring(6) : prop.key;
+        usda += `${space}    token ${key} = ${value}\n`;
       }
 
       // Add rel properties (in node body)
       for (const prop of relProperties) {
         // Remove quotes from connection paths for rel properties
-        const value = prop.value.replace(/"([^"]+)"/g, '$1');
+        const valueStr = prop.value as string;
+        const value = valueStr.replace(/"([^"]+)"/g, '$1');
         usda += `${space}    rel ${prop.key} = ${value}\n`;
       }
 

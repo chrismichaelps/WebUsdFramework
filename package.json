@@ -1,8 +1,8 @@
 {
   "name": "WebUsdFramework",
   "version": "1.0.0",
-  "description": "Library for converting GLB/GLTF 3D models to USDZ format.",
-  "private": true,
+  "description": "Node.js library for converting GLB/GLTF 3D models to USDZ format.",
+  "private": false,
   "packageManager": "pnpm@10.18.3",
   "main": "build/index.js",
   "module": "build/index.esm.js",
@@ -11,18 +11,23 @@
     ".": {
       "types": "./build/index.d.ts",
       "import": "./build/index.esm.js",
-      "require": "./build/index.js"
+      "require": "./build/index.js",
+      "node": "./build/index.js"
     },
-    "./cli": {
-      "types": "./build/cli/index.d.ts",
-      "import": "./build/cli/index.esm.js",
-      "require": "./build/cli/index.js"
-    }
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "build/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
   },
   "scripts": {
     "build": "rollup -c",
-    "build:demo": "cd apps/demo && pnpm run build",
-    "dev": "cd apps/demo && pnpm run dev",
+    "build:watch": "rollup -c --watch",
+    "prepublishOnly": "pnpm run clean && pnpm run build",
     "test": "vitest",
     "test:run": "vitest run",
     "test:watch": "vitest watch",
@@ -32,9 +37,11 @@
     "test:converters": "vitest run src/__tests__/converters.test.ts",
     "test:validation": "vitest run src/__tests__/validation.test.ts",
     "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf build test-output test-temp coverage",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "clean": "rm -rf build",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.8",
@@ -71,10 +78,8 @@
   "dependencies": {
     "@gltf-transform/core": "^4.2.1",
     "@gltf-transform/extensions": "^4.2.1",
-    "@types/archiver": "^6.0.3",
-    "archiver": "^7.0.1",
-    "csv-parser": "^3.2.0",
-    "jszip": "^3.10.1",
+    "@gltf-transform/functions": "^4.2.1",
+    "crc-32": "^1.2.2",
     "zod": "^4.1.12"
   }
 }
