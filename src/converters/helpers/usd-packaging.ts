@@ -47,6 +47,11 @@ export async function createUsdzPackage(
   const usdContentBytes = new TextEncoder().encode(content.usdContent);
   zipWriter.addFile(USD_FILE_NAMES.MODEL, usdContentBytes);
 
+  // Add geometry files
+  for (const [geometryPath, geometryData] of content.geometryFiles) {
+    zipWriter.addFile(geometryPath, new Uint8Array(geometryData));
+  }
+
   // Add texture files
   for (const [textureId, textureData] of content.textureFiles) {
     // Determine the correct file extension based on texture data

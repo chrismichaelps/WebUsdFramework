@@ -232,7 +232,10 @@ export class UsdNode {
       usda += `${space}${defOrOver} "${nodeName}"\n`;
     }
 
-    if (this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0) {
+    // Check if we need braces
+    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0;
+
+    if (needsBraces) {
       usda += `${space}{\n`;
 
       // Add array properties first (in node body)

@@ -1,7 +1,7 @@
 /**
  * WebUSD Framework
  * 
- * Converts GLB/GLTF files to USDZ format.
+ * Converts GLB/GLTF/OBJ files to USDZ format.
  * 
  * @example
  * ```typescript
@@ -12,12 +12,13 @@
  *   debugOutputDir: './output'
  * });
  * 
- * const glbBuffer = await fetch('model.glb').then(r => r.arrayBuffer());
  * const usdzBlob = await usd.convert('model.glb');
+ * const usdzBlob2 = await usd.convert('model.obj');
  * ```
  */
 
 import { convertGlbToUsdz } from './converters/gltf-transform-converter';
+import { convertObjToUsdz } from './converters/obj-converter';
 import { UsdErrorFactory } from './errors';
 import { WebUsdConfigSchema, type WebUsdConfig } from './schemas';
 import { ZodError } from 'zod';
@@ -80,18 +81,36 @@ export class WebUsdFramework {
 
       const fileExtension = path.extname(filePath).toLowerCase();
 
-      // For GLTF files, pass the file path directly to handle external resources
+      // Handle different file types
       if (fileExtension === '.gltf') {
         return await convertGlbToUsdz(filePath, this.config);
+      } else if (fileExtension === '.obj') {
+        // Convert WebUsdConfig to ObjConverterConfig
+        const objConfig = {
+          debug: this.config.debug,
+          debugOutputDir: this.config.debugOutputDir,
+          upAxis: this.config.upAxis,
+          metersPerUnit: this.config.metersPerUnit,
+          materialPerSmoothingGroup: true,
+          useOAsMesh: true,
+          useIndices: true,
+          disregardNormals: false
+        };
+        return await convertObjToUsdz(filePath, objConfig);
+      } else if (fileExtension === '.glb') {
+        // For GLB files, read as buffer
+        const fileBuffer = fs.readFileSync(filePath);
+        const glbBuffer = fileBuffer.buffer.slice(
+          fileBuffer.byteOffset,
+          fileBuffer.byteOffset + fileBuffer.byteLength
+        );
+        return await convertGlbToUsdz(glbBuffer, this.config);
+      } else {
+        throw UsdErrorFactory.conversionError(
+          `Unsupported file format: ${fileExtension}`,
+          'unsupported_format'
+        );
       }
-
-      // For GLB files, read as buffer
-      const fileBuffer = fs.readFileSync(filePath);
-      const glbBuffer = fileBuffer.buffer.slice(
-        fileBuffer.byteOffset,
-        fileBuffer.byteOffset + fileBuffer.byteLength
-      );
-      return await convertGlbToUsdz(glbBuffer, this.config);
     }
 
     // Handle ArrayBuffer input (GLB only)
