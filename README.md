@@ -158,9 +158,6 @@ const usdzBlob = await usd.convert('./model.obj');
 5. Apply transformations for proper scaling and centering
 6. Package as USDZ with 64-byte alignment
 
-```
-
-...
 
 ## **:handshake: Contributing**
 
@@ -202,4 +199,3 @@ _*Chris M. Perez*_
 ---
 
 Copyright ©2025 [WebUsdFramework](https://github.com/chrismichaelps/WebUsdFramework).
-```
