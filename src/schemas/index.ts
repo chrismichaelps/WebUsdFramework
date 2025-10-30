@@ -6,16 +6,7 @@
 
 import { z } from 'zod';
 import { DEFAULT_CONFIG } from '../constants/config';
-
-/**
- * Supported Up Axes Schema
- */
-export const UpAxisSchema = z.enum(['Y', 'Z']);
-
-/**
- * Supported Compression Types Schema
- */
-export const CompressionSchema = z.enum(['STORE', 'DEFLATE']);
+import { UpAxisSchema, CompressionSchema } from './base-schemas';
 
 /**
  * WebUSD Configuration Schema
@@ -102,3 +93,9 @@ export type FilePath = z.infer<typeof FilePathSchema>;
 export type DirectoryPath = z.infer<typeof DirectoryPathSchema>;
 export type UsdPath = z.infer<typeof UsdPathSchema>;
 export type UsdAttributeValue = z.infer<typeof UsdAttributeValueSchema>;
+
+// Re-export base schemas
+export { UpAxisSchema, CompressionSchema } from './base-schemas';
+
+// Re-export OBJ schemas
+export { ObjConverterConfigSchema, type ObjConverterConfig } from './obj-schemas';
