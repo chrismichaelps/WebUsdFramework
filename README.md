@@ -1,6 +1,6 @@
 # WebUsdFramework
 
-Library for converting GLB/GLTF 3D models to USDZ format.
+Library for converting GLB/GLTF/OBJ 3D models to USDZ format.
 
 This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
 
@@ -34,6 +34,9 @@ const usdzBlob = await usd.convert('./model.glb');
 
 // Convert GLTF file to USDZ
 const usdzBlob2 = await usd.convert('./model.gltf');
+
+// Convert OBJ file to USDZ
+const usdzBlob3 = await usd.convert('./model.obj');
 
 // Save the result
 const fs = require('fs');
@@ -77,6 +80,9 @@ const usdzBlob = await usd.convert(glbBuffer);
 // From file path - GLTF files
 const usdzBlob2 = await usd.convert('./model.gltf');
 
+// From file path - OBJ files
+const usdzBlob3 = await usd.convert('./model.obj');
+
 // Save the result
 const buffer = await usdzBlob.arrayBuffer();
 fs.writeFileSync('output.usdz', Buffer.from(buffer));
@@ -97,13 +103,61 @@ const config = {
 
 const usd = defineConfig(config);
 
-// Works with both GLB and GLTF files
+// Works with GLB, GLTF, and OBJ files
 const usdzBlob = await usd.convert('./model.glb'); // GLB file
 const usdzBlob2 = await usd.convert('./model.gltf'); // GLTF file with external resources
+const usdzBlob3 = await usd.convert('./model.obj'); // OBJ file
 
 // Save the result
 const buffer = await usdzBlob.arrayBuffer();
 fs.writeFileSync('output.usdz', Buffer.from(buffer));
+```
+
+### OBJ File Support
+
+The framework includes comprehensive support for OBJ (Wavefront Object) files:
+
+```javascript
+const { defineConfig } = require('./build/index.js');
+
+const usd = defineConfig({
+  debug: true,
+  debugOutputDir: './debug-output',
+});
+
+// Convert OBJ file to USDZ
+const usdzBlob = await usd.convert('./model.obj');
+
+// OBJ-specific features:
+// - Vertex positions, normals, and UV coordinates
+// - Face definitions (triangles and polygons)
+// - Material groups and smoothing groups
+// - Color space conversion (sRGB to linear)
+// - Automatic mesh centering and scaling
+// - Embedded geometry approach for optimal USDZ compatibility
+```
+
+**Supported OBJ Features:**
+
+- Vertex positions (`v`)
+- Texture coordinates (`vt`)
+- Normal vectors (`vn`)
+- Face definitions (`f`)
+- Groups (`g`)
+- Objects (`o`)
+- Materials (`usemtl`, `mtllib`)
+- Smoothing groups (`s`)
+- Vertex colors (RGB values)
+
+**OBJ Conversion Process:**
+
+1. Parse OBJ file format
+2. Extract geometric data (vertices, faces, normals, UVs)
+3. Convert colors from sRGB to linear space
+4. Generate USD mesh nodes with embedded geometry
+5. Apply transformations for proper scaling and centering
+6. Package as USDZ with 64-byte alignment
+
 ```
 
 ...
@@ -148,3 +202,4 @@ _*Chris M. Perez*_
 ---
 
 Copyright ©2025 [WebUsdFramework](https://github.com/chrismichaelps/WebUsdFramework).
+```

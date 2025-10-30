@@ -1,16 +1,16 @@
 /**
  * USD Packaging Helper
  * 
- * Handles USDZ package creation and ZIP file management.
+ * Handles USDZ package creation and ZIP file management with proper alignment.
  */
 
-import JSZip from 'jszip';
 import {
   DEFAULT_CONFIG,
   DIRECTORY_NAMES,
   FILE_EXTENSIONS
 } from '../../constants/config';
-import { ZIP_VERSION, USD_FILE_NAMES, USD_DEFAULT_NAMES } from '../../constants/usd';
+import { USD_FILE_NAMES, USD_DEFAULT_NAMES } from '../../constants/usd';
+import { UsdzZipWriter } from './usdz-zip-writer';
 
 /**
  * Package Configuration
@@ -30,115 +30,69 @@ export interface PackageContent {
 }
 
 /**
- * Creates a USDZ package from USD content and assets
+ * Creates a USDZ package using custom ZIP writer for proper file alignment
  */
 export async function createUsdzPackage(
   content: PackageContent,
   config?: PackageConfig
 ): Promise<Blob> {
-  const zip = new JSZip();
-  const compression = config?.compression || DEFAULT_CONFIG.COMPRESSION;
 
-  // Add main USD file first (required to be first in USDZ)
-  addMainUsdFile(zip, content.usdContent, compression);
+  // Create ZIP writer with proper alignment for optimal performance
+  const zipWriter = new UsdzZipWriter({
+    alignTo64Bytes: true,
+    compressionLevel: 0 // Store files without compression
+  });
+
+  // Add main USD file
+  const usdContentBytes = new TextEncoder().encode(content.usdContent);
+  zipWriter.addFile(USD_FILE_NAMES.MODEL, usdContentBytes);
 
   // Add geometry files
-  addGeometryFiles(zip, content.geometryFiles, compression);
+  for (const [geometryPath, geometryData] of content.geometryFiles) {
+    zipWriter.addFile(geometryPath, new Uint8Array(geometryData));
+  }
 
   // Add texture files
-  addTextureFiles(zip, content.textureFiles, compression);
+  for (const [textureId, textureData] of content.textureFiles) {
+    // Determine the correct file extension based on texture data
+    const textureExtension = getTextureExtensionFromData(textureData);
+    const textureName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}.${textureExtension}`;
+    const texturePath = `${DIRECTORY_NAMES.TEXTURES}/${textureName}`;
+    zipWriter.addFile(texturePath, new Uint8Array(textureData));
+  }
 
-  // Generate ZIP buffer
-  const zipBuffer = await generateZipBuffer(zip, compression);
-
-  // Fix ZIP version for USDZ compatibility
-  fixZipVersion(zipBuffer);
+  // Generate the USDZ package
+  const usdzBuffer = zipWriter.generate();
 
   // Create and return USDZ blob
-  return createUsdzBlob(zipBuffer, config?.mimeType);
+  return createUsdzBlob(usdzBuffer, config?.mimeType);
 }
 
 /**
- * Adds main USD file to ZIP
+ * Get the correct file extension for a texture based on its data
  */
-function addMainUsdFile(
-  zip: JSZip,
-  usdContent: string,
-  compression: 'STORE' | 'DEFLATE'
-): void {
-  zip.file(USD_FILE_NAMES.MODEL, usdContent, {
-    compression,
-    createFolders: false
-  });
-}
+export function getTextureExtensionFromData(textureData: ArrayBuffer): string {
+  const uint8Array = new Uint8Array(textureData);
 
-/**
- * Adds geometry files to ZIP
- */
-function addGeometryFiles(
-  zip: JSZip,
-  geometryFiles: Map<string, ArrayBuffer>,
-  compression: 'STORE' | 'DEFLATE'
-): void {
-  for (const [filePath, fileData] of geometryFiles) {
-    zip.file(filePath, fileData, {
-      compression,
-      createFolders: false
-    });
+  // Check for JPEG magic bytes (FF D8 FF)
+  if (uint8Array.length >= 3 &&
+    uint8Array[0] === 0xFF &&
+    uint8Array[1] === 0xD8 &&
+    uint8Array[2] === 0xFF) {
+    return 'jpg';
   }
-}
 
-/**
- * Adds texture files to ZIP
- */
-function addTextureFiles(
-  zip: JSZip,
-  textureFiles: Map<string, ArrayBuffer>,
-  compression: 'STORE' | 'DEFLATE'
-): void {
-  for (const [textureId, textureData] of textureFiles) {
-    const texturePath = buildTexturePath(textureId);
-    zip.file(texturePath, textureData, {
-      compression,
-      createFolders: false
-    });
+  // Check for PNG magic bytes (89 50 4E 47)
+  if (uint8Array.length >= 8 &&
+    uint8Array[0] === 0x89 &&
+    uint8Array[1] === 0x50 &&
+    uint8Array[2] === 0x4E &&
+    uint8Array[3] === 0x47) {
+    return 'png';
   }
-}
 
-/**
- * Builds texture file path
- */
-function buildTexturePath(textureId: string): string {
-  return `${DIRECTORY_NAMES.TEXTURES}/${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}${FILE_EXTENSIONS.PNG}`;
-}
-
-/**
- * Generates ZIP buffer with 64-byte alignment for USDZ compatibility
- */
-async function generateZipBuffer(
-  zip: JSZip,
-  compression: 'STORE' | 'DEFLATE'
-): Promise<Uint8Array> {
-  // Generate ZIP with streamFiles to control alignment
-  const buffer = await zip.generateAsync({
-    type: 'arraybuffer',
-    compression: 'STORE', // Always use STORE for USDZ
-    streamFiles: false, // CRITICAL: Must be false to avoid Data Descriptor flag
-    platform: 'UNIX' // Consistent platform for better compatibility
-  });
-
-  return new Uint8Array(buffer);
-}
-
-/**
- * Fixes ZIP version to 2.0 for USDZ compatibility
- * 
- * USDZ requires ZIP version 2.0, but JSZip may create higher versions.
- * This function modifies the ZIP header to set version to 2.0.
- */
-function fixZipVersion(uint8Array: Uint8Array): void {
-  uint8Array[ZIP_VERSION.MAJOR_OFFSET] = ZIP_VERSION.MAJOR;
-  uint8Array[ZIP_VERSION.MINOR_OFFSET] = ZIP_VERSION.MINOR;
+  // Default to PNG if format cannot be determined
+  return 'png';
 }
 
 /**

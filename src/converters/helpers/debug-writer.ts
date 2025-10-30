@@ -6,9 +6,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { LoggerFactory } from '../../utils';
-import { DIRECTORY_NAMES, FILE_EXTENSIONS } from '../../constants/config';
+import { Logger, LoggerFactory } from '../../utils';
+import { DIRECTORY_NAMES } from '../../constants/config';
 import { USD_FILE_NAMES, USD_DEFAULT_NAMES } from '../../constants/usd';
+import { getTextureExtensionFromData } from './usd-packaging';
 
 /**
  * Debug Output Content
@@ -32,7 +33,7 @@ export async function writeDebugOutput(
   ensureDirectoryExists(debugDir);
 
   await writeUsdFile(debugDir, content.usdContent, logger);
-  await writeGeometryFiles(debugDir, content.geometryFiles, logger);
+
   await writeTextureFiles(debugDir, content.textureFiles, logger);
   await writeUsdzFile(debugDir, content.usdzBlob, logger);
 }
@@ -52,29 +53,11 @@ function ensureDirectoryExists(dirPath: string): void {
 async function writeUsdFile(
   debugDir: string,
   usdContent: string,
-  logger: any
+  logger: Logger
 ): Promise<void> {
   const usdPath = path.join(debugDir, USD_FILE_NAMES.MODEL);
   fs.writeFileSync(usdPath, usdContent);
   logger.info(`Written ${usdPath}`, { fileSize: usdContent.length });
-}
-
-/**
- * Writes all geometry files
- */
-async function writeGeometryFiles(
-  debugDir: string,
-  geometryFiles: Map<string, ArrayBuffer>,
-  logger: any
-): Promise<void> {
-  const geometriesDir = path.join(debugDir, DIRECTORY_NAMES.GEOMETRIES);
-  ensureDirectoryExists(geometriesDir);
-
-  for (const [filePath, fileData] of geometryFiles) {
-    const fullPath = path.join(debugDir, filePath);
-    fs.writeFileSync(fullPath, Buffer.from(fileData));
-    logger.info(`Written ${fullPath}`, { fileSize: fileData.byteLength });
-  }
 }
 
 /**
@@ -83,13 +66,15 @@ async function writeGeometryFiles(
 async function writeTextureFiles(
   debugDir: string,
   textureFiles: Map<string, ArrayBuffer>,
-  logger: any
+  logger: Logger
 ): Promise<void> {
   const texturesDir = path.join(debugDir, DIRECTORY_NAMES.TEXTURES);
   ensureDirectoryExists(texturesDir);
 
   for (const [textureId, textureData] of textureFiles) {
-    const fileName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}${FILE_EXTENSIONS.PNG}`;
+    // Determine the correct file extension based on texture data
+    const textureExtension = getTextureExtensionFromData(textureData);
+    const fileName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}.${textureExtension}`;
     const texturePath = path.join(texturesDir, fileName);
     fs.writeFileSync(texturePath, Buffer.from(textureData));
     logger.info(`Written ${texturePath}`, { fileSize: textureData.byteLength });
@@ -102,7 +87,7 @@ async function writeTextureFiles(
 async function writeUsdzFile(
   debugDir: string,
   usdzBlob: Blob,
-  logger: any
+  logger: Logger
 ): Promise<void> {
   const usdzPath = path.join(debugDir, USD_FILE_NAMES.CONVERTED);
   const usdzBuffer = await usdzBlob.arrayBuffer();
