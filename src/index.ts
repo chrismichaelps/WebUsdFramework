@@ -62,7 +62,7 @@ export class WebUsdFramework {
    * const usdzBlob = await usd.convert(buffer);
    * ```
    */
-  async convert(input: string | ArrayBuffer): Promise<Blob> {
+  async convert(input: string | ArrayBuffer, options?: { mtlPath?: string; mtlSearchPaths?: string[]; textureSearchPaths?: string[]; allowAutoTextureFallback?: boolean }): Promise<Blob> {
     if (this.config.debug) {
       console.log('Debug mode enabled');
       console.log(`Debug output: ${this.config.debugOutputDir}`);
@@ -84,13 +84,17 @@ export class WebUsdFramework {
       // Handle different file types
       if (fileExtension === '.gltf') {
         return await convertGlbToUsdz(filePath, this.config);
-      } else if (fileExtension === '.obj') {
+      } else if (fileExtension === '.obj' || fileExtension === '.OBJ') {
         // Convert WebUsdConfig to ObjConverterConfig
         const objConfig = {
           debug: this.config.debug,
           debugOutputDir: this.config.debugOutputDir,
           upAxis: this.config.upAxis,
           metersPerUnit: this.config.metersPerUnit,
+          allowAutoTextureFallback: options?.allowAutoTextureFallback ?? false,
+          mtlPath: options?.mtlPath,
+          mtlSearchPaths: options?.mtlSearchPaths ?? [],
+          textureSearchPaths: options?.textureSearchPaths ?? [],
           materialPerSmoothingGroup: true,
           useOAsMesh: true,
           useIndices: true,

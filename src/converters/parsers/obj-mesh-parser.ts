@@ -216,7 +216,7 @@ export class ObjectFileParser {
       's': () => this.setSmoothingGroup(tokens[1]),
       'g': () => this.handleGroupData(),
       'o': () => this.handleObjectData(),
-      'usemtl': () => this.handleMaterialUsage()
+      'usemtl': () => this.handleMaterialUsage(tokens)
     };
 
     const handler = handlers[tokenType as keyof typeof handlers];
@@ -342,7 +342,10 @@ export class ObjectFileParser {
   /**
    * Handle material usage
    */
-  private handleMaterialUsage = (): void => {
+  private handleMaterialUsage = (tokens: string[]): void => {
+    if (tokens.length > 1) {
+      this.currentMaterial = tokens[1];
+    }
     this.counters.materialCount++;
     this.checkGeometryGroup();
   };
