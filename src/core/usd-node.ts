@@ -26,18 +26,27 @@ interface USDProperty {
  * 
  * Minimal implementation with only used methods.
  */
+/**
+ * Time sample data
+ */
+interface TimeSampleData {
+  timeSamples: Map<number, string>;
+  type: string;
+}
+
 export class UsdNode {
   private _path: UsdPath;
   private _typeName: string;
   private _metadata: Map<string, UsdAttributeValue>;
   private _children: Map<string, UsdNode>;
   private _properties: USDProperty[] = [];
+  private _timeSamples: Map<string, TimeSampleData> = new Map();
 
   constructor(
     path: UsdPath,
     typeName: string
   ) {
-    // Validate path
+    // Parse and validate path
     try {
       UsdPathSchema.parse(path);
     } catch (error) {
@@ -63,7 +72,7 @@ export class UsdNode {
    * Set a property on this node (for USDZ generation)
    */
   setProperty(key: string, value: string | number | boolean | string[] | number[] | boolean[] | object, type?: string): this {
-    // Check if property already exists and remove it (ignore type for comparison)
+    // Remove existing property if present (ignore type for comparison)
     const existingIndex = this._properties.findIndex(p => p.key === key);
     if (existingIndex !== -1) {
       this._properties.splice(existingIndex, 1);
@@ -94,6 +103,29 @@ export class UsdNode {
     return this;
   }
 
+  /**
+   * Get all child nodes
+   */
+  getChildren(): IterableIterator<UsdNode> {
+    return this._children.values();
+  }
+
+  /**
+   * Get a property value
+   */
+  getProperty(key: string): string | number | boolean | string[] | number[] | boolean[] | object | undefined {
+    const prop = this._properties.find(p => p.key === key);
+    return prop ? prop.value : undefined;
+  }
+
+  /**
+   * Set a time-sampled property for animation
+   */
+  setTimeSampledProperty(key: string, timeSamples: Map<number, string>, type: string): this {
+    this._timeSamples.set(key, { timeSamples, type });
+    return this;
+  }
+
 
   /**
    * Serialize this node to USDA format
@@ -112,6 +144,27 @@ export class UsdNode {
       usda += "    defaultPrim = \"Root\"\n";
       usda += "    metersPerUnit = 1\n";
       usda += "    upAxis = \"Y\"\n";
+
+      // Add time code metadata if present (only in header, not on Root node)
+      // Order: timeCodesPerSecond, framesPerSecond, startTimeCode, endTimeCode (matches reference)
+      const timeCodesPerSecond = this._metadata.get('timeCodesPerSecond');
+      const framesPerSecond = this._metadata.get('framesPerSecond');
+      const startTimeCode = this._metadata.get('startTimeCode');
+      const endTimeCode = this._metadata.get('endTimeCode');
+
+      if (timeCodesPerSecond !== undefined) {
+        usda += `    timeCodesPerSecond = ${timeCodesPerSecond}\n`;
+      }
+      if (framesPerSecond !== undefined) {
+        usda += `    framesPerSecond = ${framesPerSecond}\n`;
+      }
+      if (startTimeCode !== undefined) {
+        usda += `    startTimeCode = ${startTimeCode}\n`;
+      }
+      if (endTimeCode !== undefined) {
+        usda += `    endTimeCode = ${endTimeCode}\n`;
+      }
+
       usda += ")\n\n";
     }
 
@@ -121,8 +174,13 @@ export class UsdNode {
 
     let propertiesAndMetadata = "";
 
-    // Add metadata
+    // Add metadata (exclude time code metadata - it's only in the header)
+    const timeCodeKeys = ['startTimeCode', 'endTimeCode', 'timeCodesPerSecond', 'framesPerSecond'];
     for (const [key, value] of this._metadata) {
+      // Skip time code metadata - it's already in the header
+      if (timeCodeKeys.includes(key)) {
+        continue;
+      }
       propertiesAndMetadata += `${space}    ${key} = ${JSON.stringify(value, null, 4)}\n`;
     }
 
@@ -148,20 +206,47 @@ export class UsdNode {
     // Separate token attributes, transform properties, rel properties, and array properties from other properties
     const tokenAttributes = isShaderNode ? [] : this._properties.filter(p => p.key.includes(":") && p.type === "token" && !p.key.includes(".connect"));
     const tokenConnections = this._properties.filter(p => p.key.includes(".connect") && (p.type === "token" || p.type === "connection") && !isShaderNode);
-    const transformProperties = this._properties.filter(p => p.key === "xformOp:transform" || p.key === "xformOpOrder");
+
+    // If we have time-sampled transform ops, exclude xformOp:transform (can't mix with individual ops)
+    const hasAnimatedTransforms = this._timeSamples.size > 0 &&
+      Array.from(this._timeSamples.keys()).some(key =>
+        key.startsWith('xformOp:translate') ||
+        key.startsWith('xformOp:rotate') ||
+        key.startsWith('xformOp:scale')
+      );
+
+    const transformProperties = this._properties.filter(p => {
+      if (p.key === "xformOp:transform" && hasAnimatedTransforms) {
+        // Exclude xformOp:transform if we have animated individual ops
+        return false;
+      }
+      return p.key === "xformOp:transform" || p.key === "xformOpOrder";
+    });
     const relProperties = this._properties.filter(p => p.type === "rel");
     const interpolationProperties = this._properties.filter(p => p.type === "interpolation");
     const arrayProperties = this._properties.filter(p =>
-      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st') || p.key === 'uniform token primvars:st:interpolation' || p.key === 'subdivisionScheme')
+      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key === 'float3[] extent' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st'))
+      // primvars:st:interpolation is handled via interpolationProperties, not as a separate property
+    );
+    // Simple token properties that go in node body (not in parentheses)
+    const simpleTokenProperties = this._properties.filter(p =>
+      (p.key === 'token subdivisionScheme' || p.key === 'token visibility' || p.key === 'token purpose')
     );
     const otherProperties = isShaderNode ? [] : this._properties.filter(p =>
       !(p.key.includes(":") && p.type === "token") &&
       p.key !== "xformOp:transform" &&
       p.key !== "xformOpOrder" &&
+      p.key !== "float3[] extent" && // Exclude extent - it goes in node body
+      p.key !== "token subdivisionScheme" && // Exclude - it goes in node body
+      p.key !== "token visibility" && // Exclude - it goes in node body
+      p.key !== "token purpose" && // Exclude - it goes in node body
+      p.key !== "uniform token primvars:st:interpolation" && // Exclude - handled via interpolation metadata
+      p.key !== "token normals:interpolation" && // Exclude - handled via interpolation metadata
       p.type !== "rel" &&
       p.type !== "interpolation" && // Exclude interpolation properties
       !p.key.includes(".connect") &&
-      !arrayProperties.some(ap => ap.key === p.key) // Exclude array properties from otherProperties
+      !arrayProperties.some(ap => ap.key === p.key) && // Exclude array properties from otherProperties
+      !simpleTokenProperties.some(stp => stp.key === p.key) // Exclude simple token properties from otherProperties
     );
     const shaderProperties = isShaderNode ? this._properties : [];
 
@@ -232,8 +317,9 @@ export class UsdNode {
       usda += `${space}${defOrOver} "${nodeName}"\n`;
     }
 
-    // Check if we need braces
-    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0;
+    // Determine if we need braces for the node body
+    // Material nodes need braces for their children (shaders) and connections
+    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || this._timeSamples.size > 0;
 
     if (needsBraces) {
       usda += `${space}{\n`;
@@ -245,10 +331,30 @@ export class UsdNode {
         const propertyName = prop.key.split(' ').slice(1).join(' ');
 
         if (typeDeclaration) {
-          // Check if this is a texCoord2f property and if we have interpolation metadata
+          // Handle texCoord2f primvars:st with interpolation metadata
           if (prop.type === 'texcoord') {
-            // Find the associated interpolation property
-            const interpolationProp = interpolationProperties.find(ip => ip.key.includes(propertyName));
+            // Find the matching interpolation property (e.g., primvars:st:interpolation for primvars:st)
+            const interpolationProp = interpolationProperties.find(ip => {
+              const ipKeyParts = ip.key.split(' ');
+              const ipPropertyName = ipKeyParts.length > 1 ? ipKeyParts[ipKeyParts.length - 1] : ip.key;
+              return ipPropertyName.startsWith(propertyName + ':') || ipPropertyName === propertyName + ':interpolation';
+            });
+            if (interpolationProp) {
+              // Reference format uses duplicate interpolation lines
+              usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
+              usda += `${space}        interpolation = "${interpolationProp.value}"\n`;
+              usda += `${space}        interpolation = "${interpolationProp.value}"\n`;
+              usda += `${space}    )\n`;
+            } else {
+              usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+            }
+          } else if (prop.key === 'float3[] normals') {
+            // Handle normals with interpolation metadata
+            const interpolationProp = interpolationProperties.find(ip => {
+              const ipKeyParts = ip.key.split(' ');
+              const ipPropertyName = ipKeyParts.length > 1 ? ipKeyParts[ipKeyParts.length - 1] : ip.key;
+              return ipPropertyName === 'normals:interpolation' || ipPropertyName.startsWith('normals:');
+            });
             if (interpolationProp) {
               usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
               usda += `${space}        interpolation = "${interpolationProp.value}"\n`;
@@ -270,6 +376,16 @@ export class UsdNode {
             usda += `${space}    ${propertyName} = ${prop.value}\n`;
           }
         }
+      }
+
+      // Add simple token properties (in node body)
+      for (const prop of simpleTokenProperties) {
+        // Extract type and property name from key (e.g., 'token subdivisionScheme' -> 'token' and 'subdivisionScheme')
+        const parts = prop.key.split(' ');
+        const typeDeclaration = parts[0]; // 'token'
+        const propertyName = parts.slice(1).join(' '); // 'subdivisionScheme', 'visibility', 'purpose'
+        const value = typeof prop.value === 'string' && prop.value.startsWith('"') ? prop.value : JSON.stringify(prop.value);
+        usda += `${space}    ${typeDeclaration} ${propertyName} = ${value}\n`;
       }
 
       // Add shader properties first (in node body)
@@ -326,10 +442,10 @@ export class UsdNode {
         if (Array.isArray(attr.value)) {
           value = `[${attr.value.map(v => JSON.stringify(v)).join(", ")}]`;
         } else if (attr.key.includes("sourceColorSpace")) {
-          // For sourceColorSpace, ensure it's quoted
+          // Quote sourceColorSpace values
           value = JSON.stringify(attr.value);
         } else if (attr.key.includes("wrapS") || attr.key.includes("wrapT")) {
-          // For wrapS/wrapT, ensure they're quoted
+          // Quote wrapS/wrapT values
           value = JSON.stringify(attr.value);
         } else {
           value = JSON.stringify(attr.value);
@@ -364,6 +480,35 @@ export class UsdNode {
             ? `[${prop.value.map(v => JSON.stringify(v)).join(", ")}]`
             : JSON.stringify(prop.value);
           usda += `${space}    uniform token[] ${prop.key} = ${value}\n`;
+        }
+      }
+
+      // Add time-sampled properties (in node body)
+      for (const [key, timeSampleData] of this._timeSamples) {
+        const { timeSamples, type } = timeSampleData;
+        const sortedTimes = Array.from(timeSamples.keys()).sort((a, b) => a - b);
+
+        if (sortedTimes.length === 0) {
+          continue;
+        }
+
+        if (sortedTimes.length === 1) {
+          // Single time sample - use default value syntax
+          usda += `${space}    ${type} ${key} = ${timeSamples.get(sortedTimes[0])}\n`;
+        } else {
+          // Multiple time samples - use .timeSamples attribute syntax
+          // For xformOp attributes, the syntax is: float3 xformOp:translate.timeSamples = { ... }
+          usda += `${space}    ${type} ${key}.timeSamples = {\n`;
+          for (let i = 0; i < sortedTimes.length; i++) {
+            const time = sortedTimes[i];
+            const value = timeSamples.get(time);
+            if (value !== undefined) {
+              // Add comma only if not the last item
+              const comma = i < sortedTimes.length - 1 ? ',' : '';
+              usda += `${space}        ${time}: ${value}${comma}\n`;
+            }
+          }
+          usda += `${space}    }\n`;
         }
       }
 

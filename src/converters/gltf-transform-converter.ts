@@ -5,9 +5,10 @@
  * Uses external geometry files and handles materials/textures.
  */
 
-import { Document } from '@gltf-transform/core';
+import { Document, Node } from '@gltf-transform/core';
 import { GltfTransformConfig } from '../schemas';
 import { Logger, LoggerFactory } from '../utils';
+import { UsdNode } from '../core/usd-node';
 import { GltfParserFactory } from './parsers/gltf-parser-factory';
 import { createRootStructure } from './helpers/usd-root-builder';
 import { processGeometries } from './helpers/geometry-processor';
@@ -19,10 +20,12 @@ import {
   createUsdzPackage,
   PackageContent
 } from './helpers/usd-packaging';
+import { processAnimations } from './helpers/animation-processor';
 import {
   writeDebugOutput,
   DebugOutputContent
 } from './helpers/debug-writer';
+import { calculateSceneExtent } from './helpers/usd-hierarchy-builder';
 
 /**
  * Conversion Stage Names
@@ -32,6 +35,7 @@ const CONVERSION_STAGES = {
   PARSING: 'glb_parsing',
   GEOMETRY: 'geometry_generation',
   MATERIALS: 'material_generation',
+  ANIMATIONS: 'animation_generation',
   PACKAGING: 'usdz_packaging',
   COMPLETE: 'conversion_complete',
   ERROR: 'conversion_error'
@@ -133,7 +137,8 @@ export async function convertGlbToUsdz(
       textureFiles: new Map(),
       materialsNode: rootStructure.materialsNode,
       materialCounter: CONVERSION_CONSTANTS.INITIAL_COUNTER,
-      document
+      document,
+      nodeMap: new Map<Node, UsdNode>()
     };
 
     for (const childNode of scene.listChildren()) {
@@ -151,6 +156,31 @@ export async function convertGlbToUsdz(
       `Generated ${hierarchyContext.materialCounter} materials with ${hierarchyContext.textureFiles.size} textures`,
       { stage: CONVERSION_STAGES.MATERIALS }
     );
+
+    // Process animations
+    logger.info('Processing animations', {
+      stage: CONVERSION_STAGES.ANIMATIONS
+    });
+    const animationTimeCode = processAnimations(document, hierarchyContext.nodeMap, logger);
+
+    // Set time code metadata on root node if animations are present
+    if (animationTimeCode) {
+      rootStructure.rootNode.setMetadata('startTimeCode', animationTimeCode.startTimeCode);
+      rootStructure.rootNode.setMetadata('endTimeCode', animationTimeCode.endTimeCode);
+      rootStructure.rootNode.setMetadata('timeCodesPerSecond', animationTimeCode.timeCodesPerSecond);
+      rootStructure.rootNode.setMetadata('framesPerSecond', animationTimeCode.framesPerSecond);
+    }
+
+    // Calculate and set scene extent
+    const sceneExtent = calculateSceneExtent(rootStructure.sceneNode);
+    if (sceneExtent) {
+      const [minX, minY, minZ, maxX, maxY, maxZ] = sceneExtent;
+      rootStructure.sceneNode.setProperty(
+        'float3[] extent',
+        `[(${minX}, ${minY}, ${minZ}), (${maxX}, ${maxY}, ${maxZ})]`,
+        'raw'
+      );
+    }
 
     // Serialize USD content
     const usdContent = rootStructure.rootNode.serializeToUsda();

@@ -300,7 +300,7 @@ export async function buildUsdMaterial(
   surfaceShader.setProperty('float inputs:opacity', '1', 'float');
   surfaceShader.setProperty('int inputs:useSpecularWorkflow', '0', 'int');
 
-  // Add outputs:surface declaration (CRITICAL for rendering)
+  // Add outputs:surface declaration - required for rendering
   surfaceShader.setProperty('token outputs:surface', '');
 
   // Add shared UV reader and Transform2d nodes to material
@@ -384,7 +384,7 @@ function getTextureTransform(material: Material, textureType: 'baseColor' | 'nor
 
   if (!textureInfo) return undefined;
 
-  // Note: GLTF-Transform TextureInfo doesn't have getOffset/getScale/getRotation methods
+  // GLTF-Transform TextureInfo doesn't have getOffset/getScale/getRotation methods
   // These would need to be handled through extensions or custom logic
   // For now, return undefined to use default transforms
   return undefined;

@@ -38,6 +38,64 @@ export interface HierarchyBuilderContext {
   materialsNode: UsdNode;
   materialCounter: number;
   document: Document;
+  nodeMap: Map<Node, UsdNode>;
+}
+
+/**
+ * Calculate scene extent from all mesh nodes
+ * Returns [minX, minY, minZ, maxX, maxY, maxZ] or null if no extents found
+ */
+export function calculateSceneExtent(sceneNode: UsdNode): [number, number, number, number, number, number] | null {
+  const extents: Array<{ min: [number, number, number]; max: [number, number, number] }> = [];
+
+  // Recursively collect extents from all mesh nodes
+  function collectExtents(node: UsdNode): void {
+    // Get extent property if present
+    const extentProp = node.getProperty('float3[] extent');
+    if (extentProp && typeof extentProp === 'string') {
+      // Parse extent string: [(minX, minY, minZ), (maxX, maxY, maxZ)]
+      const extentMatch = extentProp.match(/\[\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\),\s*\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)\]/);
+      if (extentMatch) {
+        const min: [number, number, number] = [
+          parseFloat(extentMatch[1]),
+          parseFloat(extentMatch[2]),
+          parseFloat(extentMatch[3])
+        ];
+        const max: [number, number, number] = [
+          parseFloat(extentMatch[4]),
+          parseFloat(extentMatch[5]),
+          parseFloat(extentMatch[6])
+        ];
+        extents.push({ min, max });
+      }
+    }
+
+    // Recursively process children
+    for (const child of node.getChildren()) {
+      collectExtents(child);
+    }
+  }
+
+  collectExtents(sceneNode);
+
+  if (extents.length === 0) {
+    return null;
+  }
+
+  // Calculate combined extent
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  for (const extent of extents) {
+    minX = Math.min(minX, extent.min[0]);
+    minY = Math.min(minY, extent.min[1]);
+    minZ = Math.min(minZ, extent.min[2]);
+    maxX = Math.max(maxX, extent.max[0]);
+    maxY = Math.max(maxY, extent.max[1]);
+    maxZ = Math.max(maxZ, extent.max[2]);
+  }
+
+  return [minX, minY, minZ, maxX, maxY, maxZ];
 }
 
 /**
@@ -58,6 +116,9 @@ export async function buildNodeHierarchy(
 
   applyTransform(gltfNode, currentNode);
   parentUsdNode.addChild(currentNode);
+
+  // Add to node map for animation processing
+  context.nodeMap.set(gltfNode, currentNode);
 
   const mesh = gltfNode.getMesh();
   if (mesh) {
@@ -97,12 +158,14 @@ function generateNodeName(gltfNode: Node): string {
 
 /**
  * Determines USD node type based on GLTF node
+ * Always use Mesh type when a mesh is present - we'll nest the geometry inside
  */
 function determineNodeType(gltfNode: Node): string {
   const mesh = gltfNode.getMesh();
-  const hasSinglePrimitive = mesh && mesh.listPrimitives().length === 1;
 
-  return hasSinglePrimitive ? USD_NODE_TYPES.MESH : USD_NODE_TYPES.XFORM;
+  // Always create a Mesh node when mesh is present
+  // The geometry will be nested inside as a child Mesh node
+  return mesh ? USD_NODE_TYPES.MESH : USD_NODE_TYPES.XFORM;
 }
 
 /**
@@ -167,6 +230,9 @@ async function processMesh(
 
 /**
  * Creates a node for a primitive
+ * Always creates a nested mesh structure to match reference format:
+ * - Outer mesh node has transform (if any)
+ * - Inner mesh node has geometry and material binding
  */
 function createPrimitiveNode(
   parentNode: UsdNode,
@@ -174,13 +240,11 @@ function createPrimitiveNode(
   primitiveIndex: number,
   totalPrimitives: number
 ): UsdNode {
-  if (totalPrimitives === 1) {
-    return parentNode;
-  }
-
-  const primNodeName = `${nodeName}_prim${primitiveIndex}`;
+  // Always create a nested mesh structure, even for single primitives
+  // This matches the reference format where meshes are nested
+  const meshNodeName = totalPrimitives === 1 ? `${nodeName}_Mesh` : `${nodeName}_prim${primitiveIndex}`;
   const targetNode = new UsdNode(
-    `${parentNode.getPath()}/${primNodeName}`,
+    `${parentNode.getPath()}/${meshNodeName}`,
     USD_NODE_TYPES.MESH
   );
 
@@ -219,6 +283,38 @@ function attachGeometryReference(
   // Add the geometry data directly to the mesh node
   // This approach embeds all geometry data inline for optimal USDZ compatibility
 
+  // Points (vertex positions) - calculate extent from positions
+  const positionArray = position.getArray();
+  let extentMin: [number, number, number] | null = null;
+  let extentMax: [number, number, number] | null = null;
+
+  if (positionArray) {
+    const points: string[] = [];
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
+
+    for (let i = 0; i < positionArray.length; i += 3) {
+      const x = positionArray[i];
+      const y = positionArray[i + 1];
+      const z = positionArray[i + 2];
+
+      points.push(`(${x}, ${y}, ${z})`);
+
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+
+    node.setProperty('point3f[] points', `[${points.join(', ')}]`, 'raw');
+
+    extentMin = [minX, minY, minZ];
+    extentMax = [maxX, maxY, maxZ];
+  }
+
   // Face vertex counts (how many vertices per face)
   if (indices) {
     const faceCounts = new Array(indices.getCount() / 3).fill(3);
@@ -232,25 +328,16 @@ function attachGeometryReference(
     }
   }
 
-  // Points (vertex positions)
-  const positionArray = position.getArray();
-  if (positionArray) {
-    const points = [];
-    for (let i = 0; i < positionArray.length; i += 3) {
-      points.push(`(${positionArray[i]}, ${positionArray[i + 1]}, ${positionArray[i + 2]})`);
-    }
-    node.setProperty('point3f[] points', `[${points.join(', ')}]`, 'raw');
-  }
-
-  // Normals (if available)
+  // Normals (if available) - add with interpolation property
   if (normal) {
     const normalArray = normal.getArray();
     if (normalArray) {
-      const normals = [];
+      const normals: string[] = [];
       for (let i = 0; i < normalArray.length; i += 3) {
         normals.push(`(${normalArray[i]}, ${normalArray[i + 1]}, ${normalArray[i + 2]})`);
       }
       node.setProperty('float3[] normals', `[${normals.join(', ')}]`, 'raw');
+      node.setProperty('token normals:interpolation', 'vertex', 'interpolation');
     }
   }
 
@@ -271,13 +358,11 @@ function attachGeometryReference(
         maxV = Math.max(maxV, v);
       }
 
-      // Normalize UV coordinates to [0,1] range for proper texture mapping
-
       // Calculate normalization factors
       const uRange = maxU - minU;
       const vRange = maxV - minV;
 
-      const uvs = [];
+      const uvs: string[] = [];
       for (let i = 0; i < texcoordArray.length; i += 2) {
         const u = texcoordArray[i];
         const v = texcoordArray[i + 1];
@@ -292,11 +377,21 @@ function attachGeometryReference(
         uvs.push(`(${normalizedU}, ${flippedV})`);
       }
 
+      // Set texCoord property with single interpolation (not duplicate)
       node.setProperty('texCoord2f[] primvars:st', `[${uvs.join(', ')}]`, 'texcoord');
-      node.setProperty('primvars:st:interpolation', 'vertex', 'interpolation');
+      node.setProperty('uniform token primvars:st:interpolation', 'vertex', 'interpolation');
     }
   }
 
+  // Add extent property (bounding box)
+  if (extentMin && extentMax) {
+    node.setProperty('float3[] extent', `[(${extentMin[0]}, ${extentMin[1]}, ${extentMin[2]}), (${extentMax[0]}, ${extentMax[1]}, ${extentMax[2]})]`, 'raw');
+  }
+
+  // Add standard mesh properties
+  node.setProperty('token subdivisionScheme', 'none', 'token');
+  node.setProperty('token visibility', 'inherited', 'token');
+  node.setProperty('token purpose', 'default', 'token');
 }
 
 /**
@@ -385,4 +480,5 @@ function bindMaterial(node: UsdNode, materialInfo: MaterialInfo): void {
     USD_PROPERTY_TYPES.REL
   );
 }
+
 
