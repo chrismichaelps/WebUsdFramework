@@ -8,6 +8,7 @@
 import { ParsedGeometry } from '../parsers/obj-mesh-parser';
 import { UsdNode } from '../../core/usd-node';
 import { USD_NODE_TYPES } from '../../constants/usd';
+import { formatUsdArray, formatUsdNumberArray, setTransformMatrixString, formatMatrix } from '../../utils';
 
 /**
  * OBJ Mesh Adapter Interface
@@ -58,10 +59,10 @@ function addObjGeometryToMesh(mesh: ParsedGeometry, meshNode: UsdNode): void {
 
   if (indexArray && indexArray.length > 0) {
     const faceCounts = new Array(indexArray.length / 3).fill(3);
-    meshNode.setProperty('int[] faceVertexCounts', `[${faceCounts.join(', ')}]`, 'raw');
+    meshNode.setProperty('int[] faceVertexCounts', formatUsdArray(faceCounts.map(c => c.toString())), 'raw');
 
-    const indicesList = Array.from(indexArray).map(i => i.toString()).join(', ');
-    meshNode.setProperty('int[] faceVertexIndices', `[${indicesList}]`, 'raw');
+    const indicesList = formatUsdNumberArray(Array.from(indexArray));
+    meshNode.setProperty('int[] faceVertexIndices', indicesList, 'raw');
   }
 
   if (vertexArray && vertexArray.length > 0) {
@@ -120,10 +121,8 @@ function applyObjTransform(mesh: ParsedGeometry, usdNode: UsdNode): void {
     -centerX * scale, -centerY * scale, -centerZ * scale, 1
   ];
 
-  const matrixString = `( (${m[0]}, ${m[1]}, ${m[2]}, ${m[3]}), (${m[4]}, ${m[5]}, ${m[6]}, ${m[7]}), (${m[8]}, ${m[9]}, ${m[10]}, ${m[11]}), (${m[12]}, ${m[13]}, ${m[14]}, ${m[15]}) )`;
-
-  usdNode.setProperty('xformOp:transform', matrixString);
-  usdNode.setProperty('xformOpOrder', ['xformOp:transform'], 'token[]');
+  // Use utility function for consistent matrix formatting and transform setting
+  setTransformMatrixString(usdNode, formatMatrix(m));
 }
 
 /**

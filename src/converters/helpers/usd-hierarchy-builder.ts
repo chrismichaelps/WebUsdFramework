@@ -4,11 +4,12 @@
  * Builds USD node hierarchy from GLTF nodes.
  */
 
-import { Document, Node, Mesh, Primitive, Material } from '@gltf-transform/core';
+import { Document, Node, Mesh, Primitive, Material, Skin } from '@gltf-transform/core';
 import { UsdNode } from '../../core/usd-node';
 import { USD_NODE_TYPES, USD_PROPERTIES, USD_PROPERTY_TYPES } from '../../constants/usd';
 import { buildUsdMaterial, extractTextureData } from '../usd-material-builder';
-import { sanitizeName } from '../../utils';
+import { sanitizeName, formatUsdNumberArray, setTransformMatrix } from '../../utils';
+import { SkeletonData } from './skeleton-processor';
 
 /**
  * Primitive Metadata Interface
@@ -39,6 +40,7 @@ export interface HierarchyBuilderContext {
   materialCounter: number;
   document: Document;
   nodeMap: Map<Node, UsdNode>;
+  skeletonMap?: Map<Skin, SkeletonData>;
 }
 
 /**
@@ -128,6 +130,7 @@ export async function buildNodeHierarchy(
       nodeName,
       context
     );
+
   }
 
   // Process children recursively
@@ -175,19 +178,8 @@ function applyTransform(gltfNode: Node, usdNode: UsdNode): void {
   const transform = gltfNode.getMatrix();
   if (!transform) return;
 
-  const m = Array.from(transform);
-  const matrixString = `( (${m[0]}, ${m[1]}, ${m[2]}, ${m[3]}), (${m[4]}, ${m[5]}, ${m[6]}, ${m[7]}), (${m[8]}, ${m[9]}, ${m[10]}, ${m[11]}), (${m[12]}, ${m[13]}, ${m[14]}, ${m[15]}) )`;
-
-  usdNode.setProperty(
-    USD_PROPERTIES.XFORM_OP_TRANSFORM,
-    matrixString
-  );
-
-  usdNode.setProperty(
-    USD_PROPERTIES.XFORM_OP_ORDER,
-    [USD_PROPERTIES.XFORM_OP_TRANSFORM],
-    USD_PROPERTY_TYPES.TOKEN_ARRAY
-  );
+  // Use utility function for consistent matrix formatting and transform setting
+  setTransformMatrix(usdNode, transform);
 }
 
 /**
@@ -323,8 +315,8 @@ function attachGeometryReference(
     // Face vertex indices (which vertices make up each face)
     const indexArray = indices.getArray();
     if (indexArray) {
-      const indicesList = Array.from(indexArray).map(i => i.toString()).join(', ');
-      node.setProperty('int[] faceVertexIndices', `[${indicesList}]`, 'raw');
+      const indicesList = formatUsdNumberArray(Array.from(indexArray));
+      node.setProperty('int[] faceVertexIndices', indicesList, 'raw');
     }
   }
 

@@ -7,7 +7,7 @@
 
 import { Document, Node } from '@gltf-transform/core';
 import { GltfTransformConfig } from '../schemas';
-import { Logger, LoggerFactory } from '../utils';
+import { Logger, LoggerFactory, ApiSchemaBuilder, API_SCHEMAS, normalizePropertyToArray, getFirstPropertyValue } from '../utils';
 import { UsdNode } from '../core/usd-node';
 import { GltfParserFactory } from './parsers/gltf-parser-factory';
 import { createRootStructure } from './helpers/usd-root-builder';
@@ -26,6 +26,7 @@ import {
   DebugOutputContent
 } from './helpers/debug-writer';
 import { calculateSceneExtent } from './helpers/usd-hierarchy-builder';
+import { processSkeletons, bindSkeletonToMesh } from './helpers/skeleton-processor';
 
 /**
  * Conversion Stage Names
@@ -157,11 +158,322 @@ export async function convertGlbToUsdz(
       { stage: CONVERSION_STAGES.MATERIALS }
     );
 
-    // Process animations
+    // Process skeletons (after node map is populated)
+    logger.info('Processing skeletons', {
+      stage: CONVERSION_STAGES.ANIMATIONS
+    });
+    const skeletonMap = processSkeletons(
+      document,
+      hierarchyContext.nodeMap,
+      rootStructure.sceneNode.getPath(),
+      logger
+    );
+
+    // Bind meshes to skeletons
+    if (skeletonMap.size > 0) {
+      const root = document.getRoot();
+      const allNodes = new Set<Node>();
+      // Collect all nodes with meshes
+      for (const node of root.listNodes()) {
+        if (node.getMesh() && node.getSkin()) {
+          allNodes.add(node);
+        }
+      }
+
+      // Bind each mesh to its skeleton
+      for (const node of allNodes) {
+        const skin = node.getSkin();
+        const skeletonData = skin ? skeletonMap.get(skin) : null;
+        if (skeletonData) {
+          const usdNode = hierarchyContext.nodeMap.get(node);
+          if (usdNode) {
+            const mesh = node.getMesh();
+            if (mesh) {
+              const primitives = mesh.listPrimitives();
+              if (primitives.length > 0) {
+                const primitive = primitives[0];
+                const jointIndices = primitive.getAttribute('JOINTS_0')?.getArray();
+                const jointWeights = primitive.getAttribute('WEIGHTS_0')?.getArray();
+
+                logger.info('Extracting joint data from mesh primitive', {
+                  nodeName: node.getName(),
+                  meshName: mesh.getName(),
+                  primitiveCount: primitives.length,
+                  hasJOINTS_0: !!jointIndices,
+                  hasWEIGHTS_0: !!jointWeights,
+                  jointIndicesType: jointIndices?.constructor?.name,
+                  jointWeightsType: jointWeights?.constructor?.name
+                });
+
+                let indicesArray: number[] = [];
+                let weightsArray: number[] = [];
+
+                if (jointIndices) {
+                  if (jointIndices instanceof Uint8Array || jointIndices instanceof Uint16Array) {
+                    indicesArray = Array.from(jointIndices);
+                    logger.info('Converted joint indices from typed array', {
+                      originalType: jointIndices.constructor.name,
+                      length: indicesArray.length,
+                      sampleIndices: indicesArray.slice(0, 20)
+                    });
+                  } else if (Array.isArray(jointIndices)) {
+                    indicesArray = jointIndices;
+                    logger.info('Using joint indices as array', {
+                      length: indicesArray.length,
+                      sampleIndices: indicesArray.slice(0, 20)
+                    });
+                  }
+                } else {
+                  logger.warn('No JOINTS_0 attribute found on primitive', {
+                    nodeName: node.getName(),
+                    meshName: mesh.getName()
+                  });
+                }
+
+                if (jointWeights) {
+                  if (jointWeights instanceof Float32Array) {
+                    weightsArray = Array.from(jointWeights);
+                    logger.info('Converted joint weights from Float32Array', {
+                      length: weightsArray.length,
+                      sampleWeights: weightsArray.slice(0, 20).map(w => w.toFixed(4))
+                    });
+                  } else if (Array.isArray(jointWeights)) {
+                    weightsArray = jointWeights;
+                    logger.info('Using joint weights as array', {
+                      length: weightsArray.length,
+                      sampleWeights: weightsArray.slice(0, 20).map(w => w.toFixed(4))
+                    });
+                  }
+                } else {
+                  logger.warn('No WEIGHTS_0 attribute found on primitive', {
+                    nodeName: node.getName(),
+                    meshName: mesh.getName()
+                  });
+                }
+
+                // Verify indices match weights (should be same length)
+                if (indicesArray.length !== weightsArray.length) {
+                  logger.warn('Joint indices and weights length mismatch', {
+                    indicesLength: indicesArray.length,
+                    weightsLength: weightsArray.length,
+                    nodeName: node.getName()
+                  });
+                }
+
+                // Get the mesh node (first child or the node itself)
+                const meshNode = usdNode.getChildren().next().value || usdNode;
+                const originalParent = meshNode !== usdNode ? usdNode : undefined;
+
+                logger.info('Binding mesh to skeleton', {
+                  meshNodeName: meshNode.getName(),
+                  meshNodePath: meshNode.getPath(),
+                  originalParent: originalParent?.getName(),
+                  skeletonPath: skeletonData.skelRootNode.getPath(),
+                  indicesCount: indicesArray.length,
+                  weightsCount: weightsArray.length
+                });
+
+                bindSkeletonToMesh(
+                  meshNode,
+                  skeletonData.skelRootNode.getPath(),
+                  indicesArray,
+                  weightsArray,
+                  skeletonData.skelRootNode,
+                  skeletonData.skeletonPrimNode,
+                  logger,
+                  originalParent,
+                  rootStructure.sceneNode,
+                  skeletonData.jointPaths.length // Pass joint count for validation
+                );
+              } else {
+                logger.warn('Mesh has no primitives', {
+                  nodeName: node.getName(),
+                  meshName: mesh.getName()
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Add skeleton nodes to scene
+    if (skeletonMap.size > 0) {
+      for (const [, skeletonData] of skeletonMap) {
+        // Add skeleton to scene hierarchy
+        rootStructure.sceneNode.addChild(skeletonData.skelRootNode);
+        logger.info(`Added skeleton ${skeletonData.skelRootNode.getName()} to scene`);
+      }
+    }
+
+    // Process animations (including skeleton animations)
     logger.info('Processing animations', {
       stage: CONVERSION_STAGES.ANIMATIONS
     });
-    const animationTimeCode = processAnimations(document, hierarchyContext.nodeMap, logger);
+    const animationTimeCode = processAnimations(
+      document,
+      hierarchyContext.nodeMap,
+      logger,
+      skeletonMap.size > 0 ? skeletonMap : undefined
+    );
+
+    // After animations are processed, verify mesh-skeleton synchronization
+    // In USD Skel, meshes should automatically deform when skeleton animates
+    // We need to ensure the mesh is properly bound and synchronized with the skeleton
+    if (skeletonMap.size > 0) {
+      // Verify each mesh is properly bound to its animated skeleton
+      for (const [, skeletonData] of skeletonMap) {
+        const skelRootNode = skeletonData.skelRootNode;
+        const skelRootChildren = Array.from(skelRootNode.getChildren());
+        const meshChildren = skelRootChildren.filter(child => {
+          const childType = child.getTypeName();
+          return childType === 'Mesh';
+        });
+
+        // Get animation source from skeleton
+        const skelRootAnimationSource = skelRootNode.getProperty('rel skel:animationSource');
+        const skeletonPrimAnimationSource = skeletonData.skeletonPrimNode?.getProperty('rel skel:animationSource');
+        const primaryAnimationSource = getFirstPropertyValue(skeletonPrimAnimationSource) || getFirstPropertyValue(skelRootAnimationSource);
+
+        // Verify each mesh is bound and synchronized
+        for (const mesh of meshChildren) {
+          const meshPath = mesh.getPath();
+          const skelSkeleton = mesh.getProperty('rel skel:skeleton');
+          const skeletonPrimPath = skeletonData.skeletonPrimNode?.getPath();
+
+          // Verify mesh is bound to the same skeleton that has animation
+          const meshSkeletonPath = typeof skelSkeleton === 'string' ? skelSkeleton : (Array.isArray(skelSkeleton) ? skelSkeleton[0] : undefined);
+          const isBoundToAnimatedSkeleton = meshSkeletonPath && skeletonPrimPath &&
+            (meshSkeletonPath === skeletonPrimPath || meshSkeletonPath.includes(skeletonPrimPath));
+
+          // Check if skeleton has animation
+          const hasAnimationOnSkeleton = !!primaryAnimationSource;
+
+          if (isBoundToAnimatedSkeleton && hasAnimationOnSkeleton) {
+            logger.info(`Mesh-skeleton synchronization verified: ${meshPath}`, {
+              meshName: mesh.getName(),
+              meshPath,
+              skeletonPrimPath,
+              animationSource: primaryAnimationSource,
+              isBound: true,
+              hasAnimation: true,
+              syncVerified: true
+            });
+          } else {
+            logger.warn(`Mesh-skeleton synchronization issue: ${meshPath}`, {
+              meshName: mesh.getName(),
+              meshPath,
+              skeletonPrimPath,
+              animationSource: primaryAnimationSource,
+              isBound: isBoundToAnimatedSkeleton,
+              hasAnimation: hasAnimationOnSkeleton,
+              syncVerified: false,
+              warning: 'Mesh may not deform correctly if not synchronized with animated skeleton'
+            });
+          }
+        }
+      }
+
+      // Log final skeleton-mesh binding state after animations are processed
+      logger.info('Final skeleton-mesh binding summary', {
+        skeletonCount: skeletonMap.size,
+        skeletons: Array.from(skeletonMap.values()).map((skeletonData) => {
+          const skelRootNode = skeletonData.skelRootNode;
+          const skelRootPath = skelRootNode.getPath();
+          const skeletonPrimNode = skeletonData.skeletonPrimNode;
+          const skelRootChildren = Array.from(skelRootNode.getChildren());
+          const meshChildren = skelRootChildren.filter(child => {
+            const childType = child.getTypeName();
+            return childType === 'Mesh' || childType === 'Xform';
+          });
+          const skeletonPrim = skelRootChildren.find(child => child.getTypeName() === 'Skeleton');
+          const animationPrims = skelRootChildren.filter(child => child.getTypeName() === 'SkelAnimation');
+
+          // Get SkelRoot and Skeleton prim animation info
+          const skelRootAnimationSource = skelRootNode.getProperty('rel skel:animationSource');
+          const skeletonPrimAnimationSource = skeletonPrimNode?.getProperty('rel skel:animationSource');
+
+          // Get mesh binding info
+          const meshBindings = meshChildren.map(mesh => {
+            const meshPath = mesh.getPath();
+            const skelSkeleton = mesh.getProperty('rel skel:skeleton');
+            const geomBindTransform = mesh.getProperty('skel:geomBindTransform');
+            const jointIndices = mesh.getProperty('int[] primvars:skel:jointIndices');
+            const jointWeights = mesh.getProperty('float[] primvars:skel:jointWeights');
+
+            // Verify mesh is bound to the same skeleton that has animation
+            const meshSkeletonPath = getFirstPropertyValue(skelSkeleton);
+            const skeletonPrimPath = skeletonPrimNode?.getPath();
+            const isBoundToAnimatedSkeleton = meshSkeletonPath && skeletonPrimPath &&
+              (typeof meshSkeletonPath === 'string' && (meshSkeletonPath === skeletonPrimPath || meshSkeletonPath.includes(skeletonPrimPath)));
+
+            // Check if animation is set on skeleton
+            const primaryAnimationSource = getFirstPropertyValue(skeletonPrimAnimationSource) || getFirstPropertyValue(skelRootAnimationSource);
+            const hasAnimationOnSkeleton = !!primaryAnimationSource;
+
+            return {
+              meshName: mesh.getName(),
+              meshPath,
+              hasSkelBindingAPI: ApiSchemaBuilder.hasApiSchema(mesh, API_SCHEMAS.SKEL_BINDING),
+              skelSkeleton,
+              skeletonPrimPath,
+              isBoundToAnimatedSkeleton,
+              hasGeomBindTransform: !!geomBindTransform,
+              hasJointIndices: !!jointIndices,
+              hasJointWeights: !!jointWeights,
+              // Verify animation sync
+              skeletonHasAnimation: hasAnimationOnSkeleton,
+              skelRootAnimationSource: skelRootAnimationSource,
+              skeletonPrimAnimationSource: skeletonPrimAnimationSource,
+              primaryAnimationSource: primaryAnimationSource,
+              animationSyncVerified: isBoundToAnimatedSkeleton && hasAnimationOnSkeleton
+            };
+          });
+
+          return {
+            skeletonName: skelRootNode.getName(),
+            skeletonPath: skelRootPath,
+            hasSkelBindingAPI: ApiSchemaBuilder.hasApiSchema(skelRootNode, API_SCHEMAS.SKEL_BINDING),
+            animationSource: getFirstPropertyValue(skelRootAnimationSource),
+            animationSourceCount: normalizePropertyToArray(skelRootAnimationSource).length,
+            skeletonPrimPath: skeletonPrim?.getPath(),
+            skeletonPrimHasSkelBindingAPI: skeletonPrimNode ? ApiSchemaBuilder.hasApiSchema(skeletonPrimNode, API_SCHEMAS.SKEL_BINDING) : false,
+            skeletonPrimAnimationSource: skeletonPrimAnimationSource,
+            animationPrimPaths: animationPrims.map(anim => anim.getPath()),
+            animationCount: animationPrims.length,
+            meshBindings,
+            meshCount: meshChildren.length,
+            // Overall verification
+            allMeshesBound: meshBindings.every(m => m.isBoundToAnimatedSkeleton),
+            allMeshesHaveAnimation: meshBindings.every(m => m.skeletonHasAnimation),
+            animationSyncComplete: meshBindings.every(m => m.animationSyncVerified),
+            // Verify mesh and skeleton are synchronized
+            meshSkeletonSync: JSON.stringify(
+              meshBindings.map(m => ({
+                meshName: m.meshName,
+                meshPath: m.meshPath,
+                skeletonPath: m.skeletonPrimPath,
+                isBound: m.isBoundToAnimatedSkeleton,
+                hasAnimation: m.skeletonHasAnimation,
+                syncVerified: m.animationSyncVerified,
+                primaryAnimationSource: m.primaryAnimationSource,
+                skelRootAnimationSource: m.skelRootAnimationSource,
+                skeletonPrimAnimationSource: m.skeletonPrimAnimationSource,
+                skelSkeleton: m.skelSkeleton,
+                // Verify mesh is using same animation source as skeleton
+                meshSkeletonMatch: m.skelSkeleton === m.skeletonPrimPath ||
+                  (typeof m.skelSkeleton === 'string' && m.skelSkeleton.includes(m.skeletonPrimPath || '')),
+                // Warning: if skeleton is animating but mesh isn't, they're not synchronized
+                syncWarning: m.isBoundToAnimatedSkeleton && m.skeletonHasAnimation && !m.animationSyncVerified ?
+                  'Mesh bound to animated skeleton but animation sync not verified - mesh may not deform correctly' : undefined
+              })),
+              null,
+              2
+            )
+          };
+        })
+      });
+    }
 
     // Set time code metadata on root node if animations are present
     if (animationTimeCode) {

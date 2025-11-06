@@ -104,6 +104,27 @@ export class UsdNode {
   }
 
   /**
+   * Remove a child node from this node
+   */
+  removeChild(child: UsdNode): boolean {
+    const childName = child._path.split('/').pop() || 'Unnamed';
+    return this._children.delete(childName);
+  }
+
+  /**
+   * Update the path of this node (useful when moving nodes in hierarchy)
+   */
+  updatePath(newPath: UsdPath): this {
+    try {
+      UsdPathSchema.parse(newPath);
+    } catch (error) {
+      throw new UsdSchemaError(`Invalid USD path: ${newPath}`, newPath);
+    }
+    this._path = newPath;
+    return this;
+  }
+
+  /**
    * Get all child nodes
    */
   getChildren(): IterableIterator<UsdNode> {
@@ -220,13 +241,18 @@ export class UsdNode {
         // Exclude xformOp:transform if we have animated individual ops
         return false;
       }
-      return p.key === "xformOp:transform" || p.key === "xformOpOrder";
+      return p.key === "xformOp:transform" || p.key === "xformOpOrder" || p.key === "skel:geomBindTransform";
     });
-    const relProperties = this._properties.filter(p => p.type === "rel");
+    const relProperties = this._properties.filter(p => p.type === "rel" || p.type === "rel[]");
     const interpolationProperties = this._properties.filter(p => p.type === "interpolation");
+    const elementSizeProperties = this._properties.filter(p => p.type === "elementSize");
     const arrayProperties = this._properties.filter(p =>
-      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key === 'float3[] extent' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st'))
+      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key === 'float3[] extent' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st') || p.key === 'float3[] translations' || p.key === 'half3[] scales' || p.key === 'quatf[] rotations' || p.key === 'int[] primvars:skel:jointIndices' || p.key === 'float[] primvars:skel:jointWeights')
       // primvars:st:interpolation is handled via interpolationProperties, not as a separate property
+    );
+    // Token array properties that go in node body (skeleton joints, etc.)
+    const tokenArrayProperties = this._properties.filter(p =>
+      (p.key === 'uniform token[] joints' || p.key.startsWith('uniform token[]') || p.key.startsWith('uniform matrix4d[]'))
     );
     // Simple token properties that go in node body (not in parentheses)
     const simpleTokenProperties = this._properties.filter(p =>
@@ -236,17 +262,28 @@ export class UsdNode {
       !(p.key.includes(":") && p.type === "token") &&
       p.key !== "xformOp:transform" &&
       p.key !== "xformOpOrder" &&
+      p.key !== "skel:geomBindTransform" && // Exclude - it goes in node body as transform property
       p.key !== "float3[] extent" && // Exclude extent - it goes in node body
+      p.key !== "float3[] translations" && // Exclude - it goes in node body
+      p.key !== "half3[] scales" && // Exclude - it goes in node body
+      p.key !== "quatf[] rotations" && // Exclude - it goes in node body
+      p.key !== "int[] primvars:skel:jointIndices" && // Exclude - it goes in node body
+      p.key !== "float[] primvars:skel:jointWeights" && // Exclude - it goes in node body
       p.key !== "token subdivisionScheme" && // Exclude - it goes in node body
       p.key !== "token visibility" && // Exclude - it goes in node body
       p.key !== "token purpose" && // Exclude - it goes in node body
       p.key !== "uniform token primvars:st:interpolation" && // Exclude - handled via interpolation metadata
       p.key !== "token normals:interpolation" && // Exclude - handled via interpolation metadata
+      p.key !== "uniform token[] joints" && // Exclude - goes in node body
       p.type !== "rel" &&
+      p.type !== "rel[]" && // Exclude rel array properties - they go in node body
       p.type !== "interpolation" && // Exclude interpolation properties
+      p.type !== "elementSize" && // Exclude elementSize properties - handled via metadata
       !p.key.includes(".connect") &&
       !arrayProperties.some(ap => ap.key === p.key) && // Exclude array properties from otherProperties
-      !simpleTokenProperties.some(stp => stp.key === p.key) // Exclude simple token properties from otherProperties
+      !simpleTokenProperties.some(stp => stp.key === p.key) && // Exclude simple token properties from otherProperties
+      !tokenArrayProperties.some(tap => tap.key === p.key) && // Exclude token array properties from otherProperties
+      !transformProperties.some(tp => tp.key === p.key) // Exclude transform properties from otherProperties
     );
     const shaderProperties = isShaderNode ? this._properties : [];
 
@@ -286,17 +323,28 @@ export class UsdNode {
         propertiesAndMetadata += `${space}    uniform token[] ${prop.key} = ${value}\n`;
       } else if (prop.key === "customData") {
         // Special handling for customData
+        // USD requires explicit type declarations for customData values
         propertiesAndMetadata += `${space}    customData = {\n`;
         for (const [key, val] of Object.entries(prop.value)) {
-          propertiesAndMetadata += `${space}        ${key} = ${JSON.stringify(val)}\n`;
+          // Determine type based on value type
+          let typeDecl = '';
+          if (typeof val === 'string') {
+            typeDecl = 'string ';
+          } else if (typeof val === 'number') {
+            typeDecl = Number.isInteger(val) ? 'int ' : 'float ';
+          } else if (typeof val === 'boolean') {
+            typeDecl = 'bool ';
+          }
+          propertiesAndMetadata += `${space}        ${typeDecl}${key} = ${JSON.stringify(val)}\n`;
         }
         propertiesAndMetadata += `${space}    }\n`;
       } else if (prop.key.includes("inputs:file")) {
         // Special handling for asset inputs:file - don't double quote
         propertiesAndMetadata += `${space}    asset ${prop.key} = ${prop.value}\n`;
-      } else if (prop.key.includes(":")) {
+      } else if (prop.key.includes(":") && !prop.key.startsWith("rel ")) {
         // Special handling for properties with colons (like preliminary:anchoring:type)
         // In USD, namespaced properties need to be declared as attributes
+        // Exclude rel properties (they start with "rel " and go in the body)
         const [namespace, ...rest] = prop.key.split(":");
         const attributeName = rest.join(":");
         propertiesAndMetadata += `${space}    ${namespace}:${attributeName} = ${value}\n`;
@@ -319,7 +367,7 @@ export class UsdNode {
 
     // Determine if we need braces for the node body
     // Material nodes need braces for their children (shaders) and connections
-    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || this._timeSamples.size > 0;
+    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || this._timeSamples.size > 0;
 
     if (needsBraces) {
       usda += `${space}{\n`;
@@ -362,6 +410,36 @@ export class UsdNode {
             } else {
               usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
             }
+          } else if (prop.key === 'int[] primvars:skel:jointIndices' || prop.key === 'float[] primvars:skel:jointWeights') {
+            // Handle joint primvars with interpolation and elementSize metadata
+            const interpolationProp = interpolationProperties.find(ip => {
+              const ipKeyParts = ip.key.split(' ');
+              const ipPropertyName = ipKeyParts.length > 1 ? ipKeyParts[ipKeyParts.length - 1] : ip.key;
+              return ipPropertyName === propertyName + ':interpolation';
+            });
+            const elementSizeProp = elementSizeProperties.find(ep => {
+              const epKeyParts = ep.key.split(' ');
+              const epPropertyName = epKeyParts.length > 1 ? epKeyParts[epKeyParts.length - 1] : ep.key;
+              return epPropertyName === propertyName + ':elementSize';
+            });
+            
+            if (interpolationProp || elementSizeProp) {
+              usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
+              if (interpolationProp) {
+                usda += `${space}        interpolation = "${interpolationProp.value}"\n`;
+              }
+              if (elementSizeProp) {
+                usda += `${space}        elementSize = ${elementSizeProp.value}\n`;
+              }
+              usda += `${space}    )\n`;
+            } else {
+              // No metadata, output normally
+              if (prop.type === 'raw') {
+                usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+              } else {
+                usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+              }
+            }
           } else if (prop.type === 'raw') {
             // Handle raw type properties (geometry data) - don't quote the value
             usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
@@ -375,6 +453,21 @@ export class UsdNode {
           } else {
             usda += `${space}    ${propertyName} = ${prop.value}\n`;
           }
+        }
+      }
+
+      // Add token array properties (in node body) - for skeleton joints, etc.
+      for (const prop of tokenArrayProperties) {
+        // Extract type and property name from key (e.g., 'uniform token[] joints' -> 'uniform token[]' and 'joints')
+        const parts = prop.key.split(' ');
+        const typeDeclaration = parts.slice(0, -1).join(' '); // 'uniform token[]'
+        const propertyName = parts[parts.length - 1]; // 'joints'
+        // For raw type, output the value as-is (already formatted as USDA string)
+        if (prop.type === 'raw') {
+          usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+        } else {
+          // Fallback to JSON stringify if not raw
+          usda += `${space}    ${typeDeclaration} ${propertyName} = ${JSON.stringify(prop.value)}\n`;
         }
       }
 
@@ -465,15 +558,31 @@ export class UsdNode {
 
       // Add rel properties (in node body)
       for (const prop of relProperties) {
-        // Remove quotes from connection paths for rel properties
-        const valueStr = prop.value as string;
-        const value = valueStr.replace(/"([^"]+)"/g, '$1');
-        usda += `${space}    rel ${prop.key} = ${value}\n`;
+        // Check if key already starts with "rel " - if so, remove it to avoid duplicate
+        const key = prop.key.startsWith('rel ') ? prop.key.substring(4) : prop.key;
+
+        // Handle arrays for rel properties
+        if (Array.isArray(prop.value)) {
+          // For rel arrays, format as [<path1>, <path2>, ...]
+          const values = (prop.value as string[]).map(v => {
+            const valueStr = v as string;
+            return valueStr.replace(/"([^"]+)"/g, '$1');
+          });
+          usda += `${space}    rel ${key} = [${values.join(', ')}]\n`;
+        } else {
+          // Single rel value
+          const valueStr = prop.value as string;
+          const value = valueStr.replace(/"([^"]+)"/g, '$1');
+          usda += `${space}    rel ${key} = ${value}\n`;
+        }
       }
 
       // Add transform properties (in node body)
       for (const prop of transformProperties) {
         if (prop.key === "xformOp:transform") {
+          usda += `${space}    matrix4d ${prop.key} = ${prop.value}\n`;
+        } else if (prop.key === "skel:geomBindTransform") {
+          // skel:geomBindTransform is a matrix4d property
           usda += `${space}    matrix4d ${prop.key} = ${prop.value}\n`;
         } else if (prop.key === "xformOpOrder") {
           const value = Array.isArray(prop.value)
@@ -492,13 +601,18 @@ export class UsdNode {
           continue;
         }
 
+        // Check if key already includes the type (e.g., 'quatf[] rotations')
+        // If so, use it as-is; otherwise add the type prefix
+        // Check if key starts with type followed by space, or if key equals type
+        const propertyKey = (key.startsWith(type + ' ') || key === type) ? key : `${type} ${key}`;
+
         if (sortedTimes.length === 1) {
           // Single time sample - use default value syntax
-          usda += `${space}    ${type} ${key} = ${timeSamples.get(sortedTimes[0])}\n`;
+          usda += `${space}    ${propertyKey} = ${timeSamples.get(sortedTimes[0])}\n`;
         } else {
           // Multiple time samples - use .timeSamples attribute syntax
           // For xformOp attributes, the syntax is: float3 xformOp:translate.timeSamples = { ... }
-          usda += `${space}    ${type} ${key}.timeSamples = {\n`;
+          usda += `${space}    ${propertyKey}.timeSamples = {\n`;
           for (let i = 0; i < sortedTimes.length; i++) {
             const time = sortedTimes[i];
             const value = timeSamples.get(time);
@@ -535,6 +649,13 @@ export class UsdNode {
    */
   getPath(): string {
     return this._path;
+  }
+
+  /**
+   * Get the type name of this node
+   */
+  getTypeName(): string {
+    return this._typeName;
   }
 
 }
