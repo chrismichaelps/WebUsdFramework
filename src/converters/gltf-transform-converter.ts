@@ -261,6 +261,68 @@ export async function convertGlbToUsdz(
                   });
                 }
 
+                // In GLTF, JOINTS_0 contains indices into skin.joints array (skeleton joint indices)
+                // These should already be 0-based indices into the skeleton joints array
+                // Our USD skeleton joints array is in the same order as skin.joints, so indices should match
+                // However, we verify and ensure they're within valid range
+                if (!skin) {
+                  logger.error('Skin is null, cannot remap joint indices', {
+                    nodeName: node.getName()
+                  });
+                  continue;
+                }
+
+                const skeletonJointCount = skeletonData.jointPaths.length; // Use actual USD skeleton joint count
+                const rootJointOmitted = skeletonData.rootJointOmitted || false;
+
+                // If root joint was omitted from skeleton, adjust joint indices
+                // GLTF joint indices are 0-based into skin.joints array
+                // If root joint (index 0) was omitted, we need to subtract 1 from all indices >= 1
+                // Index 0 in GLTF should be mapped to -1 (invalid) or clamped to 0, but since root joint
+                // is omitted, vertices using root joint (index 0) should be remapped to use the next joint
+                const remappedIndices = indicesArray.map((jointIndex: number) => {
+                  let adjustedIndex = jointIndex;
+
+                  // If root joint was omitted, adjust indices
+                  if (rootJointOmitted) {
+                    if (jointIndex === 0) {
+                      // Root joint (index 0) was omitted, map to first available joint (index 0 in USD skeleton)
+                      // This is the second joint in GLTF (hips_JNT_01)
+                      adjustedIndex = 0;
+                      logger.warn('Joint index 0 (root joint) was omitted, mapping to first skeleton joint', {
+                        originalIndex: jointIndex,
+                        adjustedIndex,
+                        skeletonJointCount
+                      });
+                    } else if (jointIndex > 0) {
+                      // All other joints need to be shifted down by 1
+                      adjustedIndex = jointIndex - 1;
+                    }
+                  }
+
+                  // Clamp to valid range [0, skeletonJointCount - 1]
+                  if (adjustedIndex < 0 || adjustedIndex >= skeletonJointCount) {
+                    logger.warn('Joint index out of range, clamping', {
+                      originalIndex: jointIndex,
+                      adjustedIndex,
+                      skeletonJointCount,
+                      clampedIndex: Math.max(0, Math.min(adjustedIndex, skeletonJointCount - 1))
+                    });
+                    return Math.max(0, Math.min(adjustedIndex, skeletonJointCount - 1));
+                  }
+                  return adjustedIndex;
+                });
+
+                logger.info('Validated joint indices for USD skeleton', {
+                  originalIndicesSample: indicesArray.slice(0, 10),
+                  validatedIndicesSample: remappedIndices.slice(0, 10),
+                  minOriginal: Math.min(...indicesArray),
+                  maxOriginal: Math.max(...indicesArray),
+                  minValidated: Math.min(...remappedIndices),
+                  maxValidated: Math.max(...remappedIndices),
+                  skeletonJointCount
+                });
+
                 // Get the mesh node (first child or the node itself)
                 const meshNode = usdNode.getChildren().next().value || usdNode;
                 const originalParent = meshNode !== usdNode ? usdNode : undefined;
@@ -270,14 +332,14 @@ export async function convertGlbToUsdz(
                   meshNodePath: meshNode.getPath(),
                   originalParent: originalParent?.getName(),
                   skeletonPath: skeletonData.skelRootNode.getPath(),
-                  indicesCount: indicesArray.length,
+                  indicesCount: remappedIndices.length,
                   weightsCount: weightsArray.length
                 });
 
                 bindSkeletonToMesh(
                   meshNode,
                   skeletonData.skelRootNode.getPath(),
-                  indicesArray,
+                  remappedIndices,
                   weightsArray,
                   skeletonData.skelRootNode,
                   skeletonData.skeletonPrimNode,

@@ -22,6 +22,28 @@ export interface SkeletonData {
   jointPaths: string[]; // Absolute paths (for internal use)
   jointRelativePaths: string[]; // Relative paths (for USD joints array)
   restTransforms?: string[]; // Store rest transforms for animation comparison
+  restPoseTranslations?: string[]; // Store rest pose translations (extracted from rest transforms) for default animation values
+  rootJointOmitted?: boolean; // Whether the root joint was omitted from the skeleton
+}
+
+/**
+ * Check if a joint node has animation channels in any animation
+ */
+function hasJointAnimation(jointNode: Node, document: Document): boolean {
+  const root = document.getRoot();
+  const animations = root.listAnimations();
+
+  for (const animation of animations) {
+    const channels = animation.listChannels();
+    for (const channel of channels) {
+      const targetNode = channel.getTargetNode();
+      if (targetNode === jointNode) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -48,7 +70,30 @@ export function processSkeletons(
   });
 
   for (const skin of skins) {
-    const skeletonData = createSkeleton(skin, nodeMap, rootPath, logger);
+    // Check if root joint has animation before creating skeleton
+    const joints = skin.listJoints();
+    let shouldOmitRootJoint = false;
+
+    if (joints.length > 0) {
+      const rootJoint = joints[0];
+      const hasAnimation = hasJointAnimation(rootJoint, document);
+      shouldOmitRootJoint = !hasAnimation;
+
+      if (shouldOmitRootJoint) {
+        logger.info('Root joint has no animation, will be omitted from skeleton', {
+          rootJointName: rootJoint.getName(),
+          totalJoints: joints.length,
+          skeletonJoints: joints.length - 1
+        });
+      } else {
+        logger.info('Root joint has animation, will be included in skeleton', {
+          rootJointName: rootJoint.getName(),
+          totalJoints: joints.length
+        });
+      }
+    }
+
+    const skeletonData = createSkeleton(skin, nodeMap, rootPath, logger, shouldOmitRootJoint);
     if (skeletonData) {
       skeletonMap.set(skin, skeletonData);
     }
@@ -101,13 +146,26 @@ function createSkeleton(
   skin: Skin,
   nodeMap: Map<Node, UsdNode>,
   rootPath: string,
-  logger: Logger
+  logger: Logger,
+  omitRootJoint: boolean = false
 ): SkeletonData | null {
-  const joints = skin.listJoints();
+  let joints = skin.listJoints();
 
   if (joints.length === 0) {
     logger.warn('Skin has no joints, skipping');
     return null;
+  }
+
+  // If root joint should be omitted, remove it from the joints array
+  // This ensures the skeleton matches the USDZ format that omits non-animated root joints
+  if (omitRootJoint && joints.length > 1) {
+    const rootJoint = joints[0];
+    joints = joints.slice(1); // Remove root joint
+    logger.info('Omitted root joint from skeleton', {
+      omittedJointName: rootJoint.getName(),
+      remainingJoints: joints.length,
+      originalJointCount: joints.length + 1
+    });
   }
 
   const skeletonName = sanitizeName(skin.getName() || 'Skeleton');
@@ -202,10 +260,14 @@ function createSkeleton(
     jointRelativePaths.push(relativePath);
   }
 
+  // Log joint order for debugging skeleton mapping issues
   logger.info(`Skeleton joint paths (GLTF order preserved):`, {
     jointCount: jointPaths.length,
     jointPaths: jointPaths.slice(0, 10).concat(jointPaths.length > 10 ? ['...'] : []),
-    relativePaths: jointRelativePaths.slice(0, 10).concat(jointRelativePaths.length > 10 ? ['...'] : [])
+    relativePaths: jointRelativePaths.slice(0, 10).concat(jointRelativePaths.length > 10 ? ['...'] : []),
+    firstJointName: joints[0]?.getName(),
+    lastJointName: joints[joints.length - 1]?.getName(),
+    jointNames: joints.slice(0, 10).map(j => j.getName()).concat(joints.length > 10 ? ['...'] : [])
   });
 
   // Set joints array on Skeleton prim using relative paths
@@ -232,19 +294,28 @@ function createSkeleton(
 
   if (bindMatricesAccessor) {
     const bindMatricesArray = bindMatricesAccessor.getArray();
+    const originalJointCount = skin.listJoints().length;
+    const expectedArrayLength = originalJointCount * 16; // GLTF has bind matrices for all joints
+
     logger.info('Bind matrices array details', {
       hasArray: !!bindMatricesArray,
       arrayLength: bindMatricesArray?.length,
-      expectedLength: joints.length * 16,
-      matches: bindMatricesArray?.length === joints.length * 16
+      expectedLength: expectedArrayLength,
+      originalJointCount,
+      skeletonJointCount: joints.length,
+      matches: bindMatricesArray?.length === expectedArrayLength
     });
 
-    if (bindMatricesArray && bindMatricesArray.length === joints.length * 16) {
+    if (bindMatricesArray && bindMatricesArray.length === expectedArrayLength) {
       // Compute bind transforms by inverting the inverse bind matrices
       // Compute rest transforms from joint hierarchy's rest pose transforms
+      // If root joint was omitted, skip the first bind matrix (index 0)
       for (let i = 0; i < joints.length; i++) {
         const joint = joints[i];
-        const startIdx = i * 16;
+        // Map skeleton joint index to GLTF bind matrix index
+        // If root joint was omitted, skeleton joint 0 maps to GLTF bind matrix 1
+        const gltfJointIndex = omitRootJoint ? i + 1 : i;
+        const startIdx = gltfJointIndex * 16;
         const invMatrix = Array.from(bindMatricesArray).slice(startIdx, startIdx + 16);
 
         // Invert the inverse bind matrix to get the bind transform
@@ -317,11 +388,35 @@ function createSkeleton(
     'raw'
   );
 
+  // Extract rest pose translations from rest transforms for use as default animation values
+  // When a joint doesn't have translation animation data, we use its rest pose translation instead of (0, 0, 0)
+  // Extract translations directly from joint transforms before converting to string format
+  const restPoseTranslations: string[] = [];
+  for (let i = 0; i < joints.length; i++) {
+    const joint = joints[i];
+    const jointTransform = joint.getMatrix();
+    if (jointTransform) {
+      // GLTF matrices are column-major: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
+      // Translation is at indices 12, 13, 14 (m03, m13, m23)
+      const tx = jointTransform[12];
+      const ty = jointTransform[13];
+      const tz = jointTransform[14];
+      restPoseTranslations.push(`(${tx}, ${ty}, ${tz})`);
+    } else {
+      // If joint has no transform, use (0, 0, 0)
+      restPoseTranslations.push('(0, 0, 0)');
+    }
+  }
+
   logger.info('Skeleton created successfully', {
     skeletonName,
     jointCount: jointPaths.length,
     bindTransformCount: bindTransforms.length,
     restTransformCount: restTransforms.length,
+    restPoseTranslationCount: restPoseTranslations.length,
+    firstRestPoseTranslation: restPoseTranslations[0],
+    secondRestPoseTranslation: restPoseTranslations[1],
+    thirdRestPoseTranslation: restPoseTranslations[2],
     skelRootPath,
     skeletonPrimPath
   });
@@ -333,7 +428,9 @@ function createSkeleton(
     jointNodes,
     jointPaths, // Absolute paths (for internal use)
     jointRelativePaths, // Relative paths (for USD joints array)
-    restTransforms // Store rest transforms for animation comparison
+    restTransforms, // Store rest transforms for animation comparison
+    restPoseTranslations, // Store rest pose translations for default animation values
+    rootJointOmitted: omitRootJoint // Track if root joint was omitted
   };
 }
 
