@@ -19,7 +19,8 @@ export interface SkeletonData {
   skelRootNode: UsdNode;
   skeletonPrimNode: UsdNode;
   jointNodes: Map<Node, UsdNode>;
-  jointPaths: string[];
+  jointPaths: string[]; // Absolute paths (for internal use)
+  jointRelativePaths: string[]; // Relative paths (for USD joints array)
   restTransforms?: string[]; // Store rest transforms for animation comparison
 }
 
@@ -114,24 +115,33 @@ function createSkeleton(
   // Create SkelRoot as container
   const skelRootNode = new UsdNode(skelRootPath, 'SkelRoot');
 
+  // Set kind = "component" metadata
+  skelRootNode.setMetadata('kind', 'component');
+
   // Create Skeleton prim inside SkelRoot
   const skeletonPrimPath = `${skelRootPath}/${skeletonName}`;
   const skeletonPrimNode = new UsdNode(skeletonPrimPath, 'Skeleton');
   // Hide skeleton - it's only needed for animation data, not visual rendering
   // The mesh will still be visible and animated correctly
   skeletonPrimNode.setProperty('token visibility', 'invisible', 'token');
+
+  // Note: Some USDZ files include customData with source application metadata
+  // We omit it since we're converting from GLTF
+
   skelRootNode.addChild(skeletonPrimNode);
 
-  // Build joint paths array
-  const jointPaths: string[] = [];
+  // Build joint paths array using relative paths (e.g., "root", "root/body_joint")
+  const jointPaths: string[] = []; // Absolute paths (for internal use)
+  const jointRelativePaths: string[] = []; // Relative paths (for USD joints array)
   const jointNodes = new Map<Node, UsdNode>();
+  const jointToParent = new Map<Node, Node | null>(); // Map joint to its parent joint
 
   logger.info(`Creating skeleton with ${joints.length} joints`, {
     skeletonName,
     skelRootPath
   });
 
-  // Create joint hierarchy and collect paths
+  // First pass: collect all joints and find parent relationships
   for (let i = 0; i < joints.length; i++) {
     const joint = joints[i];
     const jointUsdNode = nodeMap.get(joint);
@@ -147,6 +157,19 @@ function createSkeleton(
     jointPaths.push(jointPath);
     jointNodes.set(joint, jointUsdNode);
 
+    // Find parent joint (if any) - parent must also be in the joints list
+    // GLTF-Transform doesn't have getParent(), so we find parent by checking which joint has this as a child
+    let parentJoint: Node | null = null;
+    for (const potentialParent of joints) {
+      if (potentialParent === joint) continue;
+      const children = potentialParent.listChildren();
+      if (children.includes(joint)) {
+        parentJoint = potentialParent;
+        break;
+      }
+    }
+    jointToParent.set(joint, parentJoint);
+
     logger.info(`Mapped GLTF joint ${i} to USD joint path`, {
       jointIndex: i,
       jointName: joint.getName(),
@@ -160,13 +183,33 @@ function createSkeleton(
     return null;
   }
 
+  // Second pass: build relative paths by traversing from root to each joint
+  const buildRelativePath = (joint: Node): string => {
+    const parentJoint = jointToParent.get(joint);
+    if (!parentJoint) {
+      // Root joint - use sanitized name
+      return sanitizeName(joint.getName() || 'root');
+    }
+    // Recursive: build parent path, then append this joint's name
+    const parentPath = buildRelativePath(parentJoint);
+    const jointName = sanitizeName(joint.getName() || 'joint');
+    return `${parentPath}/${jointName}`;
+  };
+
+  for (let i = 0; i < joints.length; i++) {
+    const joint = joints[i];
+    const relativePath = buildRelativePath(joint);
+    jointRelativePaths.push(relativePath);
+  }
+
   logger.info(`Skeleton joint paths (GLTF order preserved):`, {
     jointCount: jointPaths.length,
-    jointPaths: jointPaths.slice(0, 10).concat(jointPaths.length > 10 ? ['...'] : [])
+    jointPaths: jointPaths.slice(0, 10).concat(jointPaths.length > 10 ? ['...'] : []),
+    relativePaths: jointRelativePaths.slice(0, 10).concat(jointRelativePaths.length > 10 ? ['...'] : [])
   });
 
-  // Set joints array on Skeleton prim - format as raw string for proper USD syntax
-  const jointsArray = formatUsdQuotedArray(jointPaths);
+  // Set joints array on Skeleton prim using relative paths
+  const jointsArray = formatUsdQuotedArray(jointRelativePaths);
   skeletonPrimNode.setProperty(
     'uniform token[] joints',
     jointsArray,
@@ -288,7 +331,8 @@ function createSkeleton(
     skelRootNode,
     skeletonPrimNode,
     jointNodes,
-    jointPaths,
+    jointPaths, // Absolute paths (for internal use)
+    jointRelativePaths, // Relative paths (for USD joints array)
     restTransforms // Store rest transforms for animation comparison
   };
 }

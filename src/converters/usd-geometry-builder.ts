@@ -5,6 +5,7 @@
  */
 
 import { Mesh, Primitive } from '@gltf-transform/core';
+import { formatUsdTuple3, formatUsdTuple2 } from '../utils/usd-formatter';
 
 /**
  * Geometry build result
@@ -31,6 +32,7 @@ export interface RawGeometryData {
   faceVertexIndices: string;
   normals?: string;
   uvs?: string;
+  colors?: string;
   extent: string;
 }
 
@@ -41,6 +43,7 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
   const positions = primitive.getAttribute('POSITION');
   const normals = primitive.getAttribute('NORMAL');
   const uvs = primitive.getAttribute('TEXCOORD_0');
+  const colors = primitive.getAttribute('COLOR_0');
   const indices = primitive.getIndices();
 
   if (!positions) {
@@ -58,7 +61,8 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
   // Extract points as tuples
   const points: string[] = [];
   for (let i = 0; i < positionArray.length; i += 3) {
-    points.push(`(${positionArray[i]}, ${positionArray[i + 1]}, ${positionArray[i + 2]})`);
+    // Use formatUsdTuple3 for consistent 7 decimal place precision
+    points.push(formatUsdTuple3(positionArray[i], positionArray[i + 1], positionArray[i + 2]));
   }
 
   // Extract face data
@@ -86,11 +90,15 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
     faceVertexIndices = Array.from({ length: vertexCount }, (_, i) => i).join(', ');
   }
 
+  // Format extent with consistent precision
+  const extentMinStr = formatUsdTuple3(bounds.min[0], bounds.min[1], bounds.min[2]);
+  const extentMaxStr = formatUsdTuple3(bounds.max[0], bounds.max[1], bounds.max[2]);
+
   const result: RawGeometryData = {
     points: `[${points.join(', ')}]`,
     faceVertexCounts: `[${faceVertexCounts}]`,
     faceVertexIndices: `[${faceVertexIndices}]`,
-    extent: `[(${bounds.min[0]}, ${bounds.min[1]}, ${bounds.min[2]}), (${bounds.max[0]}, ${bounds.max[1]}, ${bounds.max[2]})]`
+    extent: `[${extentMinStr}, ${extentMaxStr}]`
   };
 
   // Extract normals if available
@@ -99,7 +107,8 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
     if (normalArray && normalArray.length > 0) {
       const normalTuples: string[] = [];
       for (let i = 0; i < normalArray.length; i += 3) {
-        normalTuples.push(`(${normalArray[i]}, ${normalArray[i + 1]}, ${normalArray[i + 2]})`);
+        // Use formatUsdTuple3 for consistent 7 decimal place precision
+        normalTuples.push(formatUsdTuple3(normalArray[i], normalArray[i + 1], normalArray[i + 2]));
       }
       result.normals = `[${normalTuples.join(', ')}]`;
     }
@@ -138,9 +147,32 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
         const normalizedU = uSpan > 0 ? (originalU - minU) / uSpan : 0;
         const normalizedV = vSpan > 0 ? (originalV - minV) / vSpan : 0;
 
-        uvTuples.push(`(${normalizedU}, ${normalizedV})`);
+        // Use formatUsdTuple2 for consistent 7 decimal place precision
+        uvTuples.push(formatUsdTuple2(normalizedU, normalizedV));
       }
       result.uvs = `[${uvTuples.join(', ')}]`;
+    }
+  }
+
+  // Extract vertex colors if available (COLOR_0)
+  if (colors) {
+    const colorArray = colors.getArray();
+    if (colorArray && colorArray.length > 0) {
+      // GLTF stores colors as RGB or RGBA (0-1 range)
+      // USD uses color3f[] for RGB colors
+      // Determine component count from array length vs vertex count
+      const vertexCount = positionArray.length / 3;
+      const componentCount = colorArray.length / vertexCount; // 3 for RGB, 4 for RGBA
+      
+      const colorTuples: string[] = [];
+      for (let i = 0; i < colorArray.length; i += componentCount) {
+        const r = colorArray[i];
+        const g = colorArray[i + 1];
+        const b = colorArray[i + 2];
+        // Use formatUsdTuple3 for consistent precision
+        colorTuples.push(formatUsdTuple3(r, g, b));
+      }
+      result.colors = `[${colorTuples.join(', ')}]`;
     }
   }
 
@@ -284,7 +316,8 @@ function generatePositions(positions: Float32Array | Int8Array | Int16Array | Ui
     const x = positions[i * 3];
     const y = positions[i * 3 + 1];
     const z = positions[i * 3 + 2];
-    content += `        (${x}, ${y}, ${z})`;
+    // Use formatUsdTuple3 for consistent 7 decimal place precision
+    content += `        ${formatUsdTuple3(x, y, z)}`;
     if (i < pointCount - 1) content += `,\n`;
   }
 
@@ -378,7 +411,10 @@ function generateUVs(uvs: Float32Array | Int8Array | Int16Array | Uint8Array | U
  * Generate USD extent property
  */
 function generateExtent(min: [number, number, number], max: [number, number, number]): string {
-  return `    float3[] extent = [(${min[0]}, ${min[1]}, ${min[2]}), (${max[0]}, ${max[1]}, ${max[2]})]\n`;
+  // Use formatUsdTuple3 for consistent 7 decimal place precision
+  const extentMinStr = formatUsdTuple3(min[0], min[1], min[2]);
+  const extentMaxStr = formatUsdTuple3(max[0], max[1], max[2]);
+  return `    float3[] extent = [${extentMinStr}, ${extentMaxStr}]\n`;
 }
 
 /**

@@ -9,6 +9,7 @@ import { ParsedGeometry } from '../parsers/obj-mesh-parser';
 import { UsdNode } from '../../core/usd-node';
 import { USD_NODE_TYPES } from '../../constants/usd';
 import { formatUsdArray, formatUsdNumberArray, setTransformMatrixString, formatMatrix } from '../../utils';
+import { formatUsdTuple3, formatUsdTuple2 } from '../../utils/usd-formatter';
 
 /**
  * OBJ Mesh Adapter Interface
@@ -68,7 +69,8 @@ function addObjGeometryToMesh(mesh: ParsedGeometry, meshNode: UsdNode): void {
   if (vertexArray && vertexArray.length > 0) {
     const points = [];
     for (let i = 0; i < vertexArray.length; i += 3) {
-      points.push(`(${vertexArray[i]}, ${vertexArray[i + 1]}, ${vertexArray[i + 2]})`);
+      // Use formatUsdTuple3 for consistent 7 decimal place precision
+      points.push(formatUsdTuple3(vertexArray[i], vertexArray[i + 1], vertexArray[i + 2]));
     }
     meshNode.setProperty('point3f[] points', `[${points.join(', ')}]`, 'raw');
   }
@@ -76,7 +78,8 @@ function addObjGeometryToMesh(mesh: ParsedGeometry, meshNode: UsdNode): void {
   if (normalArray && normalArray.length > 0) {
     const normals = [];
     for (let i = 0; i < normalArray.length; i += 3) {
-      normals.push(`(${normalArray[i]}, ${normalArray[i + 1]}, ${normalArray[i + 2]})`);
+      // Use formatUsdTuple3 for consistent 7 decimal place precision
+      normals.push(formatUsdTuple3(normalArray[i], normalArray[i + 1], normalArray[i + 2]));
     }
     meshNode.setProperty('float3[] normals', `[${normals.join(', ')}]`, 'raw');
   }
@@ -84,7 +87,8 @@ function addObjGeometryToMesh(mesh: ParsedGeometry, meshNode: UsdNode): void {
   if (uvArray && uvArray.length > 0) {
     const uvs = [];
     for (let i = 0; i < uvArray.length; i += 2) {
-      uvs.push(`(${uvArray[i]}, ${uvArray[i + 1]})`);
+      // Use formatUsdTuple2 for consistent 7 decimal place precision
+      uvs.push(formatUsdTuple2(uvArray[i], uvArray[i + 1]));
     }
     meshNode.setProperty('texCoord2f[] primvars:st', `[${uvs.join(', ')}]`, 'texcoord');
     meshNode.setProperty('primvars:st:interpolation', 'vertex', 'interpolation');

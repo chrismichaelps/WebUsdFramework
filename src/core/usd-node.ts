@@ -69,6 +69,13 @@ export class UsdNode {
   }
 
   /**
+   * Get metadata value from this node
+   */
+  getMetadata(key: string): UsdAttributeValue | undefined {
+    return this._metadata.get(key);
+  }
+
+  /**
    * Set a property on this node (for USDZ generation)
    */
   setProperty(key: string, value: string | number | boolean | string[] | number[] | boolean[] | object, type?: string): this {
@@ -151,27 +158,45 @@ export class UsdNode {
   /**
    * Serialize this node to USDA format
    */
-  serializeToUsda(indent: number = 0): string {
+  serializeToUsda(indent: number = 0, skipHeader: boolean = false): string {
     const space = " ".repeat(indent * 4);
 
     // Add USD header for root node (indent = 0)
     let usda = "";
-    if (indent === 0) {
+    if (indent === 0 && !skipHeader) {
       usda += "#usda 1.0\n";
       usda += "(\n";
       usda += "    customLayerData = {\n";
       usda += "        string creator = \"WebUSD Framework\"\n";
       usda += "    }\n";
-      usda += "    defaultPrim = \"Root\"\n";
+
+      // defaultPrim must be a direct child of the root layer
+      const defaultPrim = this._metadata.get('defaultPrim') as string | undefined;
+      if (defaultPrim) {
+        usda += `    defaultPrim = "${defaultPrim}"\n`;
+      } else {
+        usda += "    defaultPrim = \"Root\"\n";
+      }
+
       usda += "    metersPerUnit = 1\n";
       usda += "    upAxis = \"Y\"\n";
 
-      // Add time code metadata if present (only in header, not on Root node)
-      // Order: timeCodesPerSecond, framesPerSecond, startTimeCode, endTimeCode (matches reference)
+      // Add time code metadata if present (header only)
       const timeCodesPerSecond = this._metadata.get('timeCodesPerSecond');
       const framesPerSecond = this._metadata.get('framesPerSecond');
       const startTimeCode = this._metadata.get('startTimeCode');
       const endTimeCode = this._metadata.get('endTimeCode');
+
+      // Add autoPlay and playbackMode when animations are present
+      const hasAnimations = timeCodesPerSecond !== undefined &&
+        framesPerSecond !== undefined &&
+        startTimeCode !== undefined &&
+        endTimeCode !== undefined;
+
+      if (hasAnimations) {
+        usda += `    autoPlay = true\n`;
+        usda += `    playbackMode = "loop"\n`;
+      }
 
       if (timeCodesPerSecond !== undefined) {
         usda += `    timeCodesPerSecond = ${timeCodesPerSecond}\n`;
@@ -195,11 +220,11 @@ export class UsdNode {
 
     let propertiesAndMetadata = "";
 
-    // Add metadata (exclude time code metadata - it's only in the header)
+    // Add metadata (exclude header-only keys)
     const timeCodeKeys = ['startTimeCode', 'endTimeCode', 'timeCodesPerSecond', 'framesPerSecond'];
+    const headerOnlyKeys = ['defaultPrim', ...timeCodeKeys];
     for (const [key, value] of this._metadata) {
-      // Skip time code metadata - it's already in the header
-      if (timeCodeKeys.includes(key)) {
+      if (headerOnlyKeys.includes(key)) {
         continue;
       }
       propertiesAndMetadata += `${space}    ${key} = ${JSON.stringify(value, null, 4)}\n`;
@@ -247,7 +272,7 @@ export class UsdNode {
     const interpolationProperties = this._properties.filter(p => p.type === "interpolation");
     const elementSizeProperties = this._properties.filter(p => p.type === "elementSize");
     const arrayProperties = this._properties.filter(p =>
-      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key === 'float3[] extent' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st') || p.key === 'float3[] translations' || p.key === 'half3[] scales' || p.key === 'quatf[] rotations' || p.key === 'int[] primvars:skel:jointIndices' || p.key === 'float[] primvars:skel:jointWeights')
+      (p.key === 'int[] faceVertexCounts' || p.key === 'int[] faceVertexIndices' || p.key === 'float3[] normals' || p.key === 'point3f[] points' || p.key === 'point3f[] offsets' || p.key === 'float3[] extent' || p.key.startsWith('float2[] primvars:st') || p.key.startsWith('texCoord2f[] primvars:st') || p.key === 'float3[] translations' || p.key === 'half3[] scales' || p.key === 'quatf[] rotations' || p.key === 'int[] primvars:skel:jointIndices' || p.key === 'float[] primvars:skel:jointWeights' || p.key === 'float[] primvars:blendShapeWeights' || p.key === 'color3f[] primvars:displayColor')
       // primvars:st:interpolation is handled via interpolationProperties, not as a separate property
     );
     // Token array properties that go in node body (skeleton joints, etc.)
@@ -258,22 +283,41 @@ export class UsdNode {
     const simpleTokenProperties = this._properties.filter(p =>
       (p.key === 'token subdivisionScheme' || p.key === 'token visibility' || p.key === 'token purpose')
     );
+    // xformOp properties go in node body, exclude if they have time samples
+    const xformOpProperties = this._properties.filter(p => {
+      if (!(p.key.startsWith('xformOp:translate') ||
+        p.key.startsWith('xformOp:orient') ||
+        p.key.startsWith('xformOp:scale') ||
+        (p.key.startsWith('xformOp:rotate') && !p.key.startsWith('xformOp:rotateXYZ')))) {
+        return false;
+      }
+      return !this._timeSamples.has(p.key);
+    });
+
     const otherProperties = isShaderNode ? [] : this._properties.filter(p =>
       !(p.key.includes(":") && p.type === "token") &&
       p.key !== "xformOp:transform" &&
       p.key !== "xformOpOrder" &&
       p.key !== "skel:geomBindTransform" && // Exclude - it goes in node body as transform property
+      !p.key.startsWith('xformOp:translate') && // Exclude - goes in node body
+      !p.key.startsWith('xformOp:orient') && // Exclude - goes in node body
+      !p.key.startsWith('xformOp:scale') && // Exclude - goes in node body
+      !(p.key.startsWith('xformOp:rotate') && !p.key.startsWith('xformOp:rotateXYZ')) && // Exclude - goes in node body
       p.key !== "float3[] extent" && // Exclude extent - it goes in node body
+      p.key !== "point3f[] offsets" && // Exclude - it goes in node body
       p.key !== "float3[] translations" && // Exclude - it goes in node body
       p.key !== "half3[] scales" && // Exclude - it goes in node body
       p.key !== "quatf[] rotations" && // Exclude - it goes in node body
       p.key !== "int[] primvars:skel:jointIndices" && // Exclude - it goes in node body
       p.key !== "float[] primvars:skel:jointWeights" && // Exclude - it goes in node body
+      p.key !== "float[] primvars:blendShapeWeights" && // Exclude - it goes in node body
+      p.key !== "color3f[] primvars:displayColor" && // Exclude - it goes in node body
       p.key !== "token subdivisionScheme" && // Exclude - it goes in node body
       p.key !== "token visibility" && // Exclude - it goes in node body
       p.key !== "token purpose" && // Exclude - it goes in node body
       p.key !== "uniform token primvars:st:interpolation" && // Exclude - handled via interpolation metadata
       p.key !== "token normals:interpolation" && // Exclude - handled via interpolation metadata
+      p.key !== "uniform token primvars:displayColor:interpolation" && // Exclude - handled via interpolation metadata
       p.key !== "uniform token[] joints" && // Exclude - goes in node body
       p.type !== "rel" &&
       p.type !== "rel[]" && // Exclude rel array properties - they go in node body
@@ -289,6 +333,12 @@ export class UsdNode {
 
     // Add properties (excluding token attributes)
     for (const prop of otherProperties) {
+      // Handle xformOp properties
+      if (prop.key.startsWith('xformOp:translate') || prop.key.startsWith('xformOp:orient') || prop.key.startsWith('xformOp:scale')) {
+        propertiesAndMetadata += `${space}    ${prop.key} = ${prop.value}\n`;
+        continue;
+      }
+
       // Handle raw type properties (geometry data)
       if (prop.type === 'raw') {
         propertiesAndMetadata += `${space}    ${prop.key} = ${prop.value}\n`;
@@ -324,18 +374,37 @@ export class UsdNode {
       } else if (prop.key === "customData") {
         // Special handling for customData
         // USD requires explicit type declarations for customData values
+        // Supports nested dictionaries (e.g., { Maya: { generated: 1 } })
         propertiesAndMetadata += `${space}    customData = {\n`;
         for (const [key, val] of Object.entries(prop.value)) {
-          // Determine type based on value type
-          let typeDecl = '';
-          if (typeof val === 'string') {
-            typeDecl = 'string ';
-          } else if (typeof val === 'number') {
-            typeDecl = Number.isInteger(val) ? 'int ' : 'float ';
-          } else if (typeof val === 'boolean') {
-            typeDecl = 'bool ';
+          // Handle nested dictionaries (e.g., Maya: { generated: 1 })
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            propertiesAndMetadata += `${space}        dictionary ${key} = {\n`;
+            for (const [nestedKey, nestedVal] of Object.entries(val)) {
+              // Determine type based on nested value type
+              let typeDecl = '';
+              if (typeof nestedVal === 'string') {
+                typeDecl = 'string ';
+              } else if (typeof nestedVal === 'number') {
+                typeDecl = Number.isInteger(nestedVal) ? 'int ' : 'float ';
+              } else if (typeof nestedVal === 'boolean') {
+                typeDecl = 'bool ';
+              }
+              propertiesAndMetadata += `${space}            ${typeDecl}${nestedKey} = ${JSON.stringify(nestedVal)}\n`;
+            }
+            propertiesAndMetadata += `${space}        }\n`;
+          } else {
+            // Handle flat values (string, number, boolean)
+            let typeDecl = '';
+            if (typeof val === 'string') {
+              typeDecl = 'string ';
+            } else if (typeof val === 'number') {
+              typeDecl = Number.isInteger(val) ? 'int ' : 'float ';
+            } else if (typeof val === 'boolean') {
+              typeDecl = 'bool ';
+            }
+            propertiesAndMetadata += `${space}        ${typeDecl}${key} = ${JSON.stringify(val)}\n`;
           }
-          propertiesAndMetadata += `${space}        ${typeDecl}${key} = ${JSON.stringify(val)}\n`;
         }
         propertiesAndMetadata += `${space}    }\n`;
       } else if (prop.key.includes("inputs:file")) {
@@ -367,7 +436,7 @@ export class UsdNode {
 
     // Determine if we need braces for the node body
     // Material nodes need braces for their children (shaders) and connections
-    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || this._timeSamples.size > 0;
+    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || xformOpProperties.length > 0 || this._timeSamples.size > 0;
 
     if (needsBraces) {
       usda += `${space}{\n`;
@@ -377,6 +446,11 @@ export class UsdNode {
         // Extract type declaration from the key (e.g., 'int[] faceVertexCounts' -> 'int[]')
         const typeDeclaration = prop.key.split(' ')[0];
         const propertyName = prop.key.split(' ').slice(1).join(' ');
+
+        // Skip default value if property has time samples
+        if (this._timeSamples.has(prop.key)) {
+          continue;
+        }
 
         if (typeDeclaration) {
           // Handle texCoord2f primvars:st with interpolation metadata
@@ -422,7 +496,7 @@ export class UsdNode {
               const epPropertyName = epKeyParts.length > 1 ? epKeyParts[epKeyParts.length - 1] : ep.key;
               return epPropertyName === propertyName + ':elementSize';
             });
-            
+
             if (interpolationProp || elementSizeProp) {
               usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
               if (interpolationProp) {
@@ -431,6 +505,28 @@ export class UsdNode {
               if (elementSizeProp) {
                 usda += `${space}        elementSize = ${elementSizeProp.value}\n`;
               }
+              usda += `${space}    )\n`;
+            } else {
+              // No metadata, output normally
+              if (prop.type === 'raw') {
+                usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+              } else {
+                usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value}\n`;
+              }
+            }
+          } else if (prop.key === 'color3f[] primvars:displayColor') {
+            // Handle displayColor with interpolation metadata
+            const interpolationProp = interpolationProperties.find(ip => {
+              const ipKeyParts = ip.key.split(' ');
+              const ipPropertyName = ipKeyParts.length > 1 ? ipKeyParts[ipKeyParts.length - 1] : ip.key;
+              // Match both 'primvars:displayColor:interpolation' and 'uniform token primvars:displayColor:interpolation'
+              return ipPropertyName === propertyName + ':interpolation' || 
+                     ip.key === 'uniform token primvars:displayColor:interpolation' ||
+                     ip.key === 'primvars:displayColor:interpolation';
+            });
+            if (interpolationProp) {
+              usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
+              usda += `${space}        interpolation = "${interpolationProp.value}"\n`;
               usda += `${space}    )\n`;
             } else {
               // No metadata, output normally
@@ -577,6 +673,11 @@ export class UsdNode {
         }
       }
 
+      // Add xformOp properties (translate, orient, scale) - these go in node body
+      for (const prop of xformOpProperties) {
+        usda += `${space}    ${prop.key} = ${prop.value}\n`;
+      }
+
       // Add transform properties (in node body)
       for (const prop of transformProperties) {
         if (prop.key === "xformOp:transform") {
@@ -601,6 +702,23 @@ export class UsdNode {
           continue;
         }
 
+        // Log time samples being serialized (especially for SkelAnimation properties)
+        if (key.includes('translations') || key.includes('rotations') || key.includes('scales') || this._typeName === 'SkelAnimation') {
+          console.log('[UsdNode.serializeToUsda] Serializing time samples:', {
+            nodePath: this._path,
+            nodeType: this._typeName,
+            propertyKey: key,
+            propertyType: type,
+            timeSampleCount: sortedTimes.length,
+            minTimeCode: sortedTimes[0],
+            maxTimeCode: sortedTimes[sortedTimes.length - 1],
+            first10TimeCodes: sortedTimes.slice(0, 10),
+            last10TimeCodes: sortedTimes.slice(-10),
+            hasTimeCode0: timeSamples.has(0),
+            timeCode0Value: timeSamples.get(0) ? (timeSamples.get(0)!.length > 100 ? timeSamples.get(0)!.substring(0, 100) + '...' : timeSamples.get(0)) : 'N/A'
+          });
+        }
+
         // Check if key already includes the type (e.g., 'quatf[] rotations')
         // If so, use it as-is; otherwise add the type prefix
         // Check if key starts with type followed by space, or if key equals type
@@ -613,6 +731,7 @@ export class UsdNode {
           // Multiple time samples - use .timeSamples attribute syntax
           // For xformOp attributes, the syntax is: float3 xformOp:translate.timeSamples = { ... }
           usda += `${space}    ${propertyKey}.timeSamples = {\n`;
+
           for (let i = 0; i < sortedTimes.length; i++) {
             const time = sortedTimes[i];
             const value = timeSamples.get(time);

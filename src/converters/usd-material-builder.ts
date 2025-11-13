@@ -5,16 +5,17 @@
  * Handles textures and PBR properties.
  */
 
-import { Material, Texture } from '@gltf-transform/core';
+import { Material, Texture, Primitive } from '@gltf-transform/core';
 import { UsdNode } from '../core/usd-node';
 import { sanitizeName } from '../utils/name-utils';
+import { bakeVertexColorsToTexture } from './helpers/vertex-color-baker';
 
 /**
  * Texture reference info
  */
 export interface TextureReference {
-  /** Texture object from GLTF */
-  texture: Texture;
+  /** Texture object from GLTF (optional for baked textures) */
+  texture?: Texture;
   /** Unique texture identifier */
   id: string;
   /** Texture usage type */
@@ -27,6 +28,8 @@ export interface TextureReference {
     scale: [number, number];
     rotation: number;
   } | undefined;
+  /** Baked texture data (for vertex color textures) */
+  textureData?: ArrayBuffer;
 }
 
 /**
@@ -61,11 +64,13 @@ interface TextureMappingConfig {
 
 /**
  * Build USD material from GLTF material
+ * @param primitive - Optional primitive to check for vertex colors and bake them to textures
  */
 export async function buildUsdMaterial(
   material: Material,
   materialIndex: number,
-  materialsPath: string
+  materialsPath: string,
+  primitive?: Primitive
 ): Promise<MaterialBuildResult> {
   const materialName = sanitizeName(material.getName() || `Material_${materialIndex}`);
   const materialPath = `${materialsPath}/${materialName}`;
@@ -98,6 +103,39 @@ export async function buildUsdMaterial(
   const baseColorTexture = material.getBaseColorTexture();
   const normalTexture = material.getNormalTexture();
 
+  // Log texture availability for debugging
+  console.log(`[buildUsdMaterial] Material: ${materialName}`, {
+    hasBaseColorTexture: !!baseColorTexture,
+    hasNormalTexture: !!normalTexture,
+    hasMetallicRoughnessTexture: !!material.getMetallicRoughnessTexture(),
+    hasEmissiveTexture: !!material.getEmissiveTexture(),
+    hasOcclusionTexture: !!material.getOcclusionTexture()
+  });
+
+  // Check if primitive has vertex colors that should be baked to texture
+  const hasVertexColors = primitive?.getAttribute('COLOR_0') !== null;
+  const hasUVs = primitive?.getAttribute('TEXCOORD_0') !== null;
+  const shouldBakeVertexColors = hasVertexColors && hasUVs && !baseColorTexture && primitive !== undefined;
+
+  // Try to bake vertex colors to texture for better USDZ compatibility
+  let bakedVertexColorTexture: { textureId: string; textureData: ArrayBuffer } | null = null;
+  if (shouldBakeVertexColors && primitive) {
+    try {
+      const bakeResult = await bakeVertexColorsToTexture(primitive, {
+        resolution: 2048,
+        highQuality: true
+      });
+      bakedVertexColorTexture = {
+        textureId: bakeResult.textureId,
+        textureData: bakeResult.textureData
+      };
+      console.log(`[buildUsdMaterial] Baked vertex colors to texture: ${bakeResult.textureId}`);
+    } catch (error) {
+      console.warn(`[buildUsdMaterial] Failed to bake vertex colors: ${error instanceof Error ? error.message : String(error)}`);
+      // Fall back to PrimvarReader if baking fails
+    }
+  }
+
   if (baseColorTexture) {
     const textureId = await generateTextureId(baseColorTexture, 'diffuse');
     const textureNodeName = `Texture_${textureId}`;
@@ -128,14 +166,100 @@ export async function buildUsdMaterial(
       `<${materialPath}/${textureNodeName}.outputs:rgb>`,
       'connection'
     );
+  } else if (bakedVertexColorTexture) {
+    // Use baked vertex color texture - connect directly to PrimvarReader
+    // UVs are already normalized and flipped during baking
+    const textureId = bakedVertexColorTexture.textureId;
+    const textureNodeName = `Texture_${textureId}`;
+    const uvSet = 0; // Use first UV set for baked textures
+
+    textures.push({
+      id: textureId,
+      type: 'diffuse',
+      uvSet,
+      textureData: bakedVertexColorTexture.textureData
+    });
+
+    // Create texture shader for baked vertex color texture
+    const textureShader = new UsdNode(`${materialPath}/${textureNodeName}`, 'Shader');
+    textureShader.setProperty('uniform token info:id', 'UsdUVTexture');
+    textureShader.setProperty('asset inputs:file', `@textures/Texture_${textureId}.png@`, 'asset');
+    textureShader.setProperty('token inputs:sourceColorSpace', 'sRGB', 'token');
+    textureShader.setProperty('token inputs:wrapS', 'repeat', 'token');
+    textureShader.setProperty('token inputs:wrapT', 'repeat', 'token');
+    textureShader.setProperty('float4 inputs:scale', '(1, 1, 1, 1)', 'float4');
+    textureShader.setProperty('float outputs:r', '');
+    textureShader.setProperty('float outputs:g', '');
+    textureShader.setProperty('float outputs:b', '');
+    textureShader.setProperty('float outputs:a', '');
+    textureShader.setProperty('float3 outputs:rgb', '');
+
+    // Connect directly to PrimvarReader - no Transform2d needed since UVs are pre-processed
+    // Use 'connection' type for proper shader connection
+    textureShader.setProperty(
+      'float2 inputs:st.connect',
+      `<${materialPath}/PrimvarReader_diffuse.outputs:result>`,
+      'connection'
+    );
+
+    materialNode.addChild(textureShader);
+
+    // Connect to PreviewSurface
+    surfaceShader.setProperty(
+      'color3f inputs:diffuseColor.connect',
+      `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+      'connection'
+    );
   } else {
-    // Use solid base color factor
+    // Use solid base color factor or PrimvarReader as fallback
     const baseColorFactor = material.getBaseColorFactor();
     if (baseColorFactor) {
       const [r, g, b] = baseColorFactor;
+      const isWhite = Math.abs(r - 1.0) < 0.001 && Math.abs(g - 1.0) < 0.001 && Math.abs(b - 1.0) < 0.001;
+
+      if (isWhite && hasVertexColors) {
+        // If baseColorFactor is white and we have vertex colors, try PrimvarReader as fallback
+        // Note: This may not work in all USDZ viewers, but it's better than nothing
+        const displayColorReader = new UsdNode(`${materialPath}/PrimvarReader_displayColor`, 'Shader');
+        displayColorReader.setProperty('uniform token info:id', 'UsdPrimvarReader_float3');
+        displayColorReader.setProperty('float3 inputs:fallback', '(1, 1, 1)', 'float3');
+        displayColorReader.setProperty('string inputs:varname', 'displayColor', 'string');
+        displayColorReader.setProperty('float3 outputs:result', '');
+
+        materialNode.addChild(displayColorReader);
+
+        surfaceShader.setProperty(
+          'color3f inputs:diffuseColor.connect',
+          `<${materialPath}/PrimvarReader_displayColor.outputs:result>`,
+          'connection'
+        );
+      } else {
+        // If not white, use the baseColorFactor directly
+        surfaceShader.setProperty(
+          'color3f inputs:diffuseColor',
+          `(${r}, ${g}, ${b})`
+        );
+      }
+    } else if (hasVertexColors) {
+      // No baseColorFactor but we have vertex colors - use PrimvarReader as fallback
+      const displayColorReader = new UsdNode(`${materialPath}/PrimvarReader_displayColor`, 'Shader');
+      displayColorReader.setProperty('uniform token info:id', 'UsdPrimvarReader_float3');
+      displayColorReader.setProperty('float3 inputs:fallback', '(1, 1, 1)', 'float3');
+      displayColorReader.setProperty('string inputs:varname', 'displayColor', 'string');
+      displayColorReader.setProperty('float3 outputs:result', '');
+
+      materialNode.addChild(displayColorReader);
+
+      surfaceShader.setProperty(
+        'color3f inputs:diffuseColor.connect',
+        `<${materialPath}/PrimvarReader_displayColor.outputs:result>`,
+        'connection'
+      );
+    } else {
+      // No base color at all - use default white
       surfaceShader.setProperty(
         'color3f inputs:diffuseColor',
-        `(${r}, ${g}, ${b})`
+        '(1, 1, 1)'
       );
     }
   }

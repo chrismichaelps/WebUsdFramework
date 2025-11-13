@@ -12,6 +12,7 @@ import { Logger } from '../../utils';
 import { SkeletonData } from './skeleton-processor';
 import { SkeletonAnimationProcessor } from './processors/skeleton-animation-processor';
 import { NodeAnimationProcessor } from './processors/node-animation-processor';
+import { MorphTargetAnimationProcessor } from './processors/morph-target-animation-processor';
 
 /**
  * Base interface for all animation processors
@@ -48,6 +49,8 @@ export interface AnimationProcessorResult {
   duration: number;
   path?: string;
   name?: string;
+  detectedFrameRate?: number; // Frame rate detected from animation time intervals
+  maxTimeCode?: number; // Maximum time code including loop frame (if added)
   animationSource?: {
     path: string;
     name: string;
@@ -65,8 +68,10 @@ export class AnimationProcessorFactory {
 
   constructor(logger: Logger) {
     // Initialize available processors
+    // Order matters: check skeleton animations first, then morph targets, then node animations
     this.processors = [
       new SkeletonAnimationProcessor(logger),
+      new MorphTargetAnimationProcessor(logger),
       new NodeAnimationProcessor(logger)
     ];
   }
@@ -74,6 +79,7 @@ export class AnimationProcessorFactory {
   /**
    * Get the appropriate processor for an animation
    * Checks processors in order until one can handle the animation
+   * @deprecated Use getProcessors() instead to support animations with multiple channel types
    */
   getProcessor(animation: Animation, context: AnimationProcessorContext): IAnimationProcessor | null {
     for (const processor of this.processors) {
@@ -82,6 +88,21 @@ export class AnimationProcessorFactory {
       }
     }
     return null;
+  }
+
+  /**
+   * Get ALL processors that can handle this animation
+   * An animation can have multiple types of channels (e.g., morph targets + node transforms),
+   * so we need to process it with all applicable processors
+   */
+  getProcessors(animation: Animation, context: AnimationProcessorContext): IAnimationProcessor[] {
+    const applicableProcessors: IAnimationProcessor[] = [];
+    for (const processor of this.processors) {
+      if (processor.canProcess(animation, context)) {
+        applicableProcessors.push(processor);
+      }
+    }
+    return applicableProcessors;
   }
 
   /**

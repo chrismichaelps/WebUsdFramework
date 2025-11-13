@@ -21,6 +21,7 @@ export interface UsdRootStructure {
   scenesNode: UsdNode;
   sceneNode: UsdNode;
   materialsNode: UsdNode;
+  topLevelPrims?: UsdNode[]; // Top-level prims that are siblings of Root (e.g., SkelRoot for animated models)
 }
 
 /**
@@ -46,7 +47,7 @@ export function createRootStructure(sceneName?: string): UsdRootStructure {
 function createRootNode(): UsdNode {
   const rootNode = new UsdNode(USD_ROOT_PATHS.ROOT, USD_NODE_TYPES.XFORM);
 
-  // Set AR anchoring type for iOS compatibility
+  // Set AR anchoring type
   rootNode.setProperty(
     USD_PROPERTIES.ANCHORING_TYPE,
     USD_PROPERTIES.ANCHORING_PLANE,

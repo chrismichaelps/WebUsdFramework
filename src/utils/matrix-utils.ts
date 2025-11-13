@@ -5,6 +5,8 @@
  * USD uses row-major matrix format, so we keep the formatting consistent here.
  */
 
+import { formatUsdFloat } from './usd-formatter';
+
 /**
  * Identity matrix in USD format (row-major).
  * This is the default transform when no transformation is applied.
@@ -24,8 +26,8 @@ export function formatMatrix(matrix: number[] | Float32Array | ArrayLike<number>
   // Convert to array if needed (handles Float32Array, etc.)
   const m = Array.from(matrix);
 
-  // Format as USD matrix (row-major)
-  return `( (${m[0]}, ${m[1]}, ${m[2]}, ${m[3]}), (${m[4]}, ${m[5]}, ${m[6]}, ${m[7]}), (${m[8]}, ${m[9]}, ${m[10]}, ${m[11]}), (${m[12]}, ${m[13]}, ${m[14]}, ${m[15]}) )`;
+  // Format as USD matrix (row-major) with consistent 7 decimal place precision
+  return `( (${formatUsdFloat(m[0])}, ${formatUsdFloat(m[1])}, ${formatUsdFloat(m[2])}, ${formatUsdFloat(m[3])}), (${formatUsdFloat(m[4])}, ${formatUsdFloat(m[5])}, ${formatUsdFloat(m[6])}, ${formatUsdFloat(m[7])}), (${formatUsdFloat(m[8])}, ${formatUsdFloat(m[9])}, ${formatUsdFloat(m[10])}, ${formatUsdFloat(m[11])}), (${formatUsdFloat(m[12])}, ${formatUsdFloat(m[13])}, ${formatUsdFloat(m[14])}, ${formatUsdFloat(m[15])}) )`;
 }
 
 /**
@@ -38,7 +40,8 @@ export function formatMatrixFromComponents(
   m20: number, m21: number, m22: number, m23: number,
   m30: number, m31: number, m32: number, m33: number
 ): string {
-  return `( (${m00}, ${m01}, ${m02}, ${m03}), (${m10}, ${m11}, ${m12}, ${m13}), (${m20}, ${m21}, ${m22}, ${m23}), (${m30}, ${m31}, ${m32}, ${m33}) )`;
+  // Format as USD matrix (row-major) with consistent 7 decimal place precision
+  return `( (${formatUsdFloat(m00)}, ${formatUsdFloat(m01)}, ${formatUsdFloat(m02)}, ${formatUsdFloat(m03)}), (${formatUsdFloat(m10)}, ${formatUsdFloat(m11)}, ${formatUsdFloat(m12)}, ${formatUsdFloat(m13)}), (${formatUsdFloat(m20)}, ${formatUsdFloat(m21)}, ${formatUsdFloat(m22)}, ${formatUsdFloat(m23)}), (${formatUsdFloat(m30)}, ${formatUsdFloat(m31)}, ${formatUsdFloat(m32)}, ${formatUsdFloat(m33)}) )`;
 }
 
 /**
@@ -47,5 +50,93 @@ export function formatMatrixFromComponents(
  */
 export function getIdentityMatrix(): string {
   return IDENTITY_MATRIX;
+}
+
+/**
+ * Builds a 4x4 transformation matrix from translation, rotation (quaternion), and scale.
+ * Quaternion format: (w, x, y, z) as used in USD
+ * Returns the matrix as a USD-formatted string.
+ */
+export function buildMatrixFromTRS(
+  translation: [number, number, number] | string,
+  rotation: [number, number, number, number] | string,
+  scale: [number, number, number] | string = [1, 1, 1]
+): string {
+  // Parse string inputs if needed
+  let t: [number, number, number];
+  let r: [number, number, number, number];
+  let s: [number, number, number];
+
+  if (typeof translation === 'string') {
+    // Parse "(x, y, z)" format
+    const match = translation.match(/\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+    if (!match) throw new Error(`Invalid translation format: ${translation}`);
+    t = [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3])];
+  } else {
+    t = translation;
+  }
+
+  if (typeof rotation === 'string') {
+    // Parse "(w, x, y, z)" format
+    const match = rotation.match(/\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+    if (!match) throw new Error(`Invalid rotation format: ${rotation}`);
+    r = [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), parseFloat(match[4])];
+  } else {
+    r = rotation;
+  }
+
+  if (typeof scale === 'string') {
+    // Parse "(x, y, z)" format
+    const match = scale.match(/\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+    if (!match) throw new Error(`Invalid scale format: ${scale}`);
+    s = [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3])];
+  } else {
+    s = scale;
+  }
+
+  // Extract quaternion components (w, x, y, z)
+  const [qw, qx, qy, qz] = r;
+
+  // Build rotation matrix from quaternion
+  // Quaternion to rotation matrix conversion
+  const xx = qx * qx;
+  const yy = qy * qy;
+  const zz = qz * qz;
+  const xy = qx * qy;
+  const xz = qx * qz;
+  const yz = qy * qz;
+  const wx = qw * qx;
+  const wy = qw * qy;
+  const wz = qw * qz;
+
+  // Rotation matrix (row-major)
+  const m00 = 1 - 2 * (yy + zz);
+  const m01 = 2 * (xy - wz);
+  const m02 = 2 * (xz + wy);
+  const m10 = 2 * (xy + wz);
+  const m11 = 1 - 2 * (xx + zz);
+  const m12 = 2 * (yz - wx);
+  const m20 = 2 * (xz - wy);
+  const m21 = 2 * (yz + wx);
+  const m22 = 1 - 2 * (xx + yy);
+
+  // Apply scale
+  const m00s = m00 * s[0];
+  const m01s = m01 * s[1];
+  const m02s = m02 * s[2];
+  const m10s = m10 * s[0];
+  const m11s = m11 * s[1];
+  const m12s = m12 * s[2];
+  const m20s = m20 * s[0];
+  const m21s = m21 * s[1];
+  const m22s = m22 * s[2];
+
+  // Build final matrix (row-major): T * R * S
+  return formatMatrixFromComponents(
+    m00s, m01s, m02s, t[0],
+    m10s, m11s, m12s, t[1],
+    m20s, m21s, m22s, t[2],
+    0, 0, 0, 1
+  );
 }
 

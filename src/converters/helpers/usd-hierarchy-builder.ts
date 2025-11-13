@@ -9,7 +9,9 @@ import { UsdNode } from '../../core/usd-node';
 import { USD_NODE_TYPES, USD_PROPERTIES, USD_PROPERTY_TYPES } from '../../constants/usd';
 import { buildUsdMaterial, extractTextureData } from '../usd-material-builder';
 import { sanitizeName, formatUsdNumberArray, setTransformMatrix } from '../../utils';
+import { formatUsdTuple3, formatUsdTuple2 } from '../../utils/usd-formatter';
 import { SkeletonData } from './skeleton-processor';
+import { ApiSchemaBuilder, API_SCHEMAS } from '../../utils/api-schema-builder';
 
 /**
  * Primitive Metadata Interface
@@ -193,6 +195,34 @@ async function processMesh(
 ): Promise<number> {
   const primitives = mesh.listPrimitives();
 
+  // Check for morph targets - need SkelRoot wrapper if found
+  let hasMorphTargets = false;
+  for (let i = 0; i < primitives.length; i++) {
+    const primitive = primitives[i];
+    const targets = primitive.listTargets();
+    if (targets.length > 0) {
+      hasMorphTargets = true;
+      break;
+    }
+  }
+
+  // Wrap mesh in SkelRoot when morph targets are present
+  let meshContainer: UsdNode = parentNode;
+  if (hasMorphTargets) {
+    const skelRootName = sanitizeName(`${nodeName}_SkelRoot`);
+    const skelRootPath = `${parentNode.getPath()}/${skelRootName}`;
+    const skelRootNode = new UsdNode(skelRootPath, 'SkelRoot');
+
+    skelRootNode.setMetadata('kind', 'component');
+
+    // Apply SkelBindingAPI to SkelRoot for morph targets
+    // This helps viewers recognize the SkelRoot as an animation container
+    ApiSchemaBuilder.addApiSchema(skelRootNode, API_SCHEMAS.SKEL_BINDING);
+
+    parentNode.addChild(skelRootNode);
+    meshContainer = skelRootNode;
+  }
+
   for (let i = 0; i < primitives.length; i++) {
     const primitive = primitives[i];
     const metadata = context.primitiveMetadata.find(
@@ -202,7 +232,7 @@ async function processMesh(
     if (!metadata) continue;
 
     const targetNode = createPrimitiveNode(
-      parentNode,
+      meshContainer,
       nodeName,
       i,
       primitives.length
@@ -272,10 +302,7 @@ function attachGeometryReference(
     return;
   }
 
-  // Add the geometry data directly to the mesh node
-  // This approach embeds all geometry data inline for optimal USDZ compatibility
-
-  // Points (vertex positions) - calculate extent from positions
+  // Extract vertex positions and calculate bounding box
   const positionArray = position.getArray();
   let extentMin: [number, number, number] | null = null;
   let extentMax: [number, number, number] | null = null;
@@ -291,7 +318,7 @@ function attachGeometryReference(
       const y = positionArray[i + 1];
       const z = positionArray[i + 2];
 
-      points.push(`(${x}, ${y}, ${z})`);
+      points.push(formatUsdTuple3(x, y, z));
 
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
@@ -326,7 +353,7 @@ function attachGeometryReference(
     if (normalArray) {
       const normals: string[] = [];
       for (let i = 0; i < normalArray.length; i += 3) {
-        normals.push(`(${normalArray[i]}, ${normalArray[i + 1]}, ${normalArray[i + 2]})`);
+        normals.push(formatUsdTuple3(normalArray[i], normalArray[i + 1], normalArray[i + 2]));
       }
       node.setProperty('float3[] normals', `[${normals.join(', ')}]`, 'raw');
       node.setProperty('token normals:interpolation', 'vertex', 'interpolation');
@@ -350,7 +377,8 @@ function attachGeometryReference(
         maxV = Math.max(maxV, v);
       }
 
-      // Calculate normalization factors
+      // Normalize UVs only if outside [0,1] range
+      const needsNormalization = minU < 0 || maxU > 1 || minV < 0 || maxV > 1;
       const uRange = maxU - minU;
       const vRange = maxV - minV;
 
@@ -359,31 +387,177 @@ function attachGeometryReference(
         const u = texcoordArray[i];
         const v = texcoordArray[i + 1];
 
-        // Normalize UV coordinates to [0,1] range and flip V-axis for proper texture mapping
-        const normalizedU = uRange > 0 ? (u - minU) / uRange : 0;
-        const normalizedV = vRange > 0 ? (v - minV) / vRange : 0;
+        let normalizedU: number;
+        let normalizedV: number;
 
-        // Flip V-axis to match USD texture coordinate convention
+        if (needsNormalization) {
+          normalizedU = uRange > 0 ? (u - minU) / uRange : 0;
+          normalizedV = vRange > 0 ? (v - minV) / vRange : 0;
+        } else {
+          normalizedU = u;
+          normalizedV = v;
+        }
+
+        // Flip V-axis for USD coordinate system
         const flippedV = 1.0 - normalizedV;
-
-        uvs.push(`(${normalizedU}, ${flippedV})`);
+        uvs.push(formatUsdTuple2(normalizedU, flippedV));
       }
 
-      // Set texCoord property with single interpolation (not duplicate)
       node.setProperty('texCoord2f[] primvars:st', `[${uvs.join(', ')}]`, 'texcoord');
       node.setProperty('uniform token primvars:st:interpolation', 'vertex', 'interpolation');
     }
   }
 
-  // Add extent property (bounding box)
+  // Convert vertex colors to USD primvars:displayColor
+  const colorAttr = primitive.getAttribute('COLOR_0');
+  if (colorAttr) {
+    const colorArray = colorAttr.getArray();
+    if (colorArray && colorArray.length > 0) {
+      const vertexCount = positionArray ? positionArray.length / 3 : 0;
+      const componentCount = vertexCount > 0 ? colorArray.length / vertexCount : 3;
+
+      const colors: string[] = [];
+      for (let i = 0; i < colorArray.length; i += componentCount) {
+        const r = colorArray[i];
+        const g = colorArray[i + 1];
+        const b = colorArray[i + 2];
+        colors.push(formatUsdTuple3(r, g, b));
+      }
+
+      node.setProperty('color3f[] primvars:displayColor', `[${colors.join(', ')}]`, 'raw');
+      node.setProperty('uniform token primvars:displayColor:interpolation', 'vertex', 'interpolation');
+    }
+  }
+
+  // Set bounding box extent
   if (extentMin && extentMax) {
-    node.setProperty('float3[] extent', `[(${extentMin[0]}, ${extentMin[1]}, ${extentMin[2]}), (${extentMax[0]}, ${extentMax[1]}, ${extentMax[2]})]`, 'raw');
+    const extentMinStr = formatUsdTuple3(extentMin[0], extentMin[1], extentMin[2]);
+    const extentMaxStr = formatUsdTuple3(extentMax[0], extentMax[1], extentMax[2]);
+    node.setProperty('float3[] extent', `[${extentMinStr}, ${extentMaxStr}]`, 'raw');
+  }
+
+  // Extract morph targets and create USD blend shapes
+  if (positionArray) {
+    extractMorphTargets(primitive, mesh, node, positionArray);
   }
 
   // Add standard mesh properties
   node.setProperty('token subdivisionScheme', 'none', 'token');
   node.setProperty('token visibility', 'inherited', 'token');
   node.setProperty('token purpose', 'default', 'token');
+}
+
+/**
+ * Extracts morph targets and creates USD BlendShape prims.
+ * Each target's POSITION offsets are calculated and stored as separate BlendShape prims.
+ * The mesh references them via skel:blendShapes relationship.
+ */
+function extractMorphTargets(
+  primitive: Primitive,
+  mesh: Mesh,
+  node: UsdNode,
+  basePositionArray: ArrayLike<number>
+): number {
+  const targets = primitive.listTargets();
+
+  if (targets.length === 0) {
+    return 0;
+  }
+
+  const blendShapePaths: string[] = [];
+
+  // Try to extract morph target names from extras (not always present in GLB)
+  const primitiveExtras: Record<string, unknown> = primitive.getExtras();
+  const meshExtras: Record<string, unknown> = mesh.getExtras();
+
+  const getStringArrayFromExtras = (extras: Record<string, unknown>, ...keys: string[]): string[] => {
+    for (const key of keys) {
+      const value = extras[key];
+      if (Array.isArray(value) && value.every((item): item is string => typeof item === 'string')) {
+        return value;
+      }
+    }
+    return [];
+  };
+
+  const getNamesFromTargets = (extras: Record<string, unknown>): string[] => {
+    const targets = extras.targets;
+    if (Array.isArray(targets)) {
+      return targets
+        .map((target): string | null => {
+          if (target && typeof target === 'object' && 'name' in target && typeof target.name === 'string') {
+            return target.name;
+          }
+          return null;
+        })
+        .filter((name): name is string => name !== null);
+    }
+    return [];
+  };
+
+  // Look for names in primitive extras first, then mesh extras
+  let morphTargetNames: string[] = getStringArrayFromExtras(primitiveExtras, 'targetNames', 'morphTargetNames');
+  if (morphTargetNames.length === 0) {
+    morphTargetNames = getStringArrayFromExtras(meshExtras, 'targetNames', 'morphTargetNames');
+  }
+  if (morphTargetNames.length === 0) {
+    morphTargetNames = getNamesFromTargets(primitiveExtras);
+  }
+
+  for (let targetIndex = 0; targetIndex < targets.length; targetIndex++) {
+    const target = targets[targetIndex];
+    const positionAttr = target.getAttribute('POSITION');
+
+    if (!positionAttr) {
+      continue;
+    }
+
+    const morphPositionArray = positionAttr.getArray();
+    if (!morphPositionArray || morphPositionArray.length !== basePositionArray.length) {
+      continue;
+    }
+
+    // Use name from extras if available, otherwise generate generic name
+    let blendShapeName: string;
+    if (targetIndex < morphTargetNames.length && morphTargetNames[targetIndex]) {
+      blendShapeName = sanitizeName(morphTargetNames[targetIndex]);
+    } else {
+      blendShapeName = `BlendShape_${targetIndex}`;
+    }
+
+    const blendShapePath = `${node.getPath()}/${blendShapeName}`;
+    const blendShapeNode = new UsdNode(blendShapePath, 'BlendShape');
+
+    // Calculate vertex offsets (morph position - base position)
+    const offsets: string[] = [];
+    for (let i = 0; i < basePositionArray.length; i += 3) {
+      const baseX = basePositionArray[i];
+      const baseY = basePositionArray[i + 1];
+      const baseZ = basePositionArray[i + 2];
+      const morphX = morphPositionArray[i];
+      const morphY = morphPositionArray[i + 1];
+      const morphZ = morphPositionArray[i + 2];
+
+      const offsetX = morphX - baseX;
+      const offsetY = morphY - baseY;
+      const offsetZ = morphZ - baseZ;
+
+      offsets.push(formatUsdTuple3(offsetX, offsetY, offsetZ));
+    }
+
+    blendShapeNode.setProperty('point3f[] offsets', `[${offsets.join(', ')}]`, 'raw');
+    node.addChild(blendShapeNode);
+    blendShapePaths.push(blendShapePath);
+  }
+
+  // Bind blend shapes to mesh via skel:blendShapes relationship
+  if (blendShapePaths.length > 0) {
+    ApiSchemaBuilder.addApiSchema(node, API_SCHEMAS.SKEL_BINDING);
+    const blendShapeRels = blendShapePaths.map(path => `<${path}>`);
+    node.setProperty('rel skel:blendShapes', blendShapeRels, 'rel[]');
+  }
+
+  return targets.length;
 }
 
 /**
@@ -405,7 +579,8 @@ async function processMaterial(
     materialInfo = await createMaterial(
       material,
       context.materialCounter,
-      context
+      context,
+      primitive
     );
 
     context.materialMap.set(material, materialInfo);
@@ -418,22 +593,25 @@ async function processMaterial(
 }
 
 /**
- * Creates a new USD material
+ * Creates a new USD material.
+ * Primitive is optional - used to check for vertex colors that need texture baking.
  */
 async function createMaterial(
   material: Material,
   materialCounter: number,
-  context: HierarchyBuilderContext
+  context: HierarchyBuilderContext,
+  primitive?: Primitive
 ): Promise<MaterialInfo> {
   const materialResult = await buildUsdMaterial(
     material,
     materialCounter,
-    context.materialsNode.getPath()
+    context.materialsNode.getPath(),
+    primitive
   );
 
   context.materialsNode.addChild(materialResult.materialNode);
 
-  // Add UV readers and Transform2d nodes to the material node
+  // Attach UV readers and Transform2d nodes to material
   for (const uvReader of materialResult.uvReaders) {
     materialResult.materialNode.addChild(uvReader);
   }
@@ -441,10 +619,14 @@ async function createMaterial(
     materialResult.materialNode.addChild(transform2d);
   }
 
-  // Process textures
+  // Process textures - handle both baked vertex color textures and regular GLTF textures
   for (const texRef of materialResult.textures) {
-    const textureData = await extractTextureData(texRef.texture);
-    context.textureFiles.set(texRef.id, textureData);
+    if ('textureData' in texRef && texRef.textureData) {
+      context.textureFiles.set(texRef.id, texRef.textureData);
+    } else if (texRef.texture) {
+      const textureData = await extractTextureData(texRef.texture);
+      context.textureFiles.set(texRef.id, textureData);
+    }
   }
 
   return {
@@ -457,13 +639,9 @@ async function createMaterial(
  * Binds material to node
  */
 function bindMaterial(node: UsdNode, materialInfo: MaterialInfo): void {
-  node.setProperty(
-    USD_PROPERTIES.PREPEND_API_SCHEMAS,
-    [USD_PROPERTIES.MATERIAL_BINDING_API],
-    USD_PROPERTY_TYPES.STRING_ARRAY
-  );
+  // Add MaterialBindingAPI without overwriting existing schemas (e.g., SkelBindingAPI)
+  ApiSchemaBuilder.addApiSchema(node, API_SCHEMAS.MATERIAL_BINDING);
 
-  // Use the material path as-is (materials are now under /Root)
   const materialPath = materialInfo.node.getPath();
 
   node.setProperty(

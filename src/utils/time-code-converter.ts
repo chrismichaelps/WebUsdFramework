@@ -1,55 +1,60 @@
 /**
- * Time Code Converter
+ * Converts animation times between GLTF and USD formats.
  * 
- * Handles conversion between animation time formats (seconds vs time codes).
- * GLTF animations use time in seconds, but USD requires integer time codes (frame numbers)
- * for proper animation playback.
+ * GLTF stores animation times in seconds (like 0.033, 0.066, 0.1),
+ * but USD needs integer frame numbers (like 0, 1, 2, 3).
+ * 
+ * This converter also ensures time codes start at 0.
  */
 
 import { formatUsdArray } from './usd-formatter';
 import { ANIMATION } from '../constants';
 
 /**
- * Time sample data in seconds (GLTF format).
+ * Time samples stored in seconds (GLTF format).
  * Maps time in seconds to animation values.
  */
 type TimeSamplesInSeconds<T> = Map<number, T>;
 
 /**
- * Time sample data in time codes (USD format).
+ * Time samples stored as frame numbers (USD format).
  * Maps frame numbers to animation values.
  */
 type TimeSamplesInTimeCodes<T> = Map<number, T>;
 
 
 /**
- * Converter for handling time code conversions.
+ * Converts animation times from seconds to frame numbers.
  * 
- * Converts between GLTF's time-in-seconds format and USD's frame-based time code format.
- * Operations are immutable - they return new maps instead of mutating existing ones.
+ * GLTF uses fractional seconds (0.033, 0.066) but USD needs whole frame numbers (0, 1, 2).
+ * This class handles that conversion and ensures frames start at 0.
  */
 export class TimeCodeConverter {
   /**
-   * Converts time samples from seconds (GLTF format) to time codes (USD format).
+   * Converts time samples from seconds to frame numbers.
    * 
-   * USD expects integer time codes (frame numbers) for proper animation playback.
-   * This function converts fractional seconds like 0.0333 to integer frames like 1.
+   * Takes times like 0.033 seconds and converts them to frame numbers like 1.
+   * Also normalizes so frames always start at 0 (Xcode requirement).
+   * 
+   * @param timeSamples - Animation times in seconds
+   * @param frameRate - Frame rate to use (defaults to 60fps)
    */
   private static convertToTimeCodes<T>(
-    timeSamples: TimeSamplesInSeconds<T>
+    timeSamples: TimeSamplesInSeconds<T>,
+    frameRate?: number
   ): TimeSamplesInTimeCodes<T> {
     if (!timeSamples || timeSamples.size === 0) {
       return new Map();
     }
 
-    const frameRate = ANIMATION.FRAME_RATE;
+    const effectiveFrameRate = frameRate || ANIMATION.FRAME_RATE;
 
-    // Convert each time sample to a time code
+    // Convert each time in seconds to a frame number
     const timeCodeMap = new Map<number, { time: number; value: T }[]>();
     const times = Array.from(timeSamples.keys()).sort((a, b) => a - b);
 
     for (const timeSeconds of times) {
-      const timeCode = Math.round(timeSeconds * frameRate);
+      const timeCode = Math.round(timeSeconds * effectiveFrameRate);
       const value = timeSamples.get(timeSeconds)!;
 
       if (!timeCodeMap.has(timeCode)) {
@@ -58,15 +63,32 @@ export class TimeCodeConverter {
       timeCodeMap.get(timeCode)!.push({ time: timeSeconds, value });
     }
 
-    // Handle duplicates - use the last value (most recent)
+    // If multiple time samples map to the same frame, use the last one
     const finalTimeCodes = new Map<number, T>();
 
     for (const [timeCode, entries] of timeCodeMap) {
       if (entries.length > 1) {
-        // Use the last value when multiple samples map to the same frame
+        // Multiple samples at the same frame - use the most recent one
         finalTimeCodes.set(timeCode, entries[entries.length - 1].value);
       } else {
         finalTimeCodes.set(timeCode, entries[0].value);
+      }
+    }
+
+    // Normalize time codes to start at 0
+    if (finalTimeCodes.size > 0) {
+      const sortedTimeCodes = Array.from(finalTimeCodes.keys()).sort((a, b) => a - b);
+      const minTimeCode = sortedTimeCodes[0];
+
+      // Shift all frames so the first one becomes 0
+      if (minTimeCode !== 0) {
+        const normalizedTimeCodes = new Map<number, T>();
+        for (const [timeCode, value] of finalTimeCodes) {
+          const normalizedTimeCode = timeCode - minTimeCode;
+          normalizedTimeCodes.set(normalizedTimeCode, value);
+        }
+
+        return normalizedTimeCodes;
       }
     }
 
@@ -74,17 +96,21 @@ export class TimeCodeConverter {
   }
 
   /**
-   * Converts time samples with array values (like translations, rotations, scales)
-   * from seconds to time codes, formatting the arrays as USD strings.
+   * Converts time samples with array values (like joint translations/rotations).
    * 
-   * This is specifically for USD SkelAnimation properties that need formatted array strings.
+   * This is for SkelAnimation properties that need arrays formatted as USD strings.
+   * Also normalizes time codes to start at 0 for Xcode.
+   * 
+   * @param timeSamples - Time samples in seconds with array values
+   * @param frameRate - Frame rate to use (defaults to 60fps)
    */
   static convertArraysToTimeCodes(
-    timeSamples: TimeSamplesInSeconds<string[]>
+    timeSamples: TimeSamplesInSeconds<string[]>,
+    frameRate?: number
   ): TimeSamplesInTimeCodes<string> {
-    const timeCodes = this.convertToTimeCodes(timeSamples);
+    const timeCodes = this.convertToTimeCodes(timeSamples, frameRate);
 
-    // Format arrays as USD strings
+    // Format the arrays as USD strings
     const formattedTimeCodes = new Map<number, string>();
     for (const [timeCode, array] of timeCodes) {
       formattedTimeCodes.set(timeCode, formatUsdArray(array));

@@ -6,6 +6,12 @@
  */
 
 /**
+ * Global precision for floating point numbers in USD output.
+ * Controls the number of decimal places used throughout the codebase.
+ */
+export const USD_FLOAT_PRECISION = 7;
+
+/**
  * Converts an array of strings to USD array syntax.
  * Example: ['item1', 'item2'] -> '[item1, item2]'
  * Use this for arrays that don't need quotes (numbers, tuples, etc).
@@ -42,12 +48,13 @@ export function formatUsdNumberArray(numbers: number[]): string {
 
 /**
  * Converts a number array to USD array with fixed decimal precision.
- * Example: [1.123, 2.456] with precision 4 -> '[1.1230, 2.4560]'
+ * Example: [1.12, 2.46] with precision 2 -> '[1.12, 2.46]'
  * Good for weights and other values that need consistent precision.
+ * Uses global USD_FLOAT_PRECISION by default.
  */
 export function formatUsdNumberArrayFixed(
   numbers: number[],
-  precision: number = 6
+  precision: number = USD_FLOAT_PRECISION
 ): string {
   if (numbers.length === 0) {
     return '[]';
@@ -56,12 +63,29 @@ export function formatUsdNumberArrayFixed(
 }
 
 /**
+ * Formats a floating point number with consistent precision.
+ * Uses the global USD_FLOAT_PRECISION constant for decimal places.
+ * Example: 0.36 -> "0.36" (not "0.36000000000000001")
+ */
+export function formatUsdFloat(value: number): string {
+  // Handle undefined, null, or NaN values
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0';
+  }
+  // Use toFixed with global precision then remove trailing zeros
+  // This ensures consistent precision without unnecessary trailing zeros
+  const fixed = value.toFixed(USD_FLOAT_PRECISION);
+  // Remove trailing zeros and decimal point if not needed
+  return fixed.replace(/\.?0+$/, '');
+}
+
+/**
  * Formats a 2D tuple for USD.
  * Example: (1, 2) -> '(1, 2)'
  * Use for UV coordinates, 2D vectors, etc.
  */
 export function formatUsdTuple2(x: number, y: number): string {
-  return `(${x}, ${y})`;
+  return `(${formatUsdFloat(x)}, ${formatUsdFloat(y)})`;
 }
 
 /**
@@ -70,7 +94,7 @@ export function formatUsdTuple2(x: number, y: number): string {
  * Use for positions, normals, translations, scales, etc.
  */
 export function formatUsdTuple3(x: number, y: number, z: number): string {
-  return `(${x}, ${y}, ${z})`;
+  return `(${formatUsdFloat(x)}, ${formatUsdFloat(y)}, ${formatUsdFloat(z)})`;
 }
 
 /**
@@ -79,7 +103,7 @@ export function formatUsdTuple3(x: number, y: number, z: number): string {
  * Use for quaternions (w, x, y, z), RGBA colors, etc.
  */
 export function formatUsdTuple4(w: number, x: number, y: number, z: number): string {
-  return `(${w}, ${x}, ${y}, ${z})`;
+  return `(${formatUsdFloat(w)}, ${formatUsdFloat(x)}, ${formatUsdFloat(y)}, ${formatUsdFloat(z)})`;
 }
 
 /**
