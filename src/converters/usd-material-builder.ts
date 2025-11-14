@@ -9,6 +9,42 @@ import { Material, Texture, Primitive } from '@gltf-transform/core';
 import { UsdNode } from '../core/usd-node';
 import { sanitizeName } from '../utils/name-utils';
 import { bakeVertexColorsToTexture } from './helpers/vertex-color-baker';
+import { ExtensionFactory } from './extensions/extension-factory';
+
+/**
+ * Texture type definitions based on GLTF standard and extensions
+ * Supports all texture types from @gltf-transform/extensions library
+ */
+export type TextureType =
+  // Standard PBR textures
+  | 'diffuse' // baseColorTexture
+  | 'normal' // normalTexture
+  | 'metallicRoughness' // metallicRoughnessTexture
+  | 'emissive' // emissiveTexture
+  | 'occlusion' // occlusionTexture
+  // PBRSpecularGlossiness extension
+  | 'specular' // specularGlossinessTexture
+  // KHR_materials_specular extension
+  | 'specularColor' // specularColorTexture
+  // KHR_materials_clearcoat extension
+  | 'clearcoat' // clearcoatTexture
+  | 'clearcoatRoughness' // clearcoatRoughnessTexture
+  | 'clearcoatNormal' // clearcoatNormalTexture
+  // KHR_materials_iridescence extension
+  | 'iridescence' // iridescenceTexture
+  | 'iridescenceThickness' // iridescenceThicknessTexture
+  // KHR_materials_diffuse_transmission extension
+  | 'diffuseTransmission' // diffuseTransmissionTexture
+  | 'diffuseTransmissionColor' // diffuseTransmissionColorTexture
+  // KHR_materials_sheen extension
+  | 'sheenColor' // sheenColorTexture
+  | 'sheenRoughness' // sheenRoughnessTexture
+  // KHR_materials_transmission extension
+  | 'transmission' // transmissionTexture
+  // KHR_materials_volume extension
+  | 'thickness' // thicknessTexture
+  // KHR_materials_anisotropy extension
+  | 'anisotropy'; // anisotropyTexture
 
 /**
  * Texture reference info
@@ -18,8 +54,8 @@ export interface TextureReference {
   texture?: Texture;
   /** Unique texture identifier */
   id: string;
-  /** Texture usage type */
-  type: 'diffuse' | 'normal' | 'metallicRoughness' | 'emissive' | 'occlusion';
+  /** Texture usage type - supports all GLTF standard and extension texture types */
+  type: TextureType;
   /** UV set index for this texture */
   uvSet: number;
   /** Texture transform info */
@@ -426,6 +462,27 @@ export async function buildUsdMaterial(
 
   // Add outputs:surface declaration - required for rendering
   surfaceShader.setProperty('token outputs:surface', '');
+
+  // Process material extensions using the extension factory
+  // This allows for extensible handling of various GLTF material extensions
+  const extensionContext = {
+    material,
+    materialName,
+    materialPath,
+    baseColorTexture,
+    textures
+  };
+
+  const extensionResults = await ExtensionFactory.processMaterialExtensions(material, extensionContext);
+
+  // Collect textures from all extension processors
+  for (const result of extensionResults) {
+    if (result.processed && result.textures.length > 0) {
+      textures.push(...result.textures);
+    } else if (result.error) {
+      console.warn(`[buildUsdMaterial] Extension processing error: ${result.error}`);
+    }
+  }
 
   // Add shared UV reader and Transform2d nodes to material
   materialNode.addChild(uvReader);

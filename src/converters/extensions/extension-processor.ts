@@ -1,0 +1,59 @@
+/**
+ * Extension Processor Interface
+ * 
+ * Base interface for processing GLTF material extensions.
+ * Each extension type should implement this interface to handle
+ * texture extraction and material property conversion.
+ */
+
+import { Material } from '@gltf-transform/core';
+import { TextureReference } from '../usd-material-builder';
+
+/**
+ * Context for extension processing
+ */
+export interface ExtensionProcessingContext {
+  /** Material being processed */
+  material: Material;
+  /** Material name (sanitized) */
+  materialName: string;
+  /** Material path in USD hierarchy */
+  materialPath: string;
+  /** Base color texture (if exists) */
+  baseColorTexture: any | null;
+  /** Existing textures array to append to */
+  textures: TextureReference[];
+}
+
+/**
+ * Result of extension processing
+ */
+export interface ExtensionProcessingResult {
+  /** Additional textures extracted from extension */
+  textures: TextureReference[];
+  /** Whether the extension was successfully processed */
+  processed: boolean;
+  /** Optional error message if processing failed */
+  error?: string;
+}
+
+/**
+ * Base interface for extension processors
+ */
+export interface IExtensionProcessor {
+  /** Extension name (e.g., 'KHR_materials_pbrSpecularGlossiness') */
+  readonly extensionName: string;
+
+  /**
+   * Check if this processor can handle the given material
+   */
+  canProcess(material: Material): boolean;
+
+  /**
+   * Process the extension and extract textures
+   * @param context Processing context with material and related data
+   * @returns Processing result with extracted textures
+   */
+  process(context: ExtensionProcessingContext): Promise<ExtensionProcessingResult>;
+}
+

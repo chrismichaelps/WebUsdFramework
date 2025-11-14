@@ -280,6 +280,7 @@ export async function convertGlbToUsdz(
                 // If root joint (index 0) was omitted, we need to subtract 1 from all indices >= 1
                 // Index 0 in GLTF should be mapped to -1 (invalid) or clamped to 0, but since root joint
                 // is omitted, vertices using root joint (index 0) should be remapped to use the next joint
+                let rootJointRemappingLogged = false;
                 const remappedIndices = indicesArray.map((jointIndex: number) => {
                   let adjustedIndex = jointIndex;
 
@@ -289,11 +290,16 @@ export async function convertGlbToUsdz(
                       // Root joint (index 0) was omitted, map to first available joint (index 0 in USD skeleton)
                       // This is the second joint in GLTF (hips_JNT_01)
                       adjustedIndex = 0;
-                      logger.warn('Joint index 0 (root joint) was omitted, mapping to first skeleton joint', {
-                        originalIndex: jointIndex,
-                        adjustedIndex,
-                        skeletonJointCount
-                      });
+                      // Log only once per mesh to avoid spam
+                      if (!rootJointRemappingLogged) {
+                        logger.info('Root joint omitted from skeleton, remapping joint index 0 to first skeleton joint', {
+                          nodeName: node.getName(),
+                          meshName: mesh.getName(),
+                          skeletonJointCount,
+                          affectedVertices: indicesArray.filter(idx => idx === 0).length
+                        });
+                        rootJointRemappingLogged = true;
+                      }
                     } else if (jointIndex > 0) {
                       // All other joints need to be shifted down by 1
                       adjustedIndex = jointIndex - 1;
@@ -553,7 +559,21 @@ export async function convertGlbToUsdz(
           // Check if skeleton has animation
           const hasAnimationOnSkeleton = !!primaryAnimationSource;
 
-          if (isBoundToAnimatedSkeleton && hasAnimationOnSkeleton) {
+          // Verify mesh binding status
+          const isMeshBound = !!skelSkeleton && isBoundToAnimatedSkeleton;
+
+          if (!isMeshBound) {
+            // Mesh is not properly bound to skeleton - this is a real issue
+            logger.warn(`Mesh not bound to skeleton: ${meshPath}`, {
+              meshName: mesh.getName(),
+              meshPath,
+              skeletonPrimPath,
+              skelSkeleton,
+              isBound: false,
+              warning: 'Mesh must be bound to skeleton for proper deformation'
+            });
+          } else if (hasAnimationOnSkeleton) {
+            // Mesh is bound and skeleton has animation - verify synchronization
             logger.info(`Mesh-skeleton synchronization verified: ${meshPath}`, {
               meshName: mesh.getName(),
               meshPath,
@@ -564,15 +584,14 @@ export async function convertGlbToUsdz(
               syncVerified: true
             });
           } else {
-            logger.warn(`Mesh-skeleton synchronization issue: ${meshPath}`, {
+            // Mesh is bound but skeleton has no animation - this is valid (static skeleton)
+            logger.info(`Mesh bound to static skeleton: ${meshPath}`, {
               meshName: mesh.getName(),
               meshPath,
               skeletonPrimPath,
-              animationSource: primaryAnimationSource,
-              isBound: isBoundToAnimatedSkeleton,
-              hasAnimation: hasAnimationOnSkeleton,
-              syncVerified: false,
-              warning: 'Mesh may not deform correctly if not synchronized with animated skeleton'
+              isBound: true,
+              hasAnimation: false,
+              note: 'Skeleton has no animation, mesh will use bind pose'
             });
           }
         }
@@ -625,12 +644,13 @@ export async function convertGlbToUsdz(
               hasGeomBindTransform: !!geomBindTransform,
               hasJointIndices: !!jointIndices,
               hasJointWeights: !!jointWeights,
-              // Verify animation sync
+              // Verify animation sync - mesh is properly bound (animation is optional)
               skeletonHasAnimation: hasAnimationOnSkeleton,
               skelRootAnimationSource: skelRootAnimationSource,
               skeletonPrimAnimationSource: skeletonPrimAnimationSource,
               primaryAnimationSource: primaryAnimationSource,
-              animationSyncVerified: isBoundToAnimatedSkeleton && hasAnimationOnSkeleton
+              // Mesh is synchronized if it's bound to skeleton (animation is optional)
+              animationSyncVerified: isBoundToAnimatedSkeleton
             };
           });
 
@@ -650,6 +670,7 @@ export async function convertGlbToUsdz(
             // Overall verification
             allMeshesBound: meshBindings.every(m => m.isBoundToAnimatedSkeleton),
             allMeshesHaveAnimation: meshBindings.every(m => m.skeletonHasAnimation),
+            // All meshes are synchronized if they're bound (animation is optional)
             animationSyncComplete: meshBindings.every(m => m.animationSyncVerified),
             // Verify mesh and skeleton are synchronized
             meshSkeletonSync: JSON.stringify(
@@ -667,9 +688,9 @@ export async function convertGlbToUsdz(
                 // Verify mesh is using same animation source as skeleton
                 meshSkeletonMatch: m.skelSkeleton === m.skeletonPrimPath ||
                   (typeof m.skelSkeleton === 'string' && m.skelSkeleton.includes(m.skeletonPrimPath || '')),
-                // Warning: if skeleton is animating but mesh isn't, they're not synchronized
-                syncWarning: m.isBoundToAnimatedSkeleton && m.skeletonHasAnimation && !m.animationSyncVerified ?
-                  'Mesh bound to animated skeleton but animation sync not verified - mesh may not deform correctly' : undefined
+                // Note: static skeletons (no animation) are valid
+                syncNote: m.isBoundToAnimatedSkeleton && !m.skeletonHasAnimation ?
+                  'Mesh bound to static skeleton (no animation) - using bind pose' : undefined
               })),
               null,
               2
