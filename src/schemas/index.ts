@@ -27,6 +27,14 @@ export const GltfPreprocessOptionsSchema = z.object({
   prune: z.boolean().optional().default(false),
   dedup: z.boolean().optional().default(false),
   logBounds: z.boolean().optional().default(false),
+  weld: z.boolean().optional().default(false),
+  center: z.union([z.boolean(), z.enum(['center', 'above', 'below'])]).optional().default(false),
+  resample: z.boolean().optional().default(false),
+  unlit: z.boolean().optional().default(false),
+  flatten: z.boolean().optional().default(false),
+  metalRough: z.boolean().optional().default(false),
+  vertexColorSpace: z.enum(['srgb', 'srgb-linear']).optional(),
+  join: z.boolean().optional().default(false),
 });
 
 /**

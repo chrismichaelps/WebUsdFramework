@@ -34,23 +34,23 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
    * and doesn't target any skeleton bones.
    */
   canProcess(animation: Animation, context: AnimationProcessorContext): boolean {
-    const channels = animation.listChannels();
+      const channels = animation.listChannels();
     let hasTransformChannels = false;
 
     // Check if this animation has any transform channels (translation, rotation, scale)
-    for (const channel of channels) {
+      for (const channel of channels) {
       const targetPath = channel.getTargetPath();
       if (targetPath === 'translation' || targetPath === 'rotation' || targetPath === 'scale') {
         hasTransformChannels = true;
 
         // Check if this channel targets a skeleton joint
         if (context.skeletonMap && context.skeletonMap.size > 0) {
-          const targetNode = channel.getTargetNode();
+        const targetNode = channel.getTargetNode();
           if (targetNode) {
-            for (const [, skeletonData] of context.skeletonMap) {
-              if (skeletonData.jointNodes.has(targetNode)) {
-                // This moves skeleton bones, so we can't handle it
-                return false;
+        for (const [, skeletonData] of context.skeletonMap) {
+          if (skeletonData.jointNodes.has(targetNode)) {
+            // This moves skeleton bones, so we can't handle it
+            return false;
               }
             }
           }

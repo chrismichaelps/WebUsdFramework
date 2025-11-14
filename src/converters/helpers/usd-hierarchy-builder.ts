@@ -756,8 +756,8 @@ async function createMaterial(
     if ('textureData' in texRef && texRef.textureData) {
       context.textureFiles.set(texRef.id, texRef.textureData);
     } else if (texRef.texture) {
-      const textureData = await extractTextureData(texRef.texture);
-      context.textureFiles.set(texRef.id, textureData);
+    const textureData = await extractTextureData(texRef.texture);
+    context.textureFiles.set(texRef.id, textureData);
     }
   }
 
