@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { Specular } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_specular extension
@@ -43,13 +43,14 @@ export class PBRSpecularProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(specularColorTexture, 'specularColor');
           const textureInfo = specularExtension.getSpecularColorTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: specularColorTexture,
             id: textureId,
             type: 'specularColor',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRSpecularProcessor] Extracted specularColorTexture`, {

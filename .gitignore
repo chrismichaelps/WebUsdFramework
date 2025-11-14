@@ -16,6 +16,8 @@ test-*.js
 *test*.py
 analyze-*.js
 check-*.js
+compare-gltf-usdz.js
+debug-morph-targets.js
 rebuild.sh
 
 # Scripts

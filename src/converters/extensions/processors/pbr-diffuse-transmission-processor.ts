@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { DiffuseTransmission } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_diffuse_transmission extension
@@ -43,13 +43,14 @@ export class PBRDiffuseTransmissionProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(diffuseTransmissionTexture, 'diffuseTransmission');
           const textureInfo = diffuseTransmissionExtension.getDiffuseTransmissionTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: diffuseTransmissionTexture,
             id: textureId,
             type: 'diffuseTransmission',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRDiffuseTransmissionProcessor] Extracted diffuseTransmissionTexture`, {
@@ -69,13 +70,14 @@ export class PBRDiffuseTransmissionProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(diffuseTransmissionColorTexture, 'diffuseTransmissionColor');
           const textureInfo = diffuseTransmissionExtension.getDiffuseTransmissionColorTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: diffuseTransmissionColorTexture,
             id: textureId,
             type: 'diffuseTransmissionColor',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRDiffuseTransmissionProcessor] Extracted diffuseTransmissionColorTexture`, {

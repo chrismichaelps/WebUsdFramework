@@ -19,6 +19,17 @@ export const WebUsdConfigSchema = z.object({
 });
 
 /**
+ * GLTF Preprocessing Options Schema
+ */
+export const GltfPreprocessOptionsSchema = z.object({
+  dequantize: z.boolean().optional().default(true),
+  generateNormals: z.boolean().optional().default(true),
+  prune: z.boolean().optional().default(false),
+  dedup: z.boolean().optional().default(false),
+  logBounds: z.boolean().optional().default(false),
+});
+
+/**
  * GLTF-Transform Converter Configuration Schema
  */
 export const GltfTransformConfigSchema = z.object({
@@ -26,6 +37,7 @@ export const GltfTransformConfigSchema = z.object({
   debugOutputDir: z.string().optional().default('./debug-output'),
   upAxis: UpAxisSchema.optional().default('Y'),
   metersPerUnit: z.number().positive().optional().default(1),
+  preprocess: GltfPreprocessOptionsSchema.optional(),
 });
 
 /**
@@ -86,6 +98,7 @@ export const UsdAttributeValueSchema = z.union([
  * Type exports for TypeScript inference
  */
 export type WebUsdConfig = z.infer<typeof WebUsdConfigSchema>;
+export type GltfPreprocessOptions = z.infer<typeof GltfPreprocessOptionsSchema>;
 export type GltfTransformConfig = z.infer<typeof GltfTransformConfigSchema>;
 export type UsdzGenerationOptions = z.infer<typeof UsdzGenerationOptionsSchema>;
 export type DebugOutput = z.infer<typeof DebugOutputSchema>;

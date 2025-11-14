@@ -5,6 +5,7 @@
  */
 
 import { Document, Node, Mesh, Primitive, Material, Skin } from '@gltf-transform/core';
+import { MappingList } from '@gltf-transform/extensions';
 import { UsdNode } from '../../core/usd-node';
 import { USD_NODE_TYPES, USD_PROPERTIES, USD_PROPERTY_TYPES } from '../../constants/usd';
 import { buildUsdMaterial, extractTextureData } from '../usd-material-builder';
@@ -13,6 +14,7 @@ import { formatUsdTuple3, formatUsdTuple2 } from '../../utils/usd-formatter';
 import { SkeletonData } from './skeleton-processor';
 import { ApiSchemaBuilder, API_SCHEMAS } from '../../utils/api-schema-builder';
 import { processLightExtension, applyLightToUsdNode } from '../extensions/light-processor';
+import { processInstancingExtension, applyInstancingToUsdNode } from '../extensions/instancing-processor';
 
 /**
  * Primitive Metadata Interface
@@ -140,6 +142,15 @@ export async function buildNodeHierarchy(
   const lightProps = processLightExtension(gltfNode);
   if (lightProps) {
     applyLightToUsdNode(currentNode, lightProps);
+  }
+
+  // Process GPU instancing extension if present
+  const instancingProps = processInstancingExtension(gltfNode);
+  if (instancingProps && mesh) {
+    // For instancing, we need to reference the prototype mesh
+    // The prototype path would be the mesh node path
+    const prototypePath = currentNode.getPath();
+    applyInstancingToUsdNode(currentNode, instancingProps, prototypePath);
   }
 
   // Process children recursively
@@ -569,12 +580,22 @@ function extractMorphTargets(
 
 /**
  * Processes material for a primitive
+ * Handles both standard materials and material variants (KHR_materials_variants)
  */
 async function processMaterial(
   primitive: Primitive,
   targetNode: UsdNode,
   context: HierarchyBuilderContext
 ): Promise<number> {
+  // Check for material variants extension
+  const mappingList = primitive.getExtension<MappingList>('KHR_materials_variants');
+
+  if (mappingList) {
+    // Process material variants
+    return await processMaterialVariants(primitive, targetNode, context, mappingList);
+  }
+
+  // Process standard material
   const material = primitive.getMaterial();
   if (!material) {
     return context.materialCounter;
@@ -595,6 +616,110 @@ async function processMaterial(
   }
 
   bindMaterial(targetNode, materialInfo);
+
+  return context.materialCounter;
+}
+
+/**
+ * Processes material variants (KHR_materials_variants)
+ * Creates USD variantSets with variants for each material mapping
+ */
+async function processMaterialVariants(
+  primitive: Primitive,
+  targetNode: UsdNode,
+  context: HierarchyBuilderContext,
+  mappingList: MappingList
+): Promise<number> {
+  const mappings = mappingList.listMappings();
+  if (mappings.length === 0) {
+    // Fallback to default material if no mappings
+    return await processMaterial(primitive, targetNode, context);
+  }
+
+  // Get default material (if any)
+  const defaultMaterial = primitive.getMaterial();
+  let defaultMaterialInfo: MaterialInfo | null = null;
+
+  if (defaultMaterial) {
+    const existingMaterialInfo = context.materialMap.get(defaultMaterial);
+    if (existingMaterialInfo) {
+      defaultMaterialInfo = existingMaterialInfo;
+    } else {
+      defaultMaterialInfo = await createMaterial(
+        defaultMaterial,
+        context.materialCounter,
+        context,
+        primitive
+      );
+      context.materialMap.set(defaultMaterial, defaultMaterialInfo);
+      context.materialCounter++;
+    }
+  }
+
+  // Collect all unique variants and their materials
+  const variantMaterials = new Map<string, MaterialInfo>();
+  const variantSetName = 'materialVariant';
+
+  for (const mapping of mappings) {
+    const material = mapping.getMaterial();
+    if (!material) continue;
+
+    const variants = mapping.listVariants();
+    if (variants.length === 0) continue;
+
+    // Get or create material info
+    let materialInfo = context.materialMap.get(material);
+    if (!materialInfo) {
+      materialInfo = await createMaterial(
+        material,
+        context.materialCounter,
+        context,
+        primitive
+      );
+      context.materialMap.set(material, materialInfo);
+      context.materialCounter++;
+    }
+
+    // Map each variant to this material
+    for (const variant of variants) {
+      const variantName = variant.getName() || `variant_${variantMaterials.size}`;
+      const sanitizedVariantName = sanitizeName(variantName);
+      variantMaterials.set(sanitizedVariantName, materialInfo);
+    }
+  }
+
+  // Create USD variant set
+  if (variantMaterials.size > 0) {
+    targetNode.setProperty(`variantSetNames`, `["${variantSetName}"]`, 'token[]');
+    targetNode.setProperty(`variantSet.variantSetNames`, `["${variantSetName}"]`, 'token[]');
+
+    // Create variants
+    for (const [variantName, materialInfo] of variantMaterials.entries()) {
+      // Set material binding for this variant
+      ApiSchemaBuilder.addApiSchema(targetNode, API_SCHEMAS.MATERIAL_BINDING);
+      const materialPath = materialInfo.node.getPath();
+
+      // Note: USD variant syntax requires setting properties within variant scope
+      // This is a simplified approach - full variant implementation would require
+      // more complex USD structure
+      targetNode.setProperty(
+        `${variantSetName}.${variantName}.${USD_PROPERTIES.MATERIAL_BINDING}`,
+        `<${materialPath}>`,
+        USD_PROPERTY_TYPES.REL
+      );
+    }
+
+    // Set default variant (use first variant or default material)
+    if (defaultMaterialInfo) {
+      bindMaterial(targetNode, defaultMaterialInfo);
+    } else if (variantMaterials.size > 0) {
+      const firstVariant = Array.from(variantMaterials.values())[0];
+      bindMaterial(targetNode, firstVariant);
+    }
+  } else if (defaultMaterialInfo) {
+    // Fallback to default material if no variants
+    bindMaterial(targetNode, defaultMaterialInfo);
+  }
 
   return context.materialCounter;
 }

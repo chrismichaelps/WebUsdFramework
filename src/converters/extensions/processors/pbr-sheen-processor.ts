@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { Sheen } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_sheen extension
@@ -43,13 +43,14 @@ export class PBRSheenProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(sheenColorTexture, 'sheenColor');
           const textureInfo = sheenExtension.getSheenColorTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: sheenColorTexture,
             id: textureId,
             type: 'sheenColor',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRSheenProcessor] Extracted sheenColorTexture`, {
@@ -69,13 +70,14 @@ export class PBRSheenProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(sheenRoughnessTexture, 'sheenRoughness');
           const textureInfo = sheenExtension.getSheenRoughnessTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: sheenRoughnessTexture,
             id: textureId,
             type: 'sheenRoughness',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRSheenProcessor] Extracted sheenRoughnessTexture`, {

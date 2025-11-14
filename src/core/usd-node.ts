@@ -168,6 +168,48 @@ export class UsdNode {
       usda += "(\n";
       usda += "    customLayerData = {\n";
       usda += "        string creator = \"WebUSD Framework\"\n";
+      
+      // Add XMP metadata if present
+      const xmpMetadata = this._metadata.get('xmpMetadata') as Record<string, unknown> | undefined;
+      if (xmpMetadata) {
+        // Format XMP metadata as nested dictionary in customLayerData
+        const xmpData = xmpMetadata.xmp as { context: Record<string, string>; properties: Record<string, unknown> } | undefined;
+        if (xmpData) {
+          usda += "        dictionary xmp = {\n";
+          
+          // Add context
+          if (xmpData.context && Object.keys(xmpData.context).length > 0) {
+            usda += "            dictionary context = {\n";
+            for (const [term, definition] of Object.entries(xmpData.context)) {
+              const defValue = typeof definition === 'string' ? definition : JSON.stringify(definition);
+              usda += `                string ${term} = ${JSON.stringify(defValue)}\n`;
+            }
+            usda += "            }\n";
+          }
+          
+          // Add properties
+          if (xmpData.properties && Object.keys(xmpData.properties).length > 0) {
+            usda += "            dictionary properties = {\n";
+            for (const [propName, propValue] of Object.entries(xmpData.properties)) {
+              if (typeof propValue === 'string') {
+                usda += `                string ${propName} = ${JSON.stringify(propValue)}\n`;
+              } else if (typeof propValue === 'number') {
+                const typeDecl = Number.isInteger(propValue) ? 'int' : 'float';
+                usda += `                ${typeDecl} ${propName} = ${propValue}\n`;
+              } else if (typeof propValue === 'boolean') {
+                usda += `                bool ${propName} = ${propValue}\n`;
+              } else {
+                // Complex object - serialize as JSON string
+                usda += `                string ${propName} = ${JSON.stringify(propValue)}\n`;
+              }
+            }
+            usda += "            }\n";
+          }
+          
+          usda += "        }\n";
+        }
+      }
+      
       usda += "    }\n";
 
       // defaultPrim must be a direct child of the root layer

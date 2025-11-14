@@ -20,4 +20,6 @@ export * from './processors/pbr-dispersion-processor';
 export * from './processors/pbr-ior-processor';
 export * from './processors/pbr-unlit-processor';
 export * from './light-processor';
+export * from './instancing-processor';
+export * from './xmp-processor';
 

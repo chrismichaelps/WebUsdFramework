@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { Clearcoat } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_clearcoat extension
@@ -43,13 +43,14 @@ export class PBRClearcoatProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(clearcoatTexture, 'clearcoat');
           const textureInfo = clearcoatExtension.getClearcoatTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: clearcoatTexture,
             id: textureId,
             type: 'clearcoat',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRClearcoatProcessor] Extracted clearcoatTexture`, {
@@ -69,13 +70,14 @@ export class PBRClearcoatProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(clearcoatRoughnessTexture, 'clearcoatRoughness');
           const textureInfo = clearcoatExtension.getClearcoatRoughnessTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: clearcoatRoughnessTexture,
             id: textureId,
             type: 'clearcoatRoughness',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRClearcoatProcessor] Extracted clearcoatRoughnessTexture`, {
@@ -95,13 +97,14 @@ export class PBRClearcoatProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(clearcoatNormalTexture, 'clearcoatNormal');
           const textureInfo = clearcoatExtension.getClearcoatNormalTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: clearcoatNormalTexture,
             id: textureId,
             type: 'clearcoatNormal',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRClearcoatProcessor] Extracted clearcoatNormalTexture`, {

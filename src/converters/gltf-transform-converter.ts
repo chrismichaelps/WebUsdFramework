@@ -28,6 +28,8 @@ import {
 import { calculateSceneExtent } from './helpers/usd-hierarchy-builder';
 import { processSkeletons, bindSkeletonToMesh } from './helpers/skeleton-processor';
 import { formatUsdTuple3 } from '../utils/usd-formatter';
+import { processXMPExtension, formatXMPForUSD } from './extensions/xmp-processor';
+import { preprocessGltfDocument } from './helpers/gltf-transform-helpers';
 
 /**
  * Conversion Stage Names
@@ -115,13 +117,41 @@ export async function convertGlbToUsdz(
     });
 
     // Parse GLB/GLTF document using factory pattern
-    const document = await parseGltfOrGlbDocument(input, logger);
+    let document = await parseGltfOrGlbDocument(input, logger);
+
+    // Apply preprocessing transforms if configured
+    if (config?.preprocess) {
+      logger.info('Applying GLTF preprocessing transforms', {
+        stage: CONVERSION_STAGES.PARSING,
+        options: config.preprocess
+      });
+      document = await preprocessGltfDocument(document, config.preprocess, logger);
+    }
+
+    // Process XMP metadata from document root
+    const xmpMetadata = processXMPExtension(document);
+    if (xmpMetadata) {
+      logger.info('Detected XMP metadata in GLTF document', {
+        contextCount: Object.keys(xmpMetadata.context).length,
+        propertyCount: Object.keys(xmpMetadata.properties).length
+      });
+    }
 
     // Create USD root structure
     const root = document.getRoot();
     const scene = root.listScenes()[CONVERSION_CONSTANTS.FIRST_SCENE_INDEX];
     const sceneName = scene.getName();
     const rootStructure = createRootStructure(sceneName);
+
+    // Add XMP metadata to root node customLayerData if present
+    if (xmpMetadata) {
+      const xmpUsdData = formatXMPForUSD(xmpMetadata);
+      const existingCustomData = rootStructure.rootNode.getProperty('customLayerData') as Record<string, unknown> | undefined;
+      const customLayerData = existingCustomData || {};
+      Object.assign(customLayerData, xmpUsdData);
+      // Note: customLayerData is set in serializeToUsda, so we'll store it as metadata
+      rootStructure.rootNode.setMetadata('xmpMetadata', xmpUsdData);
+    }
 
     // Process geometries using embedded approach for optimal USDZ compatibility
     // Geometry data is embedded directly in the main USD file instead of separate files

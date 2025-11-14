@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { PBRSpecularGlossiness } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_pbrSpecularGlossiness extension
@@ -43,13 +43,14 @@ export class PBRSpecularGlossinessProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(specularGlossinessTexture, 'specular');
           const specularTextureInfo = specGlossExtension.getSpecularGlossinessTextureInfo();
           const uvSet = specularTextureInfo ? specularTextureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(specularTextureInfo);
 
           extractedTextures.push({
             texture: specularGlossinessTexture,
             id: textureId,
             type: 'specular',
             uvSet,
-            transform: undefined // TextureInfo doesn't expose transform in GLTF-Transform
+            transform
           });
 
           console.log(`[PBRSpecularGlossinessProcessor] Extracted specularGlossinessTexture`, {
@@ -72,13 +73,14 @@ export class PBRSpecularGlossinessProcessor implements IExtensionProcessor {
             const textureId = await generateTextureId(diffuseTexture, 'diffuse');
             const diffuseTextureInfo = specGlossExtension.getDiffuseTextureInfo();
             const uvSet = diffuseTextureInfo ? diffuseTextureInfo.getTexCoord() : 0;
+            const transform = extractTextureTransform(diffuseTextureInfo);
 
             extractedTextures.push({
               texture: diffuseTexture,
               id: textureId,
               type: 'diffuse',
               uvSet,
-              transform: undefined
+              transform
             });
 
             console.log(`[PBRSpecularGlossinessProcessor] Extracted diffuseTexture`, {

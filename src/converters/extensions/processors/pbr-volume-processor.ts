@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { Volume } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_volume extension
@@ -43,13 +43,14 @@ export class PBRVolumeProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(thicknessTexture, 'thickness');
           const textureInfo = volumeExtension.getThicknessTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: thicknessTexture,
             id: textureId,
             type: 'thickness',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRVolumeProcessor] Extracted thicknessTexture`, {

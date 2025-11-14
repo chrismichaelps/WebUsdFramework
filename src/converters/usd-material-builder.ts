@@ -10,6 +10,7 @@ import { UsdNode } from '../core/usd-node';
 import { sanitizeName } from '../utils/name-utils';
 import { bakeVertexColorsToTexture } from './helpers/vertex-color-baker';
 import { ExtensionFactory } from './extensions/extension-factory';
+import { extractTextureTransform } from './extensions/processors/texture-utils';
 
 /**
  * Texture type definitions based on GLTF standard and extensions
@@ -607,12 +608,7 @@ function getTextureTransform(material: Material, textureType: 'baseColor' | 'nor
       break;
   }
 
-  if (!textureInfo) return undefined;
-
-  // GLTF-Transform TextureInfo doesn't have getOffset/getScale/getRotation methods
-  // These would need to be handled through extensions or custom logic
-  // For now, return undefined to use default transforms
-  return undefined;
+  return extractTextureTransform(textureInfo);
 }
 
 /**

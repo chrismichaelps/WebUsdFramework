@@ -9,7 +9,7 @@ import { Material } from '@gltf-transform/core';
 import { Iridescence } from '@gltf-transform/extensions';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from '../extension-processor';
 import { TextureReference } from '../../usd-material-builder';
-import { generateTextureId } from './texture-utils';
+import { generateTextureId, extractTextureTransform } from './texture-utils';
 
 /**
  * Processor for KHR_materials_iridescence extension
@@ -43,13 +43,14 @@ export class PBRIridescenceProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(iridescenceTexture, 'iridescence');
           const textureInfo = iridescenceExtension.getIridescenceTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: iridescenceTexture,
             id: textureId,
             type: 'iridescence',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRIridescenceProcessor] Extracted iridescenceTexture`, {
@@ -69,13 +70,14 @@ export class PBRIridescenceProcessor implements IExtensionProcessor {
           const textureId = await generateTextureId(iridescenceThicknessTexture, 'iridescenceThickness');
           const textureInfo = iridescenceExtension.getIridescenceThicknessTextureInfo();
           const uvSet = textureInfo ? textureInfo.getTexCoord() : 0;
+          const transform = extractTextureTransform(textureInfo);
 
           extractedTextures.push({
             texture: iridescenceThicknessTexture,
             id: textureId,
             type: 'iridescenceThickness',
             uvSet,
-            transform: undefined
+            transform
           });
 
           console.log(`[PBRIridescenceProcessor] Extracted iridescenceThicknessTexture`, {
