@@ -9,16 +9,6 @@ import { DEFAULT_CONFIG } from '../constants/config';
 import { UpAxisSchema, CompressionSchema } from './base-schemas';
 
 /**
- * WebUSD Configuration Schema
- */
-export const WebUsdConfigSchema = z.object({
-  debug: z.boolean().optional().default(false),
-  debugOutputDir: z.string().optional().default('./debug-output'),
-  upAxis: UpAxisSchema.optional().default('Y'),
-  metersPerUnit: z.number().positive().optional().default(1),
-});
-
-/**
  * GLTF Preprocessing Options Schema
  */
 export const GltfPreprocessOptionsSchema = z.object({
@@ -35,6 +25,17 @@ export const GltfPreprocessOptionsSchema = z.object({
   metalRough: z.boolean().optional().default(false),
   vertexColorSpace: z.enum(['srgb', 'srgb-linear']).optional(),
   join: z.boolean().optional().default(false),
+});
+
+/**
+ * WebUSD Configuration Schema
+ */
+export const WebUsdConfigSchema = z.object({
+  debug: z.boolean().optional().default(false),
+  debugOutputDir: z.string().optional().default('./debug-output'),
+  upAxis: UpAxisSchema.optional().default('Y'),
+  metersPerUnit: z.number().positive().optional().default(1),
+  preprocess: GltfPreprocessOptionsSchema.optional(),
 });
 
 /**

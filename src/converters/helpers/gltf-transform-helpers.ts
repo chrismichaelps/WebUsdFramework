@@ -25,33 +25,155 @@ import { Logger } from '../../utils';
 
 /**
  * Options for GLTF preprocessing transforms
+ * 
+ * These options control preprocessing operations from @gltf-transform/functions
+ * that are applied to the GLTF document before conversion to USDZ.
+ * 
  */
 export interface GltfPreprocessOptions {
-  /** Dequantize mesh attributes (remove KHR_mesh_quantization) */
+  /**
+   * Dequantize mesh attributes (remove KHR_mesh_quantization)
+   * 
+   * Converts quantized vertex attributes to float32 for USDZ compatibility.
+   * This is important because USDZ requires float32 attributes.
+   * 
+   * @default true
+   */
   dequantize?: boolean;
-  /** Generate normals if missing */
+
+  /**
+   * Generate normals if missing
+   * 
+   * Generates flat vertex normals for mesh primitives that don't have them.
+   * USD requires normals for proper lighting calculations.
+   * 
+   * @default true
+   */
   generateNormals?: boolean;
-  /** Remove unused resources */
-  prune?: boolean;
-  /** Remove duplicate resources */
-  dedup?: boolean;
-  /** Calculate and log bounds */
-  logBounds?: boolean;
-  /** Weld vertices (merge identical vertices for optimization) */
+
+  /**
+   * Weld vertices (merge identical vertices for optimization)
+   * 
+   * Merges bitwise identical vertices to reduce file size and improve
+   * GPU vertex cache efficiency. When merged and indexed, data is shared
+   * more efficiently between vertices.
+   * 
+   * @default false
+   */
   weld?: boolean;
-  /** Center model at origin */
+
+  /**
+   * Remove duplicate resources
+   * 
+   * Removes duplicate Accessor, Mesh, Texture, and Material properties.
+   * This helps reduce file size by deduplicating identical resources.
+   * 
+   * @default false
+   */
+  dedup?: boolean;
+
+  /**
+   * Remove unused resources
+   * 
+   * Removes properties from the file if they are not referenced by a Scene.
+   * Commonly helpful for cleaning up after other operations.
+   * 
+   * @default false
+   */
+  prune?: boolean;
+
+  /**
+   * Calculate and log bounds
+   * 
+   * Calculates bounding box (AABB) in world space for scenes and logs
+   * the results. Useful for debugging and understanding model dimensions.
+   * 
+   * @default false
+   */
+  logBounds?: boolean;
+
+  /**
+   * Center model at origin
+   * 
+   * Centers the Scene at the origin, or above/below it. Transformations
+   * from animation, skinning, and morph targets are not taken into account.
+   * 
+   * @default false
+   * @example 'center' | 'above' | 'below' | false
+   */
   center?: boolean | 'center' | 'above' | 'below';
-  /** Resample animations (optimize keyframes) */
+
+  /**
+   * Resample animations (optimize keyframes)
+   * 
+   * Resamples AnimationChannels, losslessly deduplicating keyframes to
+   * reduce file size. Duplicate keyframes are commonly present in animation
+   * 'baked' by authoring software.
+   * 
+   * @default false
+   */
   resample?: boolean;
-  /** Convert unlit materials to standard PBR */
+
+  /**
+   * Convert unlit materials to standard PBR
+   * 
+   * Converts materials using KHR_materials_unlit extension to standard
+   * PBR materials for better compatibility with USD PreviewSurface.
+   * 
+   * @default false
+   */
   unlit?: boolean;
-  /** Flatten scene graph (may break animations) */
+
+  /**
+   * Flatten scene graph (may break animations)
+   * 
+   * Flattens the scene graph, leaving Nodes with Meshes, Cameras, and
+   * other attachments as direct children of the Scene. Skeletons and their
+   * descendants are left in their original Node structure.
+   * 
+   * ⚠️ Warning: Animation targeting a Node or its parents will prevent
+   * that Node from being moved. Use with caution as it may break animations.
+   * 
+   * @default false
+   */
   flatten?: boolean;
-  /** Convert spec/gloss materials to metal/rough PBR */
+
+  /**
+   * Convert spec/gloss materials to metal/rough PBR
+   * 
+   * Converts Materials from spec/gloss PBR workflow to metal/rough PBR workflow,
+   * removing KHR_materials_pbrSpecularGlossiness and adding KHR_materials_ior
+   * and KHR_materials_specular. The metal/rough PBR workflow is preferred
+   * for most use cases and is a prerequisite for other advanced PBR extensions.
+   * 
+   * @default false
+   */
   metalRough?: boolean;
-  /** Convert vertex colors from sRGB to linear */
+
+  /**
+   * Convert vertex colors color space
+   * 
+   * Vertex color color space correction. The glTF format requires vertex
+   * colors to be stored in Linear Rec. 709 D65 color space. This function
+   * provides a way to correct vertex colors that are (incorrectly) stored in sRGB.
+   * 
+   * @default undefined
+   * @example 'srgb' | 'srgb-linear'
+   */
   vertexColorSpace?: 'srgb' | 'srgb-linear' | undefined;
-  /** Join compatible primitives to reduce draw calls */
+
+  /**
+   * Join compatible primitives to reduce draw calls
+   * 
+   * Joins compatible Primitives and reduces draw calls. Primitives are eligible
+   * for joining if they are members of the same Mesh or, optionally, attached
+   * to sibling Nodes in the scene hierarchy.
+   * 
+   * For best results, apply dedup and flatten first to maximize the number
+   * of Primitives that can be joined.
+   * 
+   * @default false
+   */
   join?: boolean;
 }
 

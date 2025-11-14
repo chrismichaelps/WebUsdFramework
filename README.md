@@ -99,6 +99,21 @@ const config = {
   debugOutputDir: './output',
   upAxis: 'Y',
   metersPerUnit: 1,
+  preprocess: {
+    dequantize: true,
+    generateNormals: true,
+    weld: true,
+    dedup: true,
+    prune: true,
+    logBounds: true,
+    center: 'center',
+    resample: true,
+    unlit: true,
+    flatten: false, // Warning: may break animations
+    metalRough: true,
+    vertexColorSpace: 'srgb',
+    join: false,
+  },
 };
 
 const usd = defineConfig(config);
@@ -112,6 +127,24 @@ const usdzBlob3 = await usd.convert('./model.obj'); // OBJ file
 const buffer = await usdzBlob.arrayBuffer();
 fs.writeFileSync('output.usdz', Buffer.from(buffer));
 ```
+
+### Preprocessing Options
+
+The framework supports GLTF preprocessing transforms from `@gltf-transform/functions`:
+
+- **`dequantize`** (default: `true`) - Remove mesh quantization for USDZ compatibility
+- **`generateNormals`** (default: `true`) - Generate normals if missing
+- **`weld`** - Merge identical vertices for optimization
+- **`dedup`** - Remove duplicate resources
+- **`prune`** - Remove unused resources
+- **`logBounds`** - Calculate and log scene bounds
+- **`center`** - Center model at origin (`'center'`, `'above'`, `'below'`, or `false`)
+- **`resample`** - Optimize animation keyframes
+- **`unlit`** - Convert unlit materials to standard PBR
+- **`flatten`** - Flatten scene graph (may break animations)
+- **`metalRough`** - Convert spec/gloss materials to metal/rough PBR
+- **`vertexColorSpace`** - Convert vertex colors (`'srgb'` or `'srgb-linear'`)
+- **`join`** - Join compatible primitives to reduce draw calls
 
 ### OBJ File Support
 
@@ -157,7 +190,6 @@ const usdzBlob = await usd.convert('./model.obj');
 4. Generate USD mesh nodes with embedded geometry
 5. Apply transformations for proper scaling and centering
 6. Package as USDZ with 64-byte alignment
-
 
 ## **:handshake: Contributing**
 
