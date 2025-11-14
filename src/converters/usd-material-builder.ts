@@ -475,13 +475,57 @@ export async function buildUsdMaterial(
 
   const extensionResults = await ExtensionFactory.processMaterialExtensions(material, extensionContext);
 
-  // Collect textures from all extension processors
+  // Collect textures and properties from all extension processors
+  const allProperties: Record<string, unknown> = {};
   for (const result of extensionResults) {
-    if (result.processed && result.textures.length > 0) {
-      textures.push(...result.textures);
+    if (result.processed) {
+      if (result.textures.length > 0) {
+        textures.push(...result.textures);
+      }
+      if (result.properties) {
+        Object.assign(allProperties, result.properties);
+      }
     } else if (result.error) {
       console.warn(`[buildUsdMaterial] Extension processing error: ${result.error}`);
     }
+  }
+
+  // Apply extracted properties to material
+  if (allProperties.emissiveStrength !== undefined) {
+    const strength = allProperties.emissiveStrength as number;
+    const currentEmissive = surfaceShader.getProperty('color3f inputs:emissiveColor');
+    if (currentEmissive && typeof currentEmissive === 'string' && currentEmissive.includes('(')) {
+      // Multiply existing emissive color by strength
+      const match = currentEmissive.match(/\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+      if (match) {
+        const r = parseFloat(match[1]) * strength;
+        const g = parseFloat(match[2]) * strength;
+        const b = parseFloat(match[3]) * strength;
+        surfaceShader.setProperty('color3f inputs:emissiveColor', `(${r}, ${g}, ${b})`);
+      }
+    }
+  }
+
+  if (allProperties.ior !== undefined) {
+    const ior = allProperties.ior as number;
+    // USD PreviewSurface doesn't have direct IOR input, but we can store it as metadata
+    surfaceShader.setProperty('float inputs:ior', ior.toString(), 'float');
+  }
+
+  if (allProperties.dispersion !== undefined) {
+    const dispersion = allProperties.dispersion as number;
+    // USD PreviewSurface doesn't have direct dispersion input, store as metadata
+    surfaceShader.setProperty('float inputs:dispersion', dispersion.toString(), 'float');
+  }
+
+  if (allProperties.unlit === true) {
+    // For unlit materials, disable all lighting calculations
+    // Set roughness to 1.0 and metallic to 0.0 to simulate unlit appearance
+    surfaceShader.setProperty('float inputs:roughness', '1.0', 'float');
+    surfaceShader.setProperty('float inputs:metallic', '0.0', 'float');
+    // Note: USD PreviewSurface doesn't have a direct "unlit" mode,
+    // but high roughness + no metallic approximates unlit appearance
+    console.log(`[buildUsdMaterial] Material marked as unlit: ${materialName}`);
   }
 
   // Add shared UV reader and Transform2d nodes to material

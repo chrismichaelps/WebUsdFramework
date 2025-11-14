@@ -15,4 +15,9 @@ export * from './processors/pbr-sheen-processor';
 export * from './processors/pbr-transmission-processor';
 export * from './processors/pbr-volume-processor';
 export * from './processors/pbr-anisotropy-processor';
+export * from './processors/pbr-emissive-strength-processor';
+export * from './processors/pbr-dispersion-processor';
+export * from './processors/pbr-ior-processor';
+export * from './processors/pbr-unlit-processor';
+export * from './light-processor';
 

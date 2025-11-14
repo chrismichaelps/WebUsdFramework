@@ -26,11 +26,29 @@ export interface ExtensionProcessingContext {
 }
 
 /**
+ * Material properties extracted from extensions (non-texture properties)
+ */
+export interface MaterialProperties {
+  /** Emissive strength factor */
+  emissiveStrength?: number;
+  /** Dispersion factor */
+  dispersion?: number;
+  /** Index of refraction */
+  ior?: number;
+  /** Whether material is unlit */
+  unlit?: boolean;
+  /** Additional custom properties */
+  [key: string]: unknown;
+}
+
+/**
  * Result of extension processing
  */
 export interface ExtensionProcessingResult {
   /** Additional textures extracted from extension */
   textures: TextureReference[];
+  /** Material properties extracted from extension (non-texture) */
+  properties?: MaterialProperties;
   /** Whether the extension was successfully processed */
   processed: boolean;
   /** Optional error message if processing failed */

@@ -16,6 +16,10 @@ import { PBRSheenProcessor } from './processors/pbr-sheen-processor';
 import { PBRTransmissionProcessor } from './processors/pbr-transmission-processor';
 import { PBRVolumeProcessor } from './processors/pbr-volume-processor';
 import { PBRAnisotropyProcessor } from './processors/pbr-anisotropy-processor';
+import { PBREmissiveStrengthProcessor } from './processors/pbr-emissive-strength-processor';
+import { PBRDispersionProcessor } from './processors/pbr-dispersion-processor';
+import { PBRIORProcessor } from './processors/pbr-ior-processor';
+import { PBRUnlitProcessor } from './processors/pbr-unlit-processor';
 
 /**
  * Factory for managing extension processors
@@ -100,6 +104,10 @@ export class ExtensionFactory {
     this.register(new PBRTransmissionProcessor());
     this.register(new PBRVolumeProcessor());
     this.register(new PBRAnisotropyProcessor());
+    this.register(new PBREmissiveStrengthProcessor());
+    this.register(new PBRDispersionProcessor());
+    this.register(new PBRIORProcessor());
+    this.register(new PBRUnlitProcessor());
 
     this.initialized = true;
   }

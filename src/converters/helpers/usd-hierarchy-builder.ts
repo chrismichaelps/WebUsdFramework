@@ -12,6 +12,7 @@ import { sanitizeName, formatUsdNumberArray, setTransformMatrix } from '../../ut
 import { formatUsdTuple3, formatUsdTuple2 } from '../../utils/usd-formatter';
 import { SkeletonData } from './skeleton-processor';
 import { ApiSchemaBuilder, API_SCHEMAS } from '../../utils/api-schema-builder';
+import { processLightExtension, applyLightToUsdNode } from '../extensions/light-processor';
 
 /**
  * Primitive Metadata Interface
@@ -133,6 +134,12 @@ export async function buildNodeHierarchy(
       context
     );
 
+  }
+
+  // Process light extension if present
+  const lightProps = processLightExtension(gltfNode);
+  if (lightProps) {
+    applyLightToUsdNode(currentNode, lightProps);
   }
 
   // Process children recursively
