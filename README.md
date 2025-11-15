@@ -52,7 +52,28 @@ const { defineConfig } = require('./build/index.js');
 // Enable debug mode for inspection
 const usd = defineConfig({
   debug: true,
-  debugOutputDir: './debug-output',
+  debugOutputDir: 'debug-output',
+  preprocess: {
+    dequantize: true,
+    generateNormals: true,
+    weld: true,
+    dedup: true,
+    prune: true,
+    logBounds: true,
+    center: 'center',
+    resample: true,
+    unlit: true,
+    flatten: false, // Warning: option as true may break animations
+    metalRough: true,
+    vertexColorSpace: 'srgb',
+    join: false,
+  },
+  unified: {
+    obj: {
+      enableLogging: true,
+      debugLogging: false,
+    },
+  },
 });
 
 // Convert with detailed logging
@@ -71,7 +92,31 @@ const usdzBlob = await usd.convert('./model.glb');
 const { defineConfig } = require('./build/index.js');
 const fs = require('fs');
 
-const usd = defineConfig();
+const usd = defineConfig({
+  debug: true,
+  debugOutputDir: 'debug-output',
+  preprocess: {
+    dequantize: true,
+    generateNormals: true,
+    weld: true,
+    dedup: true,
+    prune: true,
+    logBounds: true,
+    center: 'center',
+    resample: true,
+    unlit: true,
+    flatten: false, // Warning: option as true may break animations
+    metalRough: true,
+    vertexColorSpace: 'srgb',
+    join: false,
+  },
+  unified: {
+    obj: {
+      enableLogging: true,
+      debugLogging: false,
+    },
+  },
+});
 
 // From file system (Node.js) - GLB files
 const glbBuffer = fs.readFileSync('model.glb').buffer;
@@ -113,6 +158,12 @@ const config = {
     metalRough: true,
     vertexColorSpace: 'srgb',
     join: false,
+  },
+  unified: {
+    obj: {
+      enableLogging: true,
+      debugLogging: false,
+    },
   },
 };
 
