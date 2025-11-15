@@ -34,23 +34,23 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
    * and doesn't target any skeleton bones.
    */
   canProcess(animation: Animation, context: AnimationProcessorContext): boolean {
-      const channels = animation.listChannels();
+    const channels = animation.listChannels();
     let hasTransformChannels = false;
 
     // Check if this animation has any transform channels (translation, rotation, scale)
-      for (const channel of channels) {
+    for (const channel of channels) {
       const targetPath = channel.getTargetPath();
       if (targetPath === 'translation' || targetPath === 'rotation' || targetPath === 'scale') {
         hasTransformChannels = true;
 
         // Check if this channel targets a skeleton joint
         if (context.skeletonMap && context.skeletonMap.size > 0) {
-        const targetNode = channel.getTargetNode();
+          const targetNode = channel.getTargetNode();
           if (targetNode) {
-        for (const [, skeletonData] of context.skeletonMap) {
-          if (skeletonData.jointNodes.has(targetNode)) {
-            // This moves skeleton bones, so we can't handle it
-            return false;
+            for (const [, skeletonData] of context.skeletonMap) {
+              if (skeletonData.jointNodes.has(targetNode)) {
+                // This moves skeleton bones, so we can't handle it
+                return false;
               }
             }
           }
@@ -123,7 +123,7 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
 
     for (const channel of channels) {
       const targetPath = channel.getTargetPath();
-      
+
       // Only process transform channels (translation, rotation, scale)
       // Ignore morph target channels (weights) - those are handled by MorphTargetAnimationProcessor
       if (targetPath !== 'translation' && targetPath !== 'rotation' && targetPath !== 'scale') {
@@ -304,14 +304,18 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
       // Build the list of transform operations we'll use
       const xformOps: string[] = [];
 
-      // Convert times from seconds to frame numbers
-      const frameRate = ANIMATION.FRAME_RATE;
-
-      // Helper to convert time samples to time codes and normalize to start at 0
+      // Helper to convert time samples to USD time codes
+      // Multiply times by the time code frame rate and round to integers when close
       const convertTimeSamplesToTimeCodes = (timeSamples: Map<number, string>): Map<number, string> => {
         const timeCodes = new Map<number, string>();
+
         for (const [timeSeconds, value] of timeSamples) {
-          const timeCode = Math.round(timeSeconds * frameRate);
+          // Multiply by frame rate to get time code
+          const s = ANIMATION.TIME_CODE_FPS * timeSeconds;
+          // Round to nearest integer
+          const r = Math.round(s);
+          // If close to integer, use integer; otherwise use continuous value
+          const timeCode = Math.abs(s - r) < ANIMATION.SNAP_TIME_CODE_TOL ? r : s;
           timeCodes.set(timeCode, value);
         }
 
@@ -321,7 +325,7 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
           const minTimeCode = sortedTimeCodes[0];
 
           if (minTimeCode !== 0) {
-            // Shift all frames so the first one becomes 0
+            // Shift all time codes so the first one becomes 0
             const normalizedTimeCodes = new Map<number, string>();
             for (const [timeCode, value] of timeCodes) {
               const normalizedTimeCode = timeCode - minTimeCode;

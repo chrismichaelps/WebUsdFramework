@@ -8,8 +8,8 @@
 
 import { Animation, Skin } from '@gltf-transform/core';
 import { UsdNode } from '../../../core/usd-node';
-import { Logger, sanitizeName, formatUsdQuotedArray, TimeCodeConverter } from '../../../utils';
-import { formatUsdTuple3, formatUsdTuple4 } from '../../../utils/usd-formatter';
+import { Logger, sanitizeName, formatUsdQuotedArray } from '../../../utils';
+import { formatUsdTuple3, formatUsdTuple4, formatUsdArray, formatUsdFloat } from '../../../utils/usd-formatter';
 import { ApiSchemaBuilder, API_SCHEMAS } from '../../../utils/api-schema-builder';
 import { SkeletonData } from '../skeleton-processor';
 import { IAnimationProcessor, AnimationProcessorContext, AnimationProcessorResult } from '../animation-processor-factory';
@@ -31,6 +31,34 @@ interface JointAnimationData {
  */
 export class SkeletonAnimationProcessor implements IAnimationProcessor {
   constructor(private logger: Logger) { }
+
+  /**
+   * Converts animation times to USD time codes.
+   * Multiplies times by 120fps and rounds to integers when they're close enough.
+   * This gives us smooth animation playback in USD viewers.
+   */
+  private convertToContinuousTimeSamples(
+    timeSamples: Map<number, string[]>,
+    sortedTimes: number[],
+    _frameRate: number
+  ): Map<number, string> {
+    const formattedTimeCodes = new Map<number, string>();
+
+    for (const timeSeconds of sortedTimes) {
+      const array = timeSamples.get(timeSeconds);
+      if (array) {
+        // Multiply by frame rate to get time code
+        const s = ANIMATION.TIME_CODE_FPS * timeSeconds;
+        // Round to nearest integer
+        const r = Math.round(s);
+        // If close to integer, use integer; otherwise use continuous value
+        const timeCode = Math.abs(s - r) < ANIMATION.SNAP_TIME_CODE_TOL ? r : s;
+        formattedTimeCodes.set(timeCode, formatUsdArray(array));
+      }
+    }
+
+    return formattedTimeCodes;
+  }
 
   /**
    * Checks if this animation moves skeleton joints (bones).
@@ -295,27 +323,127 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
     const rotations = new Map<number, string[]>();
     const scales = new Map<number, string[]>();
 
-    // Helper to get a value at a specific time, using the closest match if needed
-    const getValueAtTime = (timeSamples: Map<number, string>, time: number, defaultValue: string): string => {
+    // Helper to interpolate a value at a specific time
+    // Finds the two keyframes that bracket the requested time and interpolates between them
+    const getValueAtTime = (timeSamples: Map<number, string>, time: number, defaultValue: string, isQuaternion: boolean = false): string => {
       if (timeSamples.has(time)) {
         return timeSamples.get(time)!;
       }
 
-      // Find the closest time sample we have
       const sorted = Array.from(timeSamples.keys()).sort((a, b) => a - b);
       if (sorted.length === 0) return defaultValue;
 
-      let closest = sorted[0];
-      let minDiff = Math.abs(time - closest);
-      for (const t of sorted) {
-        const diff = Math.abs(time - t);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closest = t;
+      // Find the two keyframes that bracket this time
+      let i0 = -1;
+      let i1 = sorted.length;
+
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i] <= time) {
+          i0 = i;
+        }
+        if (sorted[i] >= time && i1 === sorted.length) {
+          i1 = i;
+          break;
         }
       }
 
-      return timeSamples.get(closest) || defaultValue;
+      // If before first keyframe, use first value
+      if (i0 < 0) {
+        return timeSamples.get(sorted[i1]) || defaultValue;
+      }
+
+      // If after last keyframe, use last value
+      if (i1 >= sorted.length) {
+        return timeSamples.get(sorted[i0]) || defaultValue;
+      }
+
+      // If exactly on a keyframe
+      if (i0 === i1) {
+        return timeSamples.get(sorted[i0]) || defaultValue;
+      }
+
+      // Interpolate between bounding keyframes
+      const t0 = sorted[i0];
+      const t1 = sorted[i1];
+      const v0 = timeSamples.get(t0)!;
+      const v1 = timeSamples.get(t1)!;
+
+      // Parse tuple values
+      const parseTuple = (tupleStr: string): number[] => {
+        const match = tupleStr.match(/\(([^)]+)\)/);
+        if (!match) return [];
+        return match[1].split(',').map(s => parseFloat(s.trim()));
+      };
+
+      const p0 = parseTuple(v0);
+      const p1 = parseTuple(v1);
+
+      if (p0.length === 0 || p1.length === 0) {
+        return defaultValue;
+      }
+
+      // Calculate interpolation factor
+      const dt = t1 - t0;
+      const kAnimDtMin = 0.00001; // Minimum delta time for interpolation
+      const s = dt < kAnimDtMin ? 0.0 : (time - t0) / dt;
+
+      // Interpolate: linear for translations/scales, SLERP for rotations
+      let interpolated: number[];
+      if (isQuaternion && p0.length === 4 && p1.length === 4) {
+        // SLERP for quaternions (w, x, y, z format)
+        const [w0, x0, y0, z0] = p0;
+        const [w1, x1, y1, z1] = p1;
+
+        // Calculate dot product
+        let dot = w0 * w1 + x0 * x1 + y0 * y1 + z0 * z1;
+
+        // If dot < 0, negate one quaternion to take shorter path
+        let w1_final = w1;
+        let x1_final = x1;
+        let y1_final = y1;
+        let z1_final = z1;
+        if (dot < 0) {
+          dot = -dot;
+          w1_final = -w1;
+          x1_final = -x1;
+          y1_final = -y1;
+          z1_final = -z1;
+        }
+
+        // If quaternions are very close, use linear interpolation
+        if (dot > 0.9995) {
+          interpolated = [
+            w0 + (w1_final - w0) * s,
+            x0 + (x1_final - x0) * s,
+            y0 + (y1_final - y0) * s,
+            z0 + (z1_final - z0) * s
+          ];
+        } else {
+          // SLERP
+          const theta = Math.acos(Math.max(-1, Math.min(1, dot)));
+          const sinTheta = Math.sin(theta);
+          const w = Math.sin((1 - s) * theta) / sinTheta;
+          const v = Math.sin(s * theta) / sinTheta;
+          interpolated = [
+            w * w0 + v * w1_final,
+            w * x0 + v * x1_final,
+            w * y0 + v * y1_final,
+            w * z0 + v * z1_final
+          ];
+        }
+      } else {
+        // Linear interpolation for translations/scales
+        interpolated = p0.map((val, i) => val + (p1[i] - val) * s);
+      }
+
+      // Format back to tuple string
+      if (interpolated.length === 3) {
+        return `(${interpolated.map(v => formatUsdFloat(v)).join(', ')})`;
+      } else if (interpolated.length === 4) {
+        return `(${interpolated.map(v => formatUsdFloat(v)).join(', ')})`;
+      }
+
+      return defaultValue;
     };
 
     // Build arrays for each time point with values for all joints
@@ -353,8 +481,9 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
         }
 
         // Get rotation, using default if this joint doesn't animate
+        // Use SLERP interpolation for rotations (isQuaternion = true)
         if (jointAnim?.rotations) {
-          rotArray.push(getValueAtTime(jointAnim.rotations, time, '(1, 0, 0, 0)'));
+          rotArray.push(getValueAtTime(jointAnim.rotations, time, '(1, 0, 0, 0)', true));
         } else {
           rotArray.push('(1, 0, 0, 0)');
         }
@@ -479,223 +608,24 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
     const jointsArray = formatUsdQuotedArray(allSkeletonJointRelativePaths);
     skelAnimationNode.setProperty('uniform token[] joints', jointsArray, 'raw');
 
-    // Resample animation at regular intervals with proper interpolation
-    // This gives us smooth animation and consecutive time codes that USD expects
-    this.logger.info('Resampling animation at regular intervals', {
-      animationName,
-      originalSampleCount: sortedCommonTimes.length,
-      firstTimeInSeconds: sortedCommonTimes[0],
-      lastTimeInSeconds: sortedCommonTimes[sortedCommonTimes.length - 1],
-      detectedFrameRate,
-      usingFrameRate: detectedFrameRate
-    });
-
-    // Resample at regular intervals using standard interpolation methods
-    // Linear interpolation for translations/scales, slerp (spherical linear interpolation) for rotations
-    const resampleAtRegularIntervals = (
-      timeSamples: Map<number, string[]>,
-      startTime: number,
-      endTime: number,
-      frameRate: number,
-      isRotation: boolean = false
-    ): Map<number, string[]> => {
-      const sortedOriginalTimes = Array.from(timeSamples.keys()).sort((a, b) => a - b);
-      const resampled = new Map<number, string[]>();
-      const frameInterval = 1 / frameRate;
-
-      // Helper to interpolate between two tuples
-      const interpolateTuple = (prev: number[], next: number[], t: number): number[] => {
-        if (prev.length !== next.length) return prev;
-        return prev.map((p, i) => p + (next[i] - p) * t);
-      };
-
-      // Helper to interpolate quaternion (slerp)
-      const slerp = (q1: number[], q2: number[], t: number): number[] => {
-        if (q1.length !== 4 || q2.length !== 4) return q1;
-        const [w1, x1, y1, z1] = q1;
-        const [w2, x2, y2, z2] = q2;
-
-        let dot = w1 * w2 + x1 * x2 + y1 * y2 + z1 * z2;
-        if (dot < 0) {
-          dot = -dot;
-          const negQ2 = [-w2, -x2, -y2, -z2];
-          return slerp(q1, negQ2, t);
-        }
-
-        if (dot > 0.9995) {
-          return interpolateTuple(q1, q2, t);
-        }
-
-        const theta = Math.acos(Math.max(-1, Math.min(1, dot)));
-        const sinTheta = Math.sin(theta);
-        const w = Math.sin((1 - t) * theta) / sinTheta;
-        const v = Math.sin(t * theta) / sinTheta;
-
-        return [
-          w * w1 + v * w2,
-          w * x1 + v * x2,
-          w * y1 + v * y2,
-          w * z1 + v * z2
-        ];
-      };
-
-      // Helper to get value at a specific time by interpolating between keyframes
-      const getValueAtTime = (time: number): string[] => {
-        // Find surrounding keyframes
-        let prevTime = sortedOriginalTimes[0];
-        let nextTime = sortedOriginalTimes[sortedOriginalTimes.length - 1];
-
-        for (let i = 0; i < sortedOriginalTimes.length; i++) {
-          if (sortedOriginalTimes[i] <= time) {
-            prevTime = sortedOriginalTimes[i];
-          }
-          if (sortedOriginalTimes[i] >= time && nextTime >= time) {
-            nextTime = sortedOriginalTimes[i];
-            break;
-          }
-        }
-
-        // If exact match, return it
-        if (prevTime === time && timeSamples.has(time)) {
-          return timeSamples.get(time)!;
-        }
-
-        // If at edges, return closest
-        if (time <= prevTime) {
-          return timeSamples.get(prevTime)!;
-        }
-        if (time >= nextTime) {
-          return timeSamples.get(nextTime)!;
-        }
-
-        // Interpolate between prev and next
-        const prevValue = timeSamples.get(prevTime)!;
-        const nextValue = timeSamples.get(nextTime)!;
-        const t = (time - prevTime) / (nextTime - prevTime);
-
-        // Parse tuples and interpolate each joint
-        const parseTuple = (tupleStr: string): number[] => {
-          const match = tupleStr.match(/\(([^)]+)\)/);
-          if (!match) return [];
-          return match[1].split(',').map(s => parseFloat(s.trim()));
-        };
-
-        const interpolated: string[] = [];
-        for (let i = 0; i < prevValue.length && i < nextValue.length; i++) {
-          const prevTuple = parseTuple(prevValue[i]);
-          const nextTuple = parseTuple(nextValue[i]);
-
-          if (prevTuple.length === 0 || nextTuple.length === 0) {
-            interpolated.push(prevValue[i]);
-            continue;
-          }
-
-          let result: number[];
-          if (isRotation && prevTuple.length === 4 && nextTuple.length === 4) {
-            result = slerp(prevTuple, nextTuple, t);
-          } else {
-            result = interpolateTuple(prevTuple, nextTuple, t);
-          }
-
-          if (result.length === 3) {
-            interpolated.push(formatUsdTuple3(result[0], result[1], result[2]));
-          } else if (result.length === 4) {
-            interpolated.push(formatUsdTuple4(result[0], result[1], result[2], result[3]));
-          } else {
-            interpolated.push(prevValue[i]);
-          }
-        }
-
-        return interpolated;
-      };
-
-      // Resample at regular intervals to create evenly spaced samples
-      // These will map to consecutive time codes (0, 1, 2, 3...)
-      for (let time = startTime; time <= endTime + frameInterval * 0.5; time += frameInterval) {
-        // Clamp to end time to avoid floating point precision issues
-        const clampedTime = Math.min(time, endTime);
-        resampled.set(clampedTime, getValueAtTime(clampedTime));
-      }
-
-      return resampled;
-    };
-
-    // Resample all animation data at regular intervals using proper interpolation
-    const resampledTranslations = resampleAtRegularIntervals(
-      translations,
-      sortedCommonTimes[0],
-      sortedCommonTimes[sortedCommonTimes.length - 1],
-      detectedFrameRate,
-      false
-    );
-    const resampledRotations = resampleAtRegularIntervals(
-      rotations,
-      sortedCommonTimes[0],
-      sortedCommonTimes[sortedCommonTimes.length - 1],
-      detectedFrameRate,
-      true
-    );
-    const resampledScales = resampleAtRegularIntervals(
-      scales,
-      sortedCommonTimes[0],
-      sortedCommonTimes[sortedCommonTimes.length - 1],
-      detectedFrameRate,
-      false
-    );
-
-    // Convert resampled data to time codes
-    // After resampling at regular intervals, time codes should be consecutive (0, 1, 2, 3...)
-    const transTimeCodes = TimeCodeConverter.convertArraysToTimeCodes(resampledTranslations, detectedFrameRate);
-    const rotTimeCodes = TimeCodeConverter.convertArraysToTimeCodes(resampledRotations, detectedFrameRate);
-    const scaleTimeCodes = TimeCodeConverter.convertArraysToTimeCodes(resampledScales, detectedFrameRate);
-
-    // Make sure time codes are consecutive (handle any floating point precision edge cases)
-    const ensureConsecutive = (timeCodes: Map<number, string>): Map<number, string> => {
-      if (timeCodes.size === 0) return timeCodes;
-
-      const sortedTimeCodes = Array.from(timeCodes.keys()).sort((a, b) => a - b);
-      const minTimeCode = sortedTimeCodes[0];
-      const maxTimeCode = sortedTimeCodes[sortedTimeCodes.length - 1];
-
-      const filledTimeCodes = new Map<number, string>();
-
-      // After resampling, gaps should be minimal - just fill any missing frames
-      for (let frame = minTimeCode; frame <= maxTimeCode; frame++) {
-        if (timeCodes.has(frame)) {
-          filledTimeCodes.set(frame, timeCodes.get(frame)!);
-        } else {
-          // Find closest frame (should be rare after resampling)
-          let closestFrame = minTimeCode;
-          let minDiff = Math.abs(frame - minTimeCode);
-          for (const tc of sortedTimeCodes) {
-            const diff = Math.abs(frame - tc);
-            if (diff < minDiff) {
-              minDiff = diff;
-              closestFrame = tc;
-            }
-          }
-          filledTimeCodes.set(frame, timeCodes.get(closestFrame)!);
-        }
-      }
-
-      return filledTimeCodes;
-    };
-
-    // Fill any gaps to ensure consecutive time codes
-    const filledTransTimeCodes = ensureConsecutive(transTimeCodes);
-    const filledRotTimeCodes = ensureConsecutive(rotTimeCodes);
-    const filledScaleTimeCodes = ensureConsecutive(scaleTimeCodes);
+    // Convert animation times to USD time codes
+    // Multiply by 120fps and round to integers when close
+    // This ensures smooth playback in USD viewers
+    const transTimeCodes = this.convertToContinuousTimeSamples(translations, sortedCommonTimes, detectedFrameRate);
+    const rotTimeCodes = this.convertToContinuousTimeSamples(rotations, sortedCommonTimes, detectedFrameRate);
+    const scaleTimeCodes = this.convertToContinuousTimeSamples(scales, sortedCommonTimes, detectedFrameRate);
 
     // Get the first frame values to use as defaults (the rest pose)
-    const timeCode0Translations = filledTransTimeCodes.get(0);
-    const timeCode0Rotations = filledRotTimeCodes.get(0);
-    const timeCode0Scales = filledScaleTimeCodes.get(0);
+    // Time codes are now multiplied by TIME_CODE_FPS, so get the first time code
+    const firstTimeSeconds = sortedCommonTimes[0];
+    const firstTimeCode = Math.round(ANIMATION.TIME_CODE_FPS * firstTimeSeconds);
+    const timeCode0Translations = transTimeCodes.get(firstTimeCode);
+    const timeCode0Rotations = rotTimeCodes.get(firstTimeCode);
+    const timeCode0Scales = scaleTimeCodes.get(firstTimeCode);
 
-    // Use time code 0 values if available, otherwise fall back to first time in seconds
-    const firstTime = sortedCommonTimes[0];
-    const defaultTranslations = timeCode0Translations || (translations.has(firstTime) ? `[${translations.get(firstTime)!.join(', ')}]` : `[${skeletonJointPaths.map(() => '(0, 0, 0)').join(', ')}]`);
-    const defaultRotations = timeCode0Rotations || (rotations.has(firstTime) ? `[${rotations.get(firstTime)!.join(', ')}]` : `[${skeletonJointPaths.map(() => '(1, 0, 0, 0)').join(', ')}]`);
-    const defaultScales = timeCode0Scales || (scales.has(firstTime) ? `[${scales.get(firstTime)!.join(', ')}]` : `[${skeletonJointPaths.map(() => '(1, 1, 1)').join(', ')}]`);
+    const defaultTranslations = timeCode0Translations || (translations.has(firstTimeSeconds) ? `[${translations.get(firstTimeSeconds)!.join(', ')}]` : `[${skeletonJointPaths.map(() => '(0, 0, 0)').join(', ')}]`);
+    const defaultRotations = timeCode0Rotations || (rotations.has(firstTimeSeconds) ? `[${rotations.get(firstTimeSeconds)!.join(', ')}]` : `[${skeletonJointPaths.map(() => '(1, 0, 0, 0)').join(', ')}]`);
+    const defaultScales = timeCode0Scales || (scales.has(firstTimeSeconds) ? `[${scales.get(firstTimeSeconds)!.join(', ')}]` : `[${skeletonJointPaths.map(() => '(1, 1, 1)').join(', ')}]`);
 
     // Set default values (the pose before animation starts)
     skelAnimationNode.setProperty('float3[] translations', defaultTranslations, 'raw');
@@ -703,23 +633,23 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
     skelAnimationNode.setProperty('half3[] scales', defaultScales, 'raw');
 
     // Set the time-sampled animation data
-    if (filledTransTimeCodes.size > 0) {
-      skelAnimationNode.setTimeSampledProperty('float3[] translations', filledTransTimeCodes, 'float3[]');
+    if (transTimeCodes.size > 0) {
+      skelAnimationNode.setTimeSampledProperty('float3[] translations', transTimeCodes, 'float3[]');
     }
 
-    if (filledRotTimeCodes.size > 0) {
-      skelAnimationNode.setTimeSampledProperty('quatf[] rotations', filledRotTimeCodes, 'quatf[]');
+    if (rotTimeCodes.size > 0) {
+      skelAnimationNode.setTimeSampledProperty('quatf[] rotations', rotTimeCodes, 'quatf[]');
     }
 
-    if (filledScaleTimeCodes.size > 0) {
-      skelAnimationNode.setTimeSampledProperty('half3[] scales', filledScaleTimeCodes, 'half3[]');
+    if (scaleTimeCodes.size > 0) {
+      skelAnimationNode.setTimeSampledProperty('half3[] scales', scaleTimeCodes, 'half3[]');
     }
 
     // Add SkelAnimation as a child of Skeleton
     skeletonPrimNode.addChild(skelAnimationNode);
-    const finalTransTimes = Array.from(translations.keys()).sort((a, b) => a - b);
-    const finalRotTimes = Array.from(rotations.keys()).sort((a, b) => a - b);
-    const finalScaleTimes = Array.from(scales.keys()).sort((a, b) => a - b);
+    const finalTransTimes = Array.from(transTimeCodes.keys()).sort((a, b) => a - b);
+    const finalRotTimes = Array.from(rotTimeCodes.keys()).sort((a, b) => a - b);
+    const finalScaleTimes = Array.from(scaleTimeCodes.keys()).sort((a, b) => a - b);
 
     this.logger.info(`Created SkelAnimation: ${animationName}`, {
       animationName,
@@ -736,11 +666,15 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
       last10Times: sortedCommonTimes.slice(-10)
     });
 
+    // Calculate max time code by multiplying max time by the time code frame rate
+    const maxTimeCode = Math.ceil(maxTime * ANIMATION.TIME_CODE_FPS);
+
     return {
       duration: maxTime,
       path: animationPath,
       name: `${skeletonPrimName}_${sanitizedName}`,
       detectedFrameRate,
+      maxTimeCode,
       animationSource: {
         path: animationPath,
         name: `${skeletonPrimName}_${sanitizedName}`,

@@ -284,10 +284,11 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
         weightsTimeSamples.set(timeSeconds, weightsStr);
       }
 
-      // Convert to time codes using the detected frame rate
+      // Convert to time codes using the standard time code frame rate
+      // This keeps time code scaling consistent across all animation types
       const weightsTimeCodes = TimeCodeConverter.convertArraysToTimeCodes(
         weightsTimeSamples,
-        detectedFrameRate
+        ANIMATION.TIME_CODE_FPS
       );
 
       // Ensure consecutive time codes (0, 1, 2, 3...) for USD viewers

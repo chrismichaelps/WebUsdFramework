@@ -9,7 +9,7 @@ import { MappingList } from '@gltf-transform/extensions';
 import { UsdNode } from '../../core/usd-node';
 import { USD_NODE_TYPES, USD_PROPERTIES, USD_PROPERTY_TYPES } from '../../constants/usd';
 import { buildUsdMaterial, extractTextureData } from '../usd-material-builder';
-import { sanitizeName, formatUsdNumberArray, setTransformMatrix } from '../../utils';
+import { sanitizeName, formatUsdNumberArray, setTransformMatrix, buildMatrixFromTRS } from '../../utils';
 import { formatUsdTuple3, formatUsdTuple2 } from '../../utils/usd-formatter';
 import { SkeletonData } from './skeleton-processor';
 import { ApiSchemaBuilder, API_SCHEMAS } from '../../utils/api-schema-builder';
@@ -181,21 +181,65 @@ function generateNodeName(gltfNode: Node): string {
 
 /**
  * Determines USD node type based on GLTF node
- * Always use Mesh type when a mesh is present - we'll nest the geometry inside
+ * Use Xform for nodes with transforms, Mesh prims will be created as children
  */
-function determineNodeType(gltfNode: Node): string {
-  const mesh = gltfNode.getMesh();
-
-  // Always create a Mesh node when mesh is present
-  // The geometry will be nested inside as a child Mesh node
-  return mesh ? USD_NODE_TYPES.MESH : USD_NODE_TYPES.XFORM;
+function determineNodeType(_gltfNode: Node): string {
+  // Always use Xform - Mesh prims will be created as children
+  // This ensures transforms are on Xform nodes, not Mesh prims
+  return USD_NODE_TYPES.XFORM;
 }
 
 /**
  * Applies transformation matrix to USD node
+ * Computes matrix from TRS components if getMatrix() returns null
  */
 function applyTransform(gltfNode: Node, usdNode: UsdNode): void {
-  const transform = gltfNode.getMatrix();
+  let transform = gltfNode.getMatrix();
+
+  // If getMatrix() returns null, compute matrix from TRS components
+  // This ensures we always have a valid transform matrix
+  if (!transform) {
+    const translation = gltfNode.getTranslation();
+    const rotation = gltfNode.getRotation();
+    const scale = gltfNode.getScale();
+
+    // Only compute if at least one component is non-default
+    const hasTranslation = translation && (translation[0] !== 0 || translation[1] !== 0 || translation[2] !== 0);
+    const hasRotation = rotation && (rotation[0] !== 0 || rotation[1] !== 0 || rotation[2] !== 0 || rotation[3] !== 1);
+    const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1);
+
+    if (hasTranslation || hasRotation || hasScale) {
+      // GLTF uses quaternion format (x, y, z, w), but buildMatrixFromTRS expects (w, x, y, z)
+      // Convert rotation format if present
+      let rotationForMatrix: [number, number, number, number] = [0, 0, 0, 1];
+      if (rotation) {
+        rotationForMatrix = [rotation[3], rotation[0], rotation[1], rotation[2]]; // Convert (x,y,z,w) to (w,x,y,z)
+      }
+
+      // Build matrix from TRS using utility function
+      const matrixString = buildMatrixFromTRS(
+        translation || [0, 0, 0],
+        rotationForMatrix,
+        scale || [1, 1, 1]
+      );
+
+      // Convert matrix string to array for setTransformMatrix
+      // Matrix string format: "((m00, m01, m02, m03), (m10, m11, m12, m13), (m20, m21, m22, m23), (m30, m31, m32, m33))"
+      const matrixMatch = matrixString.match(/\(\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\),\s*\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\),\s*\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\),\s*\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)\)/);
+      if (matrixMatch) {
+        transform = [
+          parseFloat(matrixMatch[1]), parseFloat(matrixMatch[2]), parseFloat(matrixMatch[3]), parseFloat(matrixMatch[4]),
+          parseFloat(matrixMatch[5]), parseFloat(matrixMatch[6]), parseFloat(matrixMatch[7]), parseFloat(matrixMatch[8]),
+          parseFloat(matrixMatch[9]), parseFloat(matrixMatch[10]), parseFloat(matrixMatch[11]), parseFloat(matrixMatch[12]),
+          parseFloat(matrixMatch[13]), parseFloat(matrixMatch[14]), parseFloat(matrixMatch[15]), parseFloat(matrixMatch[16])
+        ];
+      }
+    } else {
+      // Identity transform - no need to set
+      return;
+    }
+  }
+
   if (!transform) return;
 
   // Use utility function for consistent matrix formatting and transform setting
@@ -270,9 +314,8 @@ async function processMesh(
 
 /**
  * Creates a node for a primitive
- * Always creates a nested mesh structure to match reference format:
- * - Outer mesh node has transform (if any)
- * - Inner mesh node has geometry and material binding
+ * Creates Mesh prims directly under parent (no nesting)
+ * If single primitive, use simple name; if multiple, add index
  */
 function createPrimitiveNode(
   parentNode: UsdNode,
@@ -280,8 +323,8 @@ function createPrimitiveNode(
   primitiveIndex: number,
   totalPrimitives: number
 ): UsdNode {
-  // Always create a nested mesh structure, even for single primitives
-  // This matches the reference format where meshes are nested
+  // Create Mesh prim directly under parent (no nesting)
+  // Parent is already an Xform node with the transform
   const meshNodeName = totalPrimitives === 1 ? `${nodeName}_Mesh` : `${nodeName}_prim${primitiveIndex}`;
   const targetNode = new UsdNode(
     `${parentNode.getPath()}/${meshNodeName}`,
@@ -313,7 +356,6 @@ function attachGeometryReference(
   // Get the geometry data from the primitive
   const position = primitive.getAttribute('POSITION');
   const normal = primitive.getAttribute('NORMAL');
-  const texcoord = primitive.getAttribute('TEXCOORD_0');
   const indices = primitive.getIndices();
 
   if (!position) {
@@ -378,52 +420,36 @@ function attachGeometryReference(
     }
   }
 
-  // UV coordinates for texture mapping
-  if (texcoord) {
-    const texcoordArray = texcoord.getArray();
-    if (texcoordArray) {
-      // Find min/max values for normalization
-      let minU = Infinity, maxU = -Infinity;
-      let minV = Infinity, maxV = -Infinity;
-
-      for (let i = 0; i < texcoordArray.length; i += 2) {
-        const u = texcoordArray[i];
-        const v = texcoordArray[i + 1];
-        minU = Math.min(minU, u);
-        maxU = Math.max(maxU, u);
-        minV = Math.min(minV, v);
-        maxV = Math.max(maxV, v);
-      }
-
-      // Normalize UVs only if outside [0,1] range
-      const needsNormalization = minU < 0 || maxU > 1 || minV < 0 || maxV > 1;
-      const uRange = maxU - minU;
-      const vRange = maxV - minV;
-
-      const uvs: string[] = [];
-      for (let i = 0; i < texcoordArray.length; i += 2) {
-        const u = texcoordArray[i];
-        const v = texcoordArray[i + 1];
-
-        let normalizedU: number;
-        let normalizedV: number;
-
-        if (needsNormalization) {
-          normalizedU = uRange > 0 ? (u - minU) / uRange : 0;
-          normalizedV = vRange > 0 ? (v - minV) / vRange : 0;
-        } else {
-          normalizedU = u;
-          normalizedV = v;
-        }
-
-        // Flip V-axis for USD coordinate system
-        const flippedV = 1.0 - normalizedV;
-        uvs.push(formatUsdTuple2(normalizedU, flippedV));
-      }
-
-      node.setProperty('texCoord2f[] primvars:st', `[${uvs.join(', ')}]`, 'texcoord');
-      node.setProperty('uniform token primvars:st:interpolation', 'vertex', 'interpolation');
+  // UV coordinates for texture mapping - extract ALL TEXCOORD sets
+  // GLTF supports TEXCOORD_0, TEXCOORD_1, etc., which map to USD primvars:st, primvars:st1, etc.
+  for (let uvSetIndex = 0; uvSetIndex < 8; uvSetIndex++) { // GLTF spec allows up to 8 UV sets
+    const texcoord = primitive.getAttribute(`TEXCOORD_${uvSetIndex}`);
+    if (!texcoord) {
+      continue; // Skip if this UV set doesn't exist
     }
+
+    const texcoordArray = texcoord.getArray();
+    if (!texcoordArray || texcoordArray.length === 0) {
+      continue;
+    }
+
+    // Extract UVs directly from GLTF (no normalization)
+    // USD requires V-axis flip: GLTF uses top-left origin, USD uses bottom-left origin
+    const uvs: string[] = [];
+    for (let i = 0; i < texcoordArray.length; i += 2) {
+      const u = texcoordArray[i];
+      const v = texcoordArray[i + 1];
+
+      // Flip V-axis for USD coordinate system
+      // GLTF: (0,0) at top-left, USD: (0,0) at bottom-left
+      const flippedV = 1.0 - v;
+      uvs.push(formatUsdTuple2(u, flippedV));
+    }
+
+    // Map TEXCOORD_0 -> primvars:st, TEXCOORD_1 -> primvars:st1, etc.
+    const primvarName = uvSetIndex === 0 ? 'st' : `st${uvSetIndex}`;
+    node.setProperty(`texCoord2f[] primvars:${primvarName}`, `[${uvs.join(', ')}]`, 'texcoord');
+    node.setProperty(`uniform token primvars:${primvarName}:interpolation`, 'vertex', 'interpolation');
   }
 
   // Convert vertex colors to USD primvars:displayColor
@@ -738,6 +764,7 @@ async function createMaterial(
     material,
     materialCounter,
     context.materialsNode.getPath(),
+    context.document,
     primitive
   );
 
@@ -756,8 +783,8 @@ async function createMaterial(
     if ('textureData' in texRef && texRef.textureData) {
       context.textureFiles.set(texRef.id, texRef.textureData);
     } else if (texRef.texture) {
-    const textureData = await extractTextureData(texRef.texture);
-    context.textureFiles.set(texRef.id, textureData);
+      const textureData = await extractTextureData(texRef.texture);
+      context.textureFiles.set(texRef.id, textureData);
     }
   }
 

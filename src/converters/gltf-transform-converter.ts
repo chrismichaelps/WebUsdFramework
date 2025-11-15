@@ -5,7 +5,7 @@
  * Uses external geometry files and handles materials/textures.
  */
 
-import { Document, Node } from '@gltf-transform/core';
+import { Document, Node, Skin } from '@gltf-transform/core';
 import { GltfTransformConfig } from '../schemas';
 import { Logger, LoggerFactory, ApiSchemaBuilder, API_SCHEMAS, normalizePropertyToArray, getFirstPropertyValue, sanitizeName } from '../utils';
 import { UsdNode } from '../core/usd-node';
@@ -26,7 +26,7 @@ import {
   DebugOutputContent
 } from './helpers/debug-writer';
 import { calculateSceneExtent } from './helpers/usd-hierarchy-builder';
-import { processSkeletons, bindSkeletonToMesh } from './helpers/skeleton-processor';
+import { processSkeletons, bindSkeletonToMesh, findLowestCommonAncestor, findRelatedMeshes, findParentNode } from './helpers/skeleton-processor';
 import { formatUsdTuple3 } from '../utils/usd-formatter';
 import { processXMPExtension, formatXMPForUSD } from './extensions/xmp-processor';
 import { preprocessGltfDocument } from './helpers/gltf-transform-helpers';
@@ -203,19 +203,125 @@ export async function convertGlbToUsdz(
     // Bind meshes to skeletons
     if (skeletonMap.size > 0) {
       const root = document.getRoot();
-      const allNodes = new Set<Node>();
-      // Collect all nodes with meshes
+
+      // Group skeleton meshes by skin to find LCA for each group
+      const skeletonNodesBySkin = new Map<Skin, Node[]>();
+      const allSkeletonNodes: Node[] = [];
       for (const node of root.listNodes()) {
         if (node.getMesh() && node.getSkin()) {
-          allNodes.add(node);
+          const skin = node.getSkin()!;
+          if (!skeletonNodesBySkin.has(skin)) {
+            skeletonNodesBySkin.set(skin, []);
+          }
+          skeletonNodesBySkin.get(skin)!.push(node);
+          allSkeletonNodes.push(node);
         }
       }
 
-      // Bind each mesh to its skeleton
-      for (const node of allNodes) {
-        const skin = node.getSkin();
-        const skeletonData = skin ? skeletonMap.get(skin) : null;
-        if (skeletonData) {
+      // Find common LCA of ALL skeleton nodes across all skins
+      // This ensures related meshes (like head) are found correctly
+      const commonLCA = allSkeletonNodes.length > 0
+        ? findLowestCommonAncestor(allSkeletonNodes, document)
+        : null;
+
+      logger.info('Found common LCA for all skeleton nodes', {
+        skeletonNodeCount: allSkeletonNodes.length,
+        commonLCAName: commonLCA?.getName() || 'null',
+        skeletonNodeNames: allSkeletonNodes.slice(0, 5).map(n => n.getName())
+      });
+
+      // Find related meshes that are siblings of the common LCA or under its parent
+      const parentCache = new Map<Node, Node | null>();
+      let relatedMeshes: Node[] = [];
+
+      if (commonLCA) {
+        const allNodes = root.listNodes();
+        const lcaParent = findParentNode(commonLCA, document, parentCache);
+
+        // Find meshes that are siblings of common LCA
+        if (lcaParent) {
+          for (const node of allNodes) {
+            if (node.getMesh() && !node.getSkin()) {
+              const nodeParent = findParentNode(node, document, parentCache);
+              if (nodeParent === lcaParent) {
+                // This is a sibling of common LCA - include it as related mesh
+                if (!relatedMeshes.includes(node)) {
+                  relatedMeshes.push(node);
+                  logger.info('Found related mesh (sibling of common LCA)', {
+                    meshNodeName: node.getName(),
+                    lcaParentName: lcaParent.getName(),
+                    commonLCAName: commonLCA.getName()
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        // Also find meshes that are descendants of common LCA (but not skeleton meshes)
+        const relatedMeshesMap = findRelatedMeshes(allSkeletonNodes, document, 5);
+        if (relatedMeshesMap.has(commonLCA)) {
+          for (const relatedMesh of relatedMeshesMap.get(commonLCA)!) {
+            if (!relatedMeshes.includes(relatedMesh)) {
+              relatedMeshes.push(relatedMesh);
+              logger.info('Found related mesh (descendant of common LCA)', {
+                meshNodeName: relatedMesh.getName(),
+                commonLCAName: commonLCA.getName()
+              });
+            }
+          }
+        }
+      }
+
+      // Recalculate LCA to include all skeleton nodes AND related meshes
+      let finalLCA = commonLCA;
+      if (relatedMeshes.length > 0 && commonLCA) {
+        const allNodesForLCA = [...allSkeletonNodes, ...relatedMeshes];
+        const newLCA = findLowestCommonAncestor(allNodesForLCA, document);
+        if (newLCA) {
+          finalLCA = newLCA;
+          logger.info('Recalculated LCA to include related meshes', {
+            originalLCAName: commonLCA.getName(),
+            newLCAName: newLCA.getName(),
+            relatedMeshCount: relatedMeshes.length,
+            relatedMeshNames: relatedMeshes.map(m => m.getName())
+          });
+        }
+      }
+
+      // Find USD node for final LCA
+      const finalLCAUsdNode = finalLCA ? hierarchyContext.nodeMap.get(finalLCA) || null : null;
+
+      // Process each skin group, using the common LCA for all
+      const meshGroups = new Map<Skin, { skeletonNodes: Node[]; relatedMeshes: Node[]; lca: Node | null; lcaUsdNode: UsdNode | null }>();
+
+      for (const [skin, skeletonNodes] of skeletonNodesBySkin) {
+        // Use the final LCA (which includes related meshes) for all skeleton groups
+        // All related meshes are shared since they all use the same common LCA
+        meshGroups.set(skin, {
+          skeletonNodes,
+          relatedMeshes,
+          lca: finalLCA,
+          lcaUsdNode: finalLCAUsdNode
+        });
+
+        logger.info('Grouped skeleton meshes by LCA', {
+          skinName: skin.getName(),
+          skeletonNodeCount: skeletonNodes.length,
+          relatedMeshCount: relatedMeshes.length,
+          lcaName: finalLCA?.getName() || 'null',
+          lcaUsdPath: finalLCAUsdNode?.getPath() || 'null'
+        });
+      }
+
+      // Bind each skeleton mesh to its skeleton, using LCA as parent
+      // Related meshes (without skeletons) stay in their original hierarchy
+      // Only meshes WITH skeletons are moved under SkelRoots
+      for (const [skin, group] of meshGroups) {
+        const skeletonData = skeletonMap.get(skin);
+        if (!skeletonData) continue;
+
+        for (const node of group.skeletonNodes) {
           const usdNode = hierarchyContext.nodeMap.get(node);
           if (usdNode) {
             const mesh = node.getMesh();
@@ -291,76 +397,115 @@ export async function convertGlbToUsdz(
                   });
                 }
 
-                // In GLTF, JOINTS_0 contains indices into skin.joints array (skeleton joint indices)
-                // These should already be 0-based indices into the skeleton joints array
-                // Our USD skeleton joints array is in the same order as skin.joints, so indices should match
-                // However, we verify and ensure they're within valid range
-                if (!skin) {
-                  logger.error('Skin is null, cannot remap joint indices', {
-                    nodeName: node.getName()
-                  });
-                  continue;
-                }
-
+                // In GLTF, JOINTS_0 contains indices into skin.joints array (GLTF joint indices)
+                // We need to map these to USD skeleton joint indices using gjointToUjointMap
+                // This is critical because USD skeleton may have different order or omit joints
                 const skeletonJointCount = skeletonData.jointPaths.length; // Use actual USD skeleton joint count
-                const rootJointOmitted = skeletonData.rootJointOmitted || false;
+                const gjointToUjointMap = skeletonData.gjointToUjointMap || [];
 
-                // If root joint was omitted from skeleton, adjust joint indices
-                // GLTF joint indices are 0-based into skin.joints array
-                // If root joint (index 0) was omitted, we need to subtract 1 from all indices >= 1
-                // Index 0 in GLTF should be mapped to -1 (invalid) or clamped to 0, but since root joint
-                // is omitted, vertices using root joint (index 0) should be remapped to use the next joint
-                let rootJointRemappingLogged = false;
-                const remappedIndices = indicesArray.map((jointIndex: number) => {
-                  let adjustedIndex = jointIndex;
-
-                  // If root joint was omitted, adjust indices
-                  if (rootJointOmitted) {
-                    if (jointIndex === 0) {
-                      // Root joint (index 0) was omitted, map to first available joint (index 0 in USD skeleton)
-                      // This is the second joint in GLTF (hips_JNT_01)
-                      adjustedIndex = 0;
-                      // Log only once per mesh to avoid spam
-                      if (!rootJointRemappingLogged) {
-                        logger.info('Root joint omitted from skeleton, remapping joint index 0 to first skeleton joint', {
-                          nodeName: node.getName(),
-                          meshName: mesh.getName(),
-                          skeletonJointCount,
-                          affectedVertices: indicesArray.filter(idx => idx === 0).length
-                        });
-                        rootJointRemappingLogged = true;
-                      }
-                    } else if (jointIndex > 0) {
-                      // All other joints need to be shifted down by 1
-                      adjustedIndex = jointIndex - 1;
-                    }
-                  }
-
-                  // Clamp to valid range [0, skeletonJointCount - 1]
-                  if (adjustedIndex < 0 || adjustedIndex >= skeletonJointCount) {
-                    logger.warn('Joint index out of range, clamping', {
-                      originalIndex: jointIndex,
-                      adjustedIndex,
-                      skeletonJointCount,
-                      clampedIndex: Math.max(0, Math.min(adjustedIndex, skeletonJointCount - 1))
-                    });
-                    return Math.max(0, Math.min(adjustedIndex, skeletonJointCount - 1));
-                  }
-                  return adjustedIndex;
+                // Log mapping details for debugging
+                logger.info('Using joint index mapping', {
+                  nodeName: node.getName(),
+                  meshName: mesh.getName(),
+                  mappingLength: gjointToUjointMap.length,
+                  mappingSample: gjointToUjointMap.slice(0, 10),
+                  skeletonJointCount,
+                  originalIndicesMin: Math.min(...indicesArray),
+                  originalIndicesMax: Math.max(...indicesArray),
+                  originalIndicesUnique: new Set(indicesArray).size,
+                  originalIndicesSample: indicesArray.slice(0, 20)
                 });
 
+                // Map GLTF joint indices to USD skeleton joint indices
+                let unmappedIndices = 0;
+                const remappedIndices = indicesArray.map((gltfJointIndex: number) => {
+                  // Check if we have a mapping for this GLTF joint index
+                  if (gltfJointIndex >= 0 && gltfJointIndex < gjointToUjointMap.length) {
+                    const usdJointIndex = gjointToUjointMap[gltfJointIndex];
+
+                    // If mapping is -1, joint was omitted from USD skeleton
+                    if (usdJointIndex === -1) {
+                      unmappedIndices++;
+                      // Clamp to 0 (first joint) as fallback
+                      return 0;
+                    }
+
+                    // Validate USD joint index is within skeleton bounds
+                    if (usdJointIndex >= 0 && usdJointIndex < skeletonJointCount) {
+                      return usdJointIndex;
+                    } else {
+                      logger.warn('USD joint index out of range', {
+                        gltfJointIndex,
+                        usdJointIndex,
+                        skeletonJointCount
+                      });
+                      return Math.max(0, Math.min(usdJointIndex, skeletonJointCount - 1));
+                    }
+                  } else {
+                    // GLTF joint index out of range - this shouldn't happen
+                    unmappedIndices++;
+                    logger.warn('GLTF joint index out of range', {
+                      gltfJointIndex,
+                      mappingLength: gjointToUjointMap.length
+                    });
+                    return 0; // Fallback to first joint
+                  }
+                });
+
+                if (unmappedIndices > 0) {
+                  logger.warn('Some joint indices could not be mapped', {
+                    nodeName: node.getName(),
+                    meshName: mesh.getName(),
+                    unmappedCount: unmappedIndices,
+                    totalIndices: indicesArray.length
+                  });
+                }
+
+                // Find indices that changed after mapping for debugging
+                const changedIndices: Array<{ original: number; mapped: number; index: number }> = [];
+                for (let i = 0; i < Math.min(20, indicesArray.length); i++) {
+                  if (indicesArray[i] !== remappedIndices[i]) {
+                    changedIndices.push({ original: indicesArray[i], mapped: remappedIndices[i], index: i });
+                  }
+                }
+
                 logger.info('Validated joint indices for USD skeleton', {
-                  originalIndicesSample: indicesArray.slice(0, 10),
-                  validatedIndicesSample: remappedIndices.slice(0, 10),
+                  originalIndicesSample: indicesArray.slice(0, 20),
+                  validatedIndicesSample: remappedIndices.slice(0, 20),
                   minOriginal: Math.min(...indicesArray),
                   maxOriginal: Math.max(...indicesArray),
                   minValidated: Math.min(...remappedIndices),
                   maxValidated: Math.max(...remappedIndices),
+                  uniqueOriginal: new Set(indicesArray).size,
+                  uniqueValidated: new Set(remappedIndices).size,
+                  changedIndicesCount: changedIndices.length,
+                  changedIndicesSample: changedIndices.slice(0, 5),
                   skeletonJointCount
                 });
 
-                // Get the mesh node (first child or the node itself)
-                const meshNode = usdNode.getChildren().next().value || usdNode;
+                // Get the mesh node - find Mesh prim child, or use the node itself if it's a Mesh
+                let meshNode: UsdNode | null = null;
+                if (usdNode.getTypeName() === 'Mesh') {
+                  meshNode = usdNode;
+                } else {
+                  // Search for Mesh prim in children
+                  for (const child of usdNode.getChildren()) {
+                    if (child.getTypeName() === 'Mesh') {
+                      meshNode = child;
+                      break;
+                    }
+                  }
+                }
+
+                if (!meshNode) {
+                  logger.warn('No Mesh prim found for skeleton binding', {
+                    nodeName: node.getName(),
+                    usdNodeType: usdNode.getTypeName(),
+                    usdNodePath: usdNode.getPath()
+                  });
+                  continue;
+                }
+
                 const originalParent = meshNode !== usdNode ? usdNode : undefined;
 
                 logger.info('Binding mesh to skeleton', {
@@ -382,7 +527,10 @@ export async function convertGlbToUsdz(
                   logger,
                   originalParent,
                   rootStructure.sceneNode,
-                  skeletonData.jointPaths.length // Pass joint count for validation
+                  skeletonData.jointPaths.length, // Pass joint count for validation
+                  node, // Pass GLTF node for world transform calculation
+                  group.lcaUsdNode || undefined, // Pass LCA USD node as common ancestor
+                  document // Pass document for world transform calculation
                 );
               } else {
                 logger.warn('Mesh has no primitives', {
@@ -540,11 +688,37 @@ export async function convertGlbToUsdz(
             }
           }
 
+          // Remove SkelRoot from its current parent before moving to top-level
+          function findParent(node: UsdNode, target: UsdNode): UsdNode | null {
+            for (const child of node.getChildren()) {
+              if (child === target) return node;
+              const found = findParent(child, target);
+              if (found) return found;
+            }
+            return null;
+          }
+          const currentParent = findParent(rootStructure.rootNode, skeletonData.skelRootNode);
+          if (currentParent) {
+            currentParent.removeChild(skeletonData.skelRootNode);
+            logger.info('Removed SkelRoot from current parent before moving to top-level', {
+              oldParentPath: currentParent.getPath(),
+              skelRootPath: newSkelRootPath
+            });
+          }
+
           // Store as top-level prim (sibling of Root)
+          // Check if already in topLevelPrims to avoid duplicates
           if (!rootStructure.topLevelPrims) {
             rootStructure.topLevelPrims = [];
           }
-          rootStructure.topLevelPrims.push(skeletonData.skelRootNode);
+          const alreadyInTopLevel = rootStructure.topLevelPrims.includes(skeletonData.skelRootNode);
+          if (!alreadyInTopLevel) {
+            rootStructure.topLevelPrims.push(skeletonData.skelRootNode);
+          } else {
+            logger.warn('SkelRoot already in topLevelPrims, skipping duplicate', {
+              skelRootPath: newSkelRootPath
+            });
+          }
           logger.info(`Added animated skeleton ${skelRootName} as top-level prim`, {
             oldPath: oldSkelRootPath,
             newPath: newSkelRootPath,
@@ -552,9 +726,23 @@ export async function convertGlbToUsdz(
             newSkeletonPrimPath
           });
         } else {
-          // For non-animated skeletons, keep nested under scene
-          rootStructure.sceneNode.addChild(skeletonData.skelRootNode);
-          logger.info(`Added skeleton ${skeletonData.skelRootNode.getName()} to scene`);
+          // For non-animated skeletons, check if already added by bindSkeletonToMesh
+          // bindSkeletonToMesh already adds SkelRoot to targetParent, so we don't need to add it again
+          // Only add if it doesn't have a parent (shouldn't happen, but safety check)
+          function hasParent(node: UsdNode, root: UsdNode): boolean {
+            for (const child of root.getChildren()) {
+              if (child === node) return true;
+              if (hasParent(node, child)) return true;
+            }
+            return false;
+          }
+          const alreadyInHierarchy = hasParent(skeletonData.skelRootNode, rootStructure.rootNode);
+          if (!alreadyInHierarchy) {
+            rootStructure.sceneNode.addChild(skeletonData.skelRootNode);
+            logger.info(`Added skeleton ${skeletonData.skelRootNode.getName()} to scene`);
+          } else {
+            logger.info(`Skeleton ${skeletonData.skelRootNode.getName()} already in hierarchy, skipping duplicate add`);
+          }
         }
       }
     }
@@ -748,9 +936,22 @@ export async function convertGlbToUsdz(
         });
       } else {
         // Find blend shape SkelRoots and move to top-level
+        // Skip SkelRoots that are already in topLevelPrims to avoid duplicates
         const blendShapeSkelRoots: UsdNode[] = [];
+        const topLevelSkelRoots = new Set<UsdNode>();
+        if (rootStructure.topLevelPrims) {
+          for (const prim of rootStructure.topLevelPrims) {
+            if (prim.getTypeName() === 'SkelRoot') {
+              topLevelSkelRoots.add(prim);
+            }
+          }
+        }
         function findBlendShapeSkelRoots(node: UsdNode): void {
           if (node.getTypeName() === 'SkelRoot') {
+            // Skip if already in topLevelPrims
+            if (topLevelSkelRoots.has(node)) {
+              return;
+            }
             // Check if this SkelRoot has blend shapes (morph targets)
             const hasBlendShapes = Array.from(node.getChildren()).some(child => {
               if (child.getTypeName() === 'Mesh') {
@@ -868,11 +1069,18 @@ export async function convertGlbToUsdz(
             defaultAnimation: defaultAnimationName
           });
 
-          // Add to top-level prims
+          // Add to top-level prims (check for duplicates)
           if (!rootStructure.topLevelPrims) {
             rootStructure.topLevelPrims = [];
           }
-          rootStructure.topLevelPrims.push(blendSkelRoot);
+          const alreadyInTopLevel = rootStructure.topLevelPrims.includes(blendSkelRoot);
+          if (!alreadyInTopLevel) {
+            rootStructure.topLevelPrims.push(blendSkelRoot);
+          } else {
+            logger.warn('Blend shape SkelRoot already in topLevelPrims, skipping duplicate', {
+              skelRootPath: blendSkelRoot.getPath()
+            });
+          }
 
           // Set as defaultPrim
           rootStructure.rootNode.setMetadata('defaultPrim', uniqueName);

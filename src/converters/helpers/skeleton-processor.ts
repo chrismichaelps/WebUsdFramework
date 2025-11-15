@@ -10,6 +10,7 @@ import { UsdNode } from '../../core/usd-node';
 import { Logger, sanitizeName, formatUsdQuotedArray, formatUsdArray, formatUsdNumberArray, formatUsdNumberArrayFixed, formatMatrix, IDENTITY_MATRIX } from '../../utils';
 import { ApiSchemaBuilder, API_SCHEMAS } from '../../utils/api-schema-builder';
 import { SKELETON } from '../../constants/skeleton';
+import { setTransformMatrixString } from '../../utils/transform-utils';
 
 /**
  * Skeleton data structure
@@ -24,6 +25,7 @@ export interface SkeletonData {
   restTransforms?: string[]; // Store rest transforms for animation comparison
   restPoseTranslations?: string[]; // Store rest pose translations (extracted from rest transforms) for default animation values
   rootJointOmitted?: boolean; // Whether the root joint was omitted from the skeleton
+  gjointToUjointMap?: number[]; // Map GLTF joint index (in skin.listJoints()) to USD skeleton joint index
 }
 
 /**
@@ -39,6 +41,53 @@ function hasJointAnimation(jointNode: Node, document: Document): boolean {
       const targetNode = channel.getTargetNode();
       if (targetNode === jointNode) {
         return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if a joint (by index) is used by any meshes for skinning
+ * This checks if the joint index appears in any mesh's JOINTS_0 attribute
+ */
+function isJointUsedByMeshes(
+  jointIndex: number,
+  skin: Skin,
+  document: Document
+): boolean {
+  const root = document.getRoot();
+  const nodes = root.listNodes();
+
+  // Find all nodes that use this skin
+  for (const node of nodes) {
+    const nodeSkin = node.getSkin();
+    if (nodeSkin !== skin) continue;
+
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+
+    // Check all primitives in the mesh
+    const primitives = mesh.listPrimitives();
+    for (const primitive of primitives) {
+      const jointsAttribute = primitive.getAttribute('JOINTS_0');
+      if (!jointsAttribute) continue;
+
+      const jointsArray = jointsAttribute.getArray();
+      if (!jointsArray) continue;
+
+      // Check if this joint index appears in the joints array
+      // JOINTS_0 contains indices into skin.joints array
+      if (jointsArray instanceof Uint8Array || jointsArray instanceof Uint16Array) {
+        const indices = Array.from(jointsArray);
+        if (indices.includes(jointIndex)) {
+          return true;
+        }
+      } else if (Array.isArray(jointsArray)) {
+        if (jointsArray.includes(jointIndex)) {
+          return true;
+        }
       }
     }
   }
@@ -70,25 +119,34 @@ export function processSkeletons(
   });
 
   for (const skin of skins) {
-    // Check if root joint has animation before creating skeleton
+    // Check if root joint should be omitted
+    // Only omit if it has no animation AND is not used by any meshes for skinning
     const joints = skin.listJoints();
     let shouldOmitRootJoint = false;
 
     if (joints.length > 0) {
       const rootJoint = joints[0];
       const hasAnimation = hasJointAnimation(rootJoint, document);
-      shouldOmitRootJoint = !hasAnimation;
+      const isUsedByMeshes = isJointUsedByMeshes(0, skin, document); // Root joint is always index 0
+
+      // Only omit root joint if it has no animation AND is not used by any meshes
+      shouldOmitRootJoint = !hasAnimation && !isUsedByMeshes;
 
       if (shouldOmitRootJoint) {
-        logger.info('Root joint has no animation, will be omitted from skeleton', {
+        logger.info('Root joint omitted from skeleton (no animation and not used by meshes)', {
           rootJointName: rootJoint.getName(),
           totalJoints: joints.length,
-          skeletonJoints: joints.length - 1
+          skeletonJoints: joints.length - 1,
+          hasAnimation: false,
+          isUsedByMeshes: false
         });
       } else {
-        logger.info('Root joint has animation, will be included in skeleton', {
+        const reason = hasAnimation ? 'has animation' : 'is used by meshes for skinning';
+        logger.info(`Root joint included in skeleton (${reason})`, {
           rootJointName: rootJoint.getName(),
-          totalJoints: joints.length
+          totalJoints: joints.length,
+          hasAnimation,
+          isUsedByMeshes
         });
       }
     }
@@ -408,6 +466,43 @@ function createSkeleton(
     }
   }
 
+  // Create mapping from GLTF joint indices to USD skeleton joint indices
+  // This is critical for correctly mapping JOINTS_0 attribute values to USD skeleton joints
+  const originalJoints = skin.listJoints(); // Original GLTF joints (before omitting root)
+  const gjointToUjointMap: number[] = [];
+
+  // Build map: for each GLTF joint index, find its USD skeleton joint index
+  for (let gltfJointIndex = 0; gltfJointIndex < originalJoints.length; gltfJointIndex++) {
+    const gltfJoint = originalJoints[gltfJointIndex];
+
+    // Find this joint in the USD skeleton joints array
+    let usdJointIndex = -1;
+    for (let i = 0; i < joints.length; i++) {
+      if (joints[i] === gltfJoint) {
+        usdJointIndex = i;
+        break;
+      }
+    }
+
+    gjointToUjointMap[gltfJointIndex] = usdJointIndex;
+
+    if (usdJointIndex === -1) {
+      logger.warn('GLTF joint not found in USD skeleton', {
+        gltfJointIndex,
+        gltfJointName: gltfJoint.getName(),
+        skeletonJointCount: joints.length
+      });
+    }
+  }
+
+  logger.info('Created GLTF to USD joint index mapping', {
+    skeletonName,
+    originalJointCount: originalJoints.length,
+    usdJointCount: joints.length,
+    mappingSample: gjointToUjointMap.slice(0, 10),
+    rootJointOmitted: omitRootJoint
+  });
+
   logger.info('Skeleton created successfully', {
     skeletonName,
     jointCount: jointPaths.length,
@@ -430,8 +525,332 @@ function createSkeleton(
     jointRelativePaths, // Relative paths (for USD joints array)
     restTransforms, // Store rest transforms for animation comparison
     restPoseTranslations, // Store rest pose translations for default animation values
-    rootJointOmitted: omitRootJoint // Track if root joint was omitted
+    rootJointOmitted: omitRootJoint, // Track if root joint was omitted
+    gjointToUjointMap // Map GLTF joint index to USD skeleton joint index
   };
+}
+
+/**
+ * Find the parent of a node in the GLTF hierarchy
+ * Uses memoization for performance
+ */
+export function findParentNode(
+  node: Node,
+  document: Document,
+  parentCache: Map<Node, Node | null>
+): Node | null {
+  if (parentCache.has(node)) {
+    return parentCache.get(node) || null;
+  }
+
+  const root = document.getRoot();
+  const scene = root.listScenes()[0];
+  const allNodes = root.listNodes();
+
+  // Check if node is a direct child of scene
+  if (scene.listChildren().includes(node)) {
+    parentCache.set(node, null);
+    return null;
+  }
+
+  // Find parent by checking which node has this as a child
+  for (const potentialParent of allNodes) {
+    if (potentialParent === node) continue;
+    const children = potentialParent.listChildren();
+    if (children.includes(node)) {
+      parentCache.set(node, potentialParent);
+      return potentialParent;
+    }
+  }
+
+  // Check if node is a child of scene
+  function isChildOfScene(sceneNode: typeof scene, target: Node): boolean {
+    for (const child of sceneNode.listChildren()) {
+      if (child === target) return true;
+      if (isChildOfScene(sceneNode, child)) return true;
+    }
+    return false;
+  }
+
+  if (isChildOfScene(scene, node)) {
+    parentCache.set(node, null);
+    return null;
+  }
+
+  parentCache.set(node, null);
+  return null;
+}
+
+/**
+ * Build path from root to node (for LCA calculation)
+ * Uses memoization for performance
+ */
+function buildNodePath(
+  node: Node,
+  document: Document,
+  parentCache: Map<Node, Node | null>,
+  pathCache: Map<Node, Node[]>
+): Node[] {
+  if (pathCache.has(node)) {
+    return pathCache.get(node)!;
+  }
+
+  const path: Node[] = [node];
+  let current: Node | null = node;
+
+  while (current) {
+    const parent = findParentNode(current, document, parentCache);
+    if (parent) {
+      path.unshift(parent);
+      current = parent;
+    } else {
+      break;
+    }
+  }
+
+  pathCache.set(node, path);
+  return path;
+}
+
+/**
+ * Find lowest common ancestor of multiple GLTF nodes
+ * Optimized using path caching and memoization
+ * 
+ * @param nodes - Array of GLTF nodes to find LCA for
+ * @param document - GLTF document
+ * @returns The lowest common ancestor node, or null if no common ancestor
+ */
+export function findLowestCommonAncestor(
+  nodes: Node[],
+  document: Document
+): Node | null {
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  if (nodes.length === 1) {
+    return nodes[0];
+  }
+
+  // Use caches for performance
+  const parentCache = new Map<Node, Node | null>();
+  const pathCache = new Map<Node, Node[]>();
+
+  // Build paths from root to each node
+  const paths = nodes.map(node => buildNodePath(node, document, parentCache, pathCache));
+
+  // Find the longest common prefix
+  if (paths.length === 0 || paths[0].length === 0) {
+    return null;
+  }
+
+  let lcaIndex = 0;
+  const firstPath = paths[0];
+  const minPathLength = Math.min(...paths.map(p => p.length));
+
+  // Compare paths up to the minimum length
+  for (let i = 0; i < minPathLength; i++) {
+    const nodeAtLevel = firstPath[i];
+    const allMatch = paths.every(path => path[i] === nodeAtLevel);
+
+    if (allMatch) {
+      lcaIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  return firstPath[lcaIndex] || null;
+}
+
+/**
+ * Find related meshes that should be grouped together
+ * Related meshes are those that share a common ancestor with skeleton meshes
+ * 
+ * @param skeletonNodes - Nodes with meshes and skeletons
+ * @param document - GLTF document
+ * @param maxSearchDepth - Maximum depth to search for related meshes (default: 5)
+ * @returns Map of LCA node to array of related mesh nodes
+ */
+export function findRelatedMeshes(
+  skeletonNodes: Node[],
+  document: Document,
+  maxSearchDepth: number = 5
+): Map<Node, Node[]> {
+  const relatedMeshesMap = new Map<Node, Node[]>();
+
+  if (skeletonNodes.length === 0) {
+    return relatedMeshesMap;
+  }
+
+  // Find LCA of all skeleton nodes
+  const lca = findLowestCommonAncestor(skeletonNodes, document);
+  if (!lca) {
+    return relatedMeshesMap;
+  }
+
+  // Collect all mesh nodes under LCA (including those without skeletons)
+  const root = document.getRoot();
+  const allNodes = root.listNodes();
+  const relatedMeshes: Node[] = [];
+
+  // Helper to check if a node is a descendant of LCA
+  function isDescendantOf(node: Node, ancestor: Node, depth: number = 0): boolean {
+    if (depth > maxSearchDepth) return false;
+    if (node === ancestor) return true;
+
+    const parentCache = new Map<Node, Node | null>();
+    let current: Node | null = node;
+
+    while (current && depth < maxSearchDepth) {
+      const parent = findParentNode(current, document, parentCache);
+      if (parent === ancestor) return true;
+      if (!parent) break;
+      current = parent;
+      depth++;
+    }
+
+    return false;
+  }
+
+  // Find all mesh nodes under LCA
+  for (const node of allNodes) {
+    if (node.getMesh() && isDescendantOf(node, lca, 0)) {
+      // Include mesh if it's not already a skeleton mesh
+      if (!skeletonNodes.includes(node)) {
+        relatedMeshes.push(node);
+      }
+    }
+  }
+
+  if (relatedMeshes.length > 0) {
+    relatedMeshesMap.set(lca, relatedMeshes);
+  }
+
+  return relatedMeshesMap;
+}
+
+/**
+ * Compute world transform for a GLTF node by accumulating all parent transforms
+ * This is needed for geomBindTransform to preserve the mesh's position in world space
+ * when it's moved under a SkelRoot with identity transform
+ */
+function computeWorldTransform(
+  node: Node,
+  document: Document,
+  parentCache: Map<Node, Node | null>
+): number[] | null {
+  // Get local transform
+  let localTransform = node.getMatrix();
+
+  // If no matrix, compute from TRS components
+  // Build matrix directly in GLTF column-major format for consistency with node.getMatrix()
+  if (!localTransform) {
+    const translation = node.getTranslation();
+    const rotation = node.getRotation();
+    const scale = node.getScale();
+
+    const hasTranslation = translation && (translation[0] !== 0 || translation[1] !== 0 || translation[2] !== 0);
+    const hasRotation = rotation && (rotation[0] !== 0 || rotation[1] !== 0 || rotation[2] !== 0 || rotation[3] !== 1);
+    const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1);
+
+    if (hasTranslation || hasRotation || hasScale) {
+      // GLTF quaternion format: (x, y, z, w)
+      const [qx, qy, qz, qw] = rotation || [0, 0, 0, 1];
+      const [sx, sy, sz] = scale || [1, 1, 1];
+      const [tx, ty, tz] = translation || [0, 0, 0];
+
+      // Build rotation matrix from quaternion (column-major format)
+      const xx = qx * qx;
+      const yy = qy * qy;
+      const zz = qz * qz;
+      const xy = qx * qy;
+      const xz = qx * qz;
+      const yz = qy * qz;
+      const wx = qw * qx;
+      const wy = qw * qy;
+      const wz = qw * qz;
+
+      // Rotation matrix (column-major): [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
+      const m00 = 1 - 2 * (yy + zz);
+      const m10 = 2 * (xy + wz);
+      const m20 = 2 * (xz - wy);
+      const m30 = 0;
+      const m01 = 2 * (xy - wz);
+      const m11 = 1 - 2 * (xx + zz);
+      const m21 = 2 * (yz + wx);
+      const m31 = 0;
+      const m02 = 2 * (xz + wy);
+      const m12 = 2 * (yz - wx);
+      const m22 = 1 - 2 * (xx + yy);
+      const m32 = 0;
+      const m33 = 1;
+
+      // Apply scale: S * R (scale applied to rotation matrix)
+      // GLTF uses T * R * S order, but for column-major we apply scale to rotation first
+      const m00s = m00 * sx;
+      const m10s = m10 * sx;
+      const m20s = m20 * sx;
+      const m01s = m01 * sy;
+      const m11s = m11 * sy;
+      const m21s = m21 * sy;
+      const m02s = m02 * sz;
+      const m12s = m12 * sz;
+      const m22s = m22 * sz;
+
+      // Apply translation: T * (S * R)
+      // Translation goes in column 3 (indices 12, 13, 14) for column-major format
+      localTransform = [
+        m00s, m10s, m20s, m30,
+        m01s, m11s, m21s, m31,
+        m02s, m12s, m22s, m32,
+        tx, ty, tz, m33
+      ];
+    }
+  }
+
+  // If no local transform, use identity
+  if (!localTransform) {
+    localTransform = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  }
+
+  // Get parent transform
+  const parent = findParentNode(node, document, parentCache);
+  if (!parent) {
+    // No parent - local transform is world transform
+    return localTransform;
+  }
+
+  // Recursively compute parent's world transform
+  const parentWorldTransform = computeWorldTransform(parent, document, parentCache);
+  if (!parentWorldTransform) {
+    return localTransform;
+  }
+
+  // Multiply parent world transform by local transform
+  // GLTF matrices are column-major, so we multiply: world = parentWorld * local
+  const p = parentWorldTransform;
+  const l = localTransform;
+
+  // Matrix multiplication (column-major format)
+  return [
+    p[0] * l[0] + p[4] * l[1] + p[8] * l[2] + p[12] * l[3],
+    p[1] * l[0] + p[5] * l[1] + p[9] * l[2] + p[13] * l[3],
+    p[2] * l[0] + p[6] * l[1] + p[10] * l[2] + p[14] * l[3],
+    p[3] * l[0] + p[7] * l[1] + p[11] * l[2] + p[15] * l[3],
+    p[0] * l[4] + p[4] * l[5] + p[8] * l[6] + p[12] * l[7],
+    p[1] * l[4] + p[5] * l[5] + p[9] * l[6] + p[13] * l[7],
+    p[2] * l[4] + p[6] * l[5] + p[10] * l[6] + p[14] * l[7],
+    p[3] * l[4] + p[7] * l[5] + p[11] * l[6] + p[15] * l[7],
+    p[0] * l[8] + p[4] * l[9] + p[8] * l[10] + p[12] * l[11],
+    p[1] * l[8] + p[5] * l[9] + p[9] * l[10] + p[13] * l[11],
+    p[2] * l[8] + p[6] * l[9] + p[10] * l[10] + p[14] * l[11],
+    p[3] * l[8] + p[7] * l[9] + p[11] * l[10] + p[15] * l[11],
+    p[0] * l[12] + p[4] * l[13] + p[8] * l[14] + p[12] * l[15],
+    p[1] * l[12] + p[5] * l[13] + p[9] * l[14] + p[13] * l[15],
+    p[2] * l[12] + p[6] * l[13] + p[10] * l[14] + p[14] * l[15],
+    p[3] * l[12] + p[7] * l[13] + p[11] * l[14] + p[15] * l[15]
+  ];
 }
 
 /**
@@ -465,7 +884,10 @@ export function bindSkeletonToMesh(
   logger: Logger,
   originalParent?: UsdNode,
   sceneRoot?: UsdNode,
-  skeletonJointCount?: number
+  skeletonJointCount?: number,
+  gltfNode?: Node,
+  commonAncestorUsdNode?: UsdNode,
+  document?: Document
 ): void {
   const meshName = meshNode.getName();
   const skeletonPrimPath = skeletonPrimNode.getPath();
@@ -551,29 +973,93 @@ export function bindSkeletonToMesh(
   });
 
   // Set geomBindTransform - this is where the mesh was positioned when we bound it to the skeleton
-  // For meshes that sit directly under SkelRoot, we usually use identity
-  // If the mesh already has a transform, we use that instead
-  // USD Skel needs this to know how to properly deform the mesh when joints move
-  const meshTransform = meshNode.getProperty('xformOp:transform');
-  let geomBindTransform: string;
-  if (meshTransform && typeof meshTransform === 'string') {
-    // Use mesh's existing transform as bind transform
-    geomBindTransform = meshTransform;
-    logger.info('Using mesh transform as geomBindTransform', {
-      meshName,
-      meshTransform
-    });
+  // Skinned meshes are re-anchored under SkelRoot without applying the original hierarchy transform
+  // We need to preserve the mesh's position in world space
+  // The issue: world transform includes scale from parent nodes (e.g., 10x), which causes
+  // disconnection. We should use only translation and rotation from world transform, not scale.
+  let geomBindTransform: string = IDENTITY_MATRIX;
+
+  if (gltfNode && document) {
+    // Compute world transform by accumulating all parent transforms
+    // This is critical because when the mesh is moved under a SkelRoot with identity transform,
+    // the geomBindTransform must preserve the mesh's position in world space
+    const parentCache = new Map<Node, Node | null>();
+    const worldTransform = computeWorldTransform(gltfNode, document, parentCache);
+
+    if (worldTransform) {
+      // Extract only translation and rotation from world transform, remove scale
+      // This prevents issues with parent node scales (e.g., 10x) that cause disconnection
+      // GLTF column-major: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
+      // Extract scale from rotation matrix columns
+      const sx = Math.sqrt(worldTransform[0] * worldTransform[0] + worldTransform[1] * worldTransform[1] + worldTransform[2] * worldTransform[2]);
+      const sy = Math.sqrt(worldTransform[4] * worldTransform[4] + worldTransform[5] * worldTransform[5] + worldTransform[6] * worldTransform[6]);
+      const sz = Math.sqrt(worldTransform[8] * worldTransform[8] + worldTransform[9] * worldTransform[9] + worldTransform[10] * worldTransform[10]);
+
+      // Remove scale from rotation matrix (normalize columns)
+      const invSx = sx > 0.0001 ? 1.0 / sx : 1.0;
+      const invSy = sy > 0.0001 ? 1.0 / sy : 1.0;
+      const invSz = sz > 0.0001 ? 1.0 / sz : 1.0;
+
+      // Create transform with only translation and rotation (no scale)
+      // worldTransform is in GLTF column-major format: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
+      // USD needs row-major format: [m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33]
+      // Translation in GLTF column-major is at indices 12, 13, 14 (m03, m13, m23)
+      // Translation in USD row-major should be at indices 12, 13, 14 (m30, m31, m32)
+      // Convert from column-major to row-major while removing scale
+      const usdMatrix = [
+        // Row 0: m00, m01, m02, m03
+        worldTransform[0] * invSx, worldTransform[4] * invSy, worldTransform[8] * invSz, 0,
+        // Row 1: m10, m11, m12, m13
+        worldTransform[1] * invSx, worldTransform[5] * invSy, worldTransform[9] * invSz, 0,
+        // Row 2: m20, m21, m22, m23
+        worldTransform[2] * invSx, worldTransform[6] * invSy, worldTransform[10] * invSz, 0,
+        // Row 3: m30, m31, m32, m33 (translation from GLTF column-major indices 12, 13, 14)
+        worldTransform[12], worldTransform[13], worldTransform[14], 1
+      ];
+      geomBindTransform = formatMatrix(usdMatrix);
+      logger.info('Using GLTF node WORLD transform (translation + rotation only, scale removed) as geomBindTransform', {
+        meshName,
+        gltfNodeName: gltfNode.getName(),
+        originalScale: [sx, sy, sz],
+        geomBindTransform: geomBindTransform.substring(0, 80) + '...',
+        note: 'Scale removed from world transform to prevent disconnection issues'
+      });
+    } else {
+      // Fallback: check if mesh already has a transform in USD
+      const meshTransform = meshNode.getProperty('xformOp:transform');
+      if (meshTransform && typeof meshTransform === 'string') {
+        geomBindTransform = meshTransform;
+        logger.info('Using mesh USD transform as geomBindTransform (world transform computation failed)', {
+          meshName,
+          meshTransform: meshTransform.substring(0, 80) + '...'
+        });
+      } else {
+        logger.info('Using identity as geomBindTransform (no transform found)', {
+          meshName,
+          gltfNodeName: gltfNode.getName()
+        });
+      }
+    }
   } else {
-    // Default to identity for meshes directly under SkelRoot
-    geomBindTransform = IDENTITY_MATRIX;
-    logger.info('Using identity as geomBindTransform (mesh has no transform)', {
-      meshName
-    });
+    // Fallback: check if mesh has transform in USD
+    const meshTransform = meshNode.getProperty('xformOp:transform');
+    if (meshTransform && typeof meshTransform === 'string') {
+      geomBindTransform = meshTransform;
+      logger.info('Using mesh USD transform as geomBindTransform (no GLTF node)', {
+        meshName,
+        meshTransform: meshTransform.substring(0, 80) + '...'
+      });
+    } else {
+      logger.info('Using identity as geomBindTransform (no GLTF node, no mesh transform)', {
+        meshName
+      });
+    }
   }
+
   meshNode.setProperty('skel:geomBindTransform', geomBindTransform, 'raw');
   logger.info('Set skel:geomBindTransform', {
     meshName,
-    geomBindTransform
+    geomBindTransform: geomBindTransform.substring(0, 100) + (geomBindTransform.length > 100 ? '...' : '')
   });
 
   // Set joint indices (which joints influence each vertex)
@@ -649,7 +1135,8 @@ export function bindSkeletonToMesh(
     logger.warn('No joint weights provided', { meshName });
   }
 
-  // Find the actual parent of the mesh node
+  // Find the actual parent of the mesh node BEFORE moving it
+  // This is critical to prevent duplicate meshes
   let actualParent: UsdNode | null = null;
 
   // First, check if originalParent actually contains this mesh
@@ -671,19 +1158,138 @@ export function bindSkeletonToMesh(
     actualParent = findParentInTree(sceneRoot, meshNode);
   }
 
-  // Remove mesh from its actual parent
+  // CRITICAL: Remove mesh from its actual parent BEFORE adding to SkelRoot
+  // This prevents duplicate meshes appearing in both locations
   if (actualParent) {
     actualParent.removeChild(meshNode);
-    logger.info(`Removed mesh ${meshNode.getName()} from parent ${actualParent.getName()}`);
+    logger.info(`Removed mesh ${meshNode.getName()} from parent ${actualParent.getName()} before moving to SkelRoot`);
   } else if (originalParent) {
     // Try to remove even if we're not sure it's the right parent
     originalParent.removeChild(meshNode);
-    logger.info(`Attempted to remove mesh ${meshNode.getName()} from parent ${originalParent.getName()}`);
+    logger.info(`Attempted to remove mesh ${meshNode.getName()} from parent ${originalParent.getName()} before moving to SkelRoot`);
+  } else if (sceneRoot) {
+    // Last resort: search from scene root and remove
+    const foundParent = findParentInTree(sceneRoot, meshNode);
+    if (foundParent) {
+      foundParent.removeChild(meshNode);
+      logger.info(`Removed mesh ${meshNode.getName()} from found parent ${foundParent.getName()} before moving to SkelRoot`);
+    }
+  }
+
+  // Determine target parent for SkelRoot (use LCA if provided, otherwise use original parent)
+  let targetParent: UsdNode | null = null;
+  if (commonAncestorUsdNode) {
+    targetParent = commonAncestorUsdNode;
+    logger.info('Using LCA as target parent for SkelRoot', {
+      lcaPath: commonAncestorUsdNode.getPath(),
+      skelRootPath
+    });
+  } else if (originalParent) {
+    // If originalParent is a Mesh prim, use its parent instead (Mesh prims shouldn't have children in USD)
+    const actualParent = originalParent;
+    if (actualParent.getTypeName() === 'Mesh') {
+      // Find the parent of the Mesh prim
+      if (sceneRoot) {
+        const meshParent = findParentInTree(sceneRoot, actualParent);
+        targetParent = meshParent || sceneRoot;
+        logger.info('Original parent is a Mesh prim, using its parent as target', {
+          meshParentPath: meshParent?.getPath() || sceneRoot.getPath(),
+          skelRootPath
+        });
+      } else {
+        targetParent = sceneRoot || null;
+      }
+    } else {
+      targetParent = actualParent;
+    }
+  } else if (sceneRoot) {
+    targetParent = sceneRoot;
+  }
+
+  // Remove SkelRoot from its current parent if it has one
+  if (skelRootNode.getPath() !== '/') {
+    // Find current parent of SkelRoot
+    let currentSkelRootParent: UsdNode | null = null;
+    if (sceneRoot) {
+      currentSkelRootParent = findParentInTree(sceneRoot, skelRootNode);
+    }
+    if (currentSkelRootParent) {
+      currentSkelRootParent.removeChild(skelRootNode);
+      logger.info('Removed SkelRoot from current parent', {
+        oldParent: currentSkelRootParent.getPath(),
+        skelRootPath
+      });
+    }
+  }
+
+  // Update SkelRoot path if target parent is different
+  if (targetParent) {
+    const targetParentPath = targetParent.getPath();
+    const newSkelRootPath = `${targetParentPath}/${skelRootNode.getName()}`;
+
+    // Update all children paths before updating SkelRoot
+    const updateChildPaths = (node: UsdNode, oldParentPath: string, newParentPath: string) => {
+      const oldPath = node.getPath();
+      if (oldPath.startsWith(oldParentPath + '/')) {
+        const relativePath = oldPath.substring(oldParentPath.length);
+        const newPath = newParentPath + relativePath;
+        node.updatePath(newPath);
+
+        // Recursively update children
+        for (const child of node.getChildren()) {
+          updateChildPaths(child, oldPath, newPath);
+        }
+      }
+    };
+
+    const oldSkelRootPath = skelRootNode.getPath();
+    if (oldSkelRootPath !== newSkelRootPath) {
+      for (const child of skelRootNode.getChildren()) {
+        updateChildPaths(child, oldSkelRootPath, newSkelRootPath);
+      }
+      skelRootNode.updatePath(newSkelRootPath);
+      logger.info('Updated SkelRoot path to target parent', {
+        oldPath: oldSkelRootPath,
+        newPath: newSkelRootPath
+      });
+    }
+
+    // The SkelRoot does NOT get the transform from the GLTF node
+    // Skinned meshes are re-anchored under their skeleton, so they are not affected
+    // by their original hierarchy transform. This prevents double application of transforms
+    // (e.g., 1/100 cm scale). The SkelRoot is created with identity transform, and the mesh
+    // is moved under it with identity transform as well.
+    setTransformMatrixString(skelRootNode, IDENTITY_MATRIX);
+    logger.info('SkelRoot created with identity transform (mesh re-anchored, no GLTF node transform applied)', {
+      skelRootPath: skelRootNode.getPath(),
+      gltfNodeName: gltfNode?.getName() || 'unknown'
+    });
+
+    // Add SkelRoot to target parent AFTER setting transform
+    targetParent.addChild(skelRootNode);
+
+    // Update skeleton prim path after SkelRoot move
+    const newSkeletonPrimPath = skeletonPrimNode.getPath();
+    meshNode.setProperty('rel skel:skeleton', `<${newSkeletonPrimPath}>`, 'rel');
+    logger.info('Updated mesh skeleton relationship after SkelRoot move', {
+      meshName,
+      newSkeletonPrimPath
+    });
   }
 
   // Update mesh path to be under SkelRoot (required for SkelBindingAPI to be valid)
-  const newMeshPath = `${skelRootPath}/${meshName}`;
+  const newMeshPath = `${skelRootNode.getPath()}/${meshName}`;
   meshNode.updatePath(newMeshPath);
+
+  // Reset mesh transform to identity (SkelRoot already has the transform)
+  // Note: geomBindTransform was already set correctly above (lines 852-942) to preserve
+  // the mesh's original position in the GLTF hierarchy. Do NOT reset it to identity here.
+  meshNode.setProperty('xformOp:transform', IDENTITY_MATRIX, 'raw');
+  meshNode.setProperty('xformOpOrder', ['xformOp:transform'], 'token[]');
+  logger.info('Reset mesh transform to identity (geomBindTransform preserves original position)', {
+    meshName,
+    meshPath: newMeshPath
+  });
 
   // Move mesh under SkelRoot
   skelRootNode.addChild(meshNode);

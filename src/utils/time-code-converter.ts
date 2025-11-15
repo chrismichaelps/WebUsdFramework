@@ -8,7 +8,6 @@
  */
 
 import { formatUsdArray } from './usd-formatter';
-import { ANIMATION } from '../constants';
 
 /**
  * Time samples stored in seconds (GLTF format).
@@ -47,13 +46,15 @@ export class TimeCodeConverter {
       return new Map();
     }
 
-    const effectiveFrameRate = frameRate || ANIMATION.FRAME_RATE;
+    const effectiveFrameRate = frameRate || 60; // Default to 60fps
 
-    // Convert each time in seconds to a frame number
+    // Convert each time in seconds to an integer frame number
+    // USD works best with consecutive integer frames (0, 1, 2, 3...) for smooth interpolation
     const timeCodeMap = new Map<number, { time: number; value: T }[]>();
     const times = Array.from(timeSamples.keys()).sort((a, b) => a - b);
 
     for (const timeSeconds of times) {
+      // Round to nearest frame to get integer time codes
       const timeCode = Math.round(timeSeconds * effectiveFrameRate);
       const value = timeSamples.get(timeSeconds)!;
 
@@ -63,13 +64,29 @@ export class TimeCodeConverter {
       timeCodeMap.get(timeCode)!.push({ time: timeSeconds, value });
     }
 
-    // If multiple time samples map to the same frame, use the last one
+    // If multiple samples map to the same frame, use the one closest to the exact frame time
+    // This preserves animation smoothness by keeping the most accurate keyframe
     const finalTimeCodes = new Map<number, T>();
 
     for (const [timeCode, entries] of timeCodeMap) {
       if (entries.length > 1) {
-        // Multiple samples at the same frame - use the most recent one
-        finalTimeCodes.set(timeCode, entries[entries.length - 1].value);
+        // Multiple samples at the same frame - use the one closest to the exact frame time
+        // Calculate the exact frame time in seconds
+        const exactFrameTime = timeCode / effectiveFrameRate;
+
+        // Find the entry with time closest to the exact frame time
+        let closestEntry = entries[0];
+        let minDistance = Math.abs(entries[0].time - exactFrameTime);
+
+        for (let i = 1; i < entries.length; i++) {
+          const distance = Math.abs(entries[i].time - exactFrameTime);
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestEntry = entries[i];
+          }
+        }
+
+        finalTimeCodes.set(timeCode, closestEntry.value);
       } else {
         finalTimeCodes.set(timeCode, entries[0].value);
       }

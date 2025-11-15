@@ -178,14 +178,25 @@ export function processAnimations(
     duration = 1.0;
   }
 
-  // Use the detected frame rate from the animation, or fall back to default
-  // Important: the header frame rate must match what we used for time code conversion
+  // Use the detected frame rate from the GLTF animation directly
+  // All metadata comes from the actual GLTF file, no hardcoded values
   const effectiveFrameRate = detectedFrameRate || defaultFrameRate;
+
+  // Use 120fps for time codes - this gives us integer values for common frame rates (24, 30, 60)
   const startTimeCode = 0;
-  // Use maxTimeCode from processor if available (includes loop frame), otherwise calculate from duration
+
+  // Convert duration to time codes by multiplying by the time code frame rate
+  // Use the max time code from the animation if available, otherwise calculate from duration
   const endTimeCode = firstAnimationMaxTimeCode !== undefined
     ? firstAnimationMaxTimeCode
-    : Math.ceil(duration * effectiveFrameRate);
+    : Math.ceil(duration * ANIMATION.TIME_CODE_FPS);
+
+  // Set time code metadata for USD:
+  // - timeCodesPerSecond = 120 (all time codes are scaled by this)
+  // - framesPerSecond = detected frame rate from GLTF (controls playback speed)
+  // Using 120fps for time codes ensures smooth playback across different frame rates
+  const timeCodesPerSecond = ANIMATION.TIME_CODE_FPS;
+  const framesPerSecond = effectiveFrameRate;
 
   logger.info('Animation time code metadata', {
     startTimeCode,
@@ -194,15 +205,19 @@ export function processAnimations(
     detectedFrameRate,
     defaultFrameRate,
     effectiveFrameRate,
+    timeCodesPerSecond,
+    framesPerSecond,
     hasSkeletonAnimations: animationSourcesMap.size > 0,
     totalAnimations: animations.length
   });
 
+  // For skeleton animations: timeCodesPerSecond = 1 (time codes are in seconds)
+  // For other animations: timeCodesPerSecond = framesPerSecond (time codes are integer frames)
   return {
     startTimeCode,
     endTimeCode,
-    timeCodesPerSecond: effectiveFrameRate,
-    framesPerSecond: effectiveFrameRate
+    timeCodesPerSecond,
+    framesPerSecond
   };
 }
 

@@ -5,7 +5,18 @@
  * Handles textures and PBR properties.
  */
 
-import { Material, Texture, Primitive } from '@gltf-transform/core';
+import { Material, Texture, Primitive, Document, TextureInfo } from '@gltf-transform/core';
+import {
+  PBRSpecularGlossiness,
+  Clearcoat,
+  Sheen,
+  Transmission,
+  Volume,
+  Specular,
+  Iridescence,
+  DiffuseTransmission,
+  Anisotropy
+} from '@gltf-transform/extensions';
 import { UsdNode } from '../core/usd-node';
 import { sanitizeName } from '../utils/name-utils';
 import { bakeVertexColorsToTexture } from './helpers/vertex-color-baker';
@@ -101,12 +112,17 @@ interface TextureMappingConfig {
 
 /**
  * Build USD material from GLTF material
+ * @param material - GLTF material to convert
+ * @param materialIndex - Index of the material
+ * @param materialsPath - USD path for materials node
+ * @param document - GLTF document (kept for future use, currently not needed as TextureInfo is obtained from material)
  * @param primitive - Optional primitive to check for vertex colors and bake them to textures
  */
 export async function buildUsdMaterial(
   material: Material,
   materialIndex: number,
   materialsPath: string,
+  _document: Document,
   primitive?: Primitive
 ): Promise<MaterialBuildResult> {
   const materialName = sanitizeName(material.getName() || `Material_${materialIndex}`);
@@ -117,28 +133,59 @@ export async function buildUsdMaterial(
 
   const textures: TextureReference[] = [];
 
-  // Create shared UV reader and Transform2d node for the material
-  const uvReader = new UsdNode(`${materialPath}/PrimvarReader_diffuse`, 'Shader');
+  // Create shared UV reader and Transform2d node for UV set 0 (default)
+  // Additional PrimvarReaders will be created dynamically for other UV sets
+  const uvReader = new UsdNode(`${materialPath}/PrimvarReader_st`, 'Shader');
   uvReader.setProperty('uniform token info:id', 'UsdPrimvarReader_float2');
   uvReader.setProperty('float2 inputs:fallback', '(0, 0)', 'float2');
   uvReader.setProperty('string inputs:varname', 'st', 'string');
   uvReader.setProperty('float2 outputs:result', '');
 
-  const transform2d = new UsdNode(`${materialPath}/Transform2d_diffuse`, 'Shader');
+  const transform2d = new UsdNode(`${materialPath}/Transform2d_st`, 'Shader');
   transform2d.setProperty('uniform token info:id', 'UsdTransform2d');
-  transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_diffuse.outputs:result>`, 'float2');
+  transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_st.outputs:result>`, 'float2');
+  // Default values - will be updated if texture transform is found
   transform2d.setProperty('float inputs:rotation', '0', 'float');
   transform2d.setProperty('float2 inputs:scale', '(1, 1)', 'float2');
   transform2d.setProperty('float2 inputs:translation', '(0, 0)', 'float2');
   transform2d.setProperty('float2 outputs:result', '');
 
+  // Map to track created PrimvarReaders and Transform2d nodes for each UV set
+  const uvSetReaders = new Map<number, UsdNode>();
+  const uvSetTransforms = new Map<number, UsdNode>();
+  uvSetReaders.set(0, uvReader);
+  uvSetTransforms.set(0, transform2d);
+
   // Create PreviewSurface shader
   const surfaceShader = new UsdNode(`${materialPath}/PreviewSurface`, 'Shader');
   surfaceShader.setProperty('uniform token info:id', 'UsdPreviewSurface');
 
+  // Check if material uses PBRSpecularGlossiness (specular workflow)
+  // This MUST be set BEFORE processing any textures to ensure correct workflow
+  const hasPBRSpecGloss = material.getExtension('KHR_materials_pbrSpecularGlossiness') !== null;
+
+  // Set useSpecularWorkflow flag EARLY - before processing any textures
+  // This ensures USD PreviewSurface interprets textures correctly
+  surfaceShader.setProperty('int inputs:useSpecularWorkflow', hasPBRSpecGloss ? '1' : '0', 'int');
+
+  if (hasPBRSpecGloss) {
+    console.log(`[buildUsdMaterial] Material uses PBRSpecularGlossiness - specular workflow enabled: ${materialName}`);
+  }
+
   // Process base color with optimized mapping
-  const baseColorTexture = material.getBaseColorTexture();
+  // For PBRSpecularGlossiness materials, use diffuseTexture instead of baseColorTexture
+  let baseColorTexture = material.getBaseColorTexture();
+  if (hasPBRSpecGloss && !baseColorTexture) {
+    const specGlossExtension = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+    if (specGlossExtension) {
+      baseColorTexture = specGlossExtension.getDiffuseTexture();
+    }
+  }
   const normalTexture = material.getNormalTexture();
+
+  // Get alphaMode and alphaCutoff early - needed for opacity processing
+  const alphaMode = material.getAlphaMode();
+  const alphaCutoff = material.getAlphaCutoff();
 
   // Log texture availability for debugging
   console.log(`[buildUsdMaterial] Material: ${materialName}`, {
@@ -146,7 +193,11 @@ export async function buildUsdMaterial(
     hasNormalTexture: !!normalTexture,
     hasMetallicRoughnessTexture: !!material.getMetallicRoughnessTexture(),
     hasEmissiveTexture: !!material.getEmissiveTexture(),
-    hasOcclusionTexture: !!material.getOcclusionTexture()
+    hasOcclusionTexture: !!material.getOcclusionTexture(),
+    hasPBRSpecGloss,
+    useSpecularWorkflow: hasPBRSpecGloss ? '1' : '0',
+    alphaMode: Material.AlphaMode[alphaMode],
+    alphaCutoff
   });
 
   // Check if primitive has vertex colors that should be baked to texture
@@ -177,25 +228,78 @@ export async function buildUsdMaterial(
     const textureId = await generateTextureId(baseColorTexture, 'diffuse');
     const textureNodeName = `Texture_${textureId}`;
     const uvSet = getTextureUVSet(material, 'baseColor');
+    const textureTransform = getTextureTransform(material, 'baseColor');
 
     textures.push({
       texture: baseColorTexture,
       id: textureId,
       type: 'diffuse',
       uvSet,
-      transform: getTextureTransform(material, 'baseColor')
+      transform: textureTransform
     });
 
+    // Apply texture transform to Transform2d if present
+    if (textureTransform) {
+      const rotationRad = textureTransform.rotation;
+      const rotationDeg = (rotationRad * 180) / Math.PI; // Convert radians to degrees
+      transform2d.setProperty('float inputs:rotation', rotationDeg.toString(), 'float');
+      transform2d.setProperty('float2 inputs:scale', `(${textureTransform.scale[0]}, ${textureTransform.scale[1]})`, 'float2');
+      transform2d.setProperty('float2 inputs:translation', `(${textureTransform.offset[0]}, ${textureTransform.offset[1]})`, 'float2');
+      console.log(`[buildUsdMaterial] Applied texture transform to Transform2d: offset=${textureTransform.offset}, scale=${textureTransform.scale}, rotation=${rotationDeg}°`);
+    }
+
     // Create optimized texture shader network
-    const textureShader = createOptimizedTextureShader(
+    // Apply baseColorFactor/diffuseFactor as scale to the texture
+    // For PBRSpecularGlossiness materials, use diffuseFactor instead of baseColorFactor
+    let baseColorFactor = material.getBaseColorFactor();
+    let baseColorTextureInfo = material.getBaseColorTextureInfo();
+    if (hasPBRSpecGloss) {
+      const specGlossExtension = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+      if (specGlossExtension) {
+        const diffuseFactor = specGlossExtension.getDiffuseFactor();
+        if (diffuseFactor && diffuseFactor.length >= 4) {
+          baseColorFactor = diffuseFactor; // Use diffuseFactor for PBRSpecularGlossiness
+        }
+        // Also get TextureInfo from extension if using diffuseTexture
+        if (baseColorTexture && !material.getBaseColorTexture()) {
+          // We're using diffuseTexture from extension, get its TextureInfo
+          const diffuseTextureInfo = specGlossExtension.getDiffuseTextureInfo();
+          if (diffuseTextureInfo) {
+            baseColorTextureInfo = diffuseTextureInfo;
+          }
+        }
+      }
+    }
+    const scaleFactor: [number, number, number, number] | undefined = baseColorFactor && baseColorFactor.length >= 4
+      ? [baseColorFactor[0], baseColorFactor[1], baseColorFactor[2], baseColorFactor[3]]
+      : undefined;
+
+    // Log baseColorFactor application for debugging (always log to verify it's being applied)
+    console.log(`[buildUsdMaterial] Processing baseColorTexture for material: ${materialName}`, {
+      hasBaseColorFactor: !!baseColorFactor,
+      baseColorFactor: baseColorFactor || 'not set',
+      scaleFactor: scaleFactor || 'not set',
+      textureId,
+      note: scaleFactor ? 'baseColorFactor will be applied as inputs:scale to texture' : 'No baseColorFactor - using default scale (1, 1, 1, 1)'
+    });
+
+    const { textureShader, transform2d: baseColorTransform2d } = createOptimizedTextureShader(
       materialPath,
       textureId,
       textureNodeName,
       false,
-      baseColorTexture
+      baseColorTexture,
+      baseColorTextureInfo,
+      materialNode,
+      uvSetReaders,
+      uvSetTransforms,
+      scaleFactor // Pass baseColorFactor as scale
     );
 
     materialNode.addChild(textureShader);
+    if (baseColorTransform2d) {
+      // Transform2d already added in createOptimizedTextureShader
+    }
 
     // Connect to PreviewSurface
     surfaceShader.setProperty(
@@ -203,6 +307,24 @@ export async function buildUsdMaterial(
       `<${materialPath}/${textureNodeName}.outputs:rgb>`,
       'connection'
     );
+
+    // Connect texture alpha channel to opacity if alphaMode is not OPAQUE
+    // This is critical for materials with transparency (BLEND or MASK mode)
+    // The texture alpha channel provides the actual opacity values from the texture
+    if (alphaMode !== Material.AlphaMode.OPAQUE) {
+      // Connect texture alpha channel to opacity
+      // For BLEND mode, this provides smooth transparency
+      // For MASK mode, USD PreviewSurface doesn't support cutoff, so we rely on the texture alpha
+      surfaceShader.setProperty(
+        'float inputs:opacity.connect',
+        `<${materialPath}/${textureNodeName}.outputs:a>`,
+        'connection'
+      );
+      console.log(`[buildUsdMaterial] Connected texture alpha channel to opacity for material: ${materialName}`, {
+        alphaMode: Material.AlphaMode[alphaMode],
+        alphaCutoff
+      });
+    }
   } else if (bakedVertexColorTexture) {
     // Use baked vertex color texture - connect directly to PrimvarReader
     // UVs are already normalized and flipped during baking
@@ -249,7 +371,17 @@ export async function buildUsdMaterial(
     );
   } else {
     // Use solid base color factor or PrimvarReader as fallback
-    const baseColorFactor = material.getBaseColorFactor();
+    // For PBRSpecularGlossiness materials, use diffuseFactor instead of baseColorFactor
+    let baseColorFactor = material.getBaseColorFactor();
+    if (hasPBRSpecGloss) {
+      const specGlossExtension = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+      if (specGlossExtension) {
+        const diffuseFactor = specGlossExtension.getDiffuseFactor();
+        if (diffuseFactor && diffuseFactor.length >= 4) {
+          baseColorFactor = diffuseFactor; // Use diffuseFactor for PBRSpecularGlossiness
+        }
+      }
+    }
     if (baseColorFactor) {
       const [r, g, b] = baseColorFactor;
       const isWhite = Math.abs(r - 1.0) < 0.001 && Math.abs(g - 1.0) < 0.001 && Math.abs(b - 1.0) < 0.001;
@@ -316,12 +448,17 @@ export async function buildUsdMaterial(
     });
 
     // Create optimized texture shader network for normal map
-    const textureShader = createOptimizedTextureShader(
+    const normalTextureInfo = material.getNormalTextureInfo();
+    const { textureShader } = createOptimizedTextureShader(
       materialPath,
       textureId,
       textureNodeName,
       true,
-      normalTexture
+      normalTexture,
+      normalTextureInfo,
+      materialNode,
+      uvSetReaders,
+      uvSetTransforms
     );
 
     materialNode.addChild(textureShader);
@@ -350,12 +487,17 @@ export async function buildUsdMaterial(
     });
 
     // Create optimized texture shader network for emissive
-    const textureShader = createOptimizedTextureShader(
+    const emissiveTextureInfo = material.getEmissiveTextureInfo();
+    const { textureShader } = createOptimizedTextureShader(
       materialPath,
       textureId,
       textureNodeName,
       false,
-      emissiveTexture
+      emissiveTexture,
+      emissiveTextureInfo,
+      materialNode,
+      uvSetReaders,
+      uvSetTransforms
     );
 
     materialNode.addChild(textureShader);
@@ -366,6 +508,11 @@ export async function buildUsdMaterial(
       `<${materialPath}/${textureNodeName}.outputs:rgb>`,
       'connection'
     );
+
+    console.log(`[buildUsdMaterial] Connected emissive texture to material: ${materialName}`, {
+      textureId,
+      textureNodeName
+    });
   } else {
     // Use emissive factor if no texture
     const emissiveFactor = material.getEmissiveFactor();
@@ -374,6 +521,9 @@ export async function buildUsdMaterial(
         'color3f inputs:emissiveColor',
         `(${emissiveFactor[0]}, ${emissiveFactor[1]}, ${emissiveFactor[2]})`
       );
+      console.log(`[buildUsdMaterial] Applied emissive factor to material: ${materialName}`, {
+        emissiveFactor: [emissiveFactor[0], emissiveFactor[1], emissiveFactor[2]]
+      });
     }
   }
 
@@ -393,12 +543,17 @@ export async function buildUsdMaterial(
     });
 
     // Create optimized texture shader network for occlusion
-    const textureShader = createOptimizedTextureShader(
+    const occlusionTextureInfo = material.getOcclusionTextureInfo();
+    const { textureShader } = createOptimizedTextureShader(
       materialPath,
       textureId,
       textureNodeName,
       false,
-      occlusionTexture
+      occlusionTexture,
+      occlusionTextureInfo,
+      materialNode,
+      uvSetReaders,
+      uvSetTransforms
     );
 
     materialNode.addChild(textureShader);
@@ -412,54 +567,143 @@ export async function buildUsdMaterial(
   }
 
   // Process metallic/roughness texture with optimized mapping
-  const metallicRoughnessTexture = material.getMetallicRoughnessTexture();
-  if (metallicRoughnessTexture) {
-    const textureId = await generateTextureId(metallicRoughnessTexture, 'metallicRoughness');
-    const textureNodeName = `Texture_${textureId}`;
-    const uvSet = getTextureUVSet(material, 'metallicRoughness');
+  // Only process if NOT using PBRSpecularGlossiness (specular workflow)
+  // hasPBRSpecGloss is already checked above, reuse the variable
 
-    textures.push({
-      texture: metallicRoughnessTexture,
-      id: textureId,
-      type: 'metallicRoughness',
-      uvSet,
-      transform: getTextureTransform(material, 'metallicRoughness')
-    });
+  if (!hasPBRSpecGloss) {
+    const metallicRoughnessTexture = material.getMetallicRoughnessTexture();
+    if (metallicRoughnessTexture) {
+      const textureId = await generateTextureId(metallicRoughnessTexture, 'metallicRoughness');
+      const textureNodeName = `Texture_${textureId}`;
+      const uvSet = getTextureUVSet(material, 'metallicRoughness');
 
-    // Create optimized texture shader network for metallic/roughness
-    const textureShader = createOptimizedTextureShader(
-      materialPath,
-      textureId,
-      textureNodeName,
-      false,
-      metallicRoughnessTexture
-    );
+      textures.push({
+        texture: metallicRoughnessTexture,
+        id: textureId,
+        type: 'metallicRoughness',
+        uvSet,
+        transform: getTextureTransform(material, 'metallicRoughness')
+      });
 
-    materialNode.addChild(textureShader);
+      // Create optimized texture shader network for metallic/roughness
+      const metallicRoughnessTextureInfo = material.getMetallicRoughnessTextureInfo();
+      const { textureShader } = createOptimizedTextureShader(
+        materialPath,
+        textureId,
+        textureNodeName,
+        false,
+        metallicRoughnessTexture,
+        metallicRoughnessTextureInfo,
+        materialNode,
+        uvSetReaders,
+        uvSetTransforms
+      );
 
-    // Connect metallic and roughness channels (correct channel mapping)
-    surfaceShader.setProperty(
-      'float inputs:metallic.connect',
-      `<${materialPath}/${textureNodeName}.outputs:b>`,
-      'connection'
-    );
-    surfaceShader.setProperty(
-      'float inputs:roughness.connect',
-      `<${materialPath}/${textureNodeName}.outputs:g>`,
-      'connection'
-    );
+      materialNode.addChild(textureShader);
+
+      // Connect metallic and roughness channels (correct channel mapping)
+      surfaceShader.setProperty(
+        'float inputs:metallic.connect',
+        `<${materialPath}/${textureNodeName}.outputs:b>`,
+        'connection'
+      );
+      surfaceShader.setProperty(
+        'float inputs:roughness.connect',
+        `<${materialPath}/${textureNodeName}.outputs:g>`,
+        'connection'
+      );
+    } else {
+      // Process metallic and roughness factors (only if no texture and not using specular workflow)
+      const metallicFactor = material.getMetallicFactor();
+      surfaceShader.setProperty('float inputs:metallic', (metallicFactor ?? 0.0).toString(), 'float');
+
+      const roughnessFactor = material.getRoughnessFactor();
+      surfaceShader.setProperty('float inputs:roughness', (roughnessFactor ?? 0.5).toString(), 'float');
+    }
   } else {
-    // Process metallic and roughness factors (only if no texture)
-    const metallicFactor = material.getMetallicFactor();
-    surfaceShader.setProperty('float inputs:metallic', (metallicFactor ?? 0.0).toString(), 'float');
-
-    const roughnessFactor = material.getRoughnessFactor();
-    surfaceShader.setProperty('float inputs:roughness', (roughnessFactor ?? 0.5).toString(), 'float');
+    // For PBRSpecularGlossiness, set default metallic/roughness to avoid interference
+    // These values are ignored when useSpecularWorkflow=1, but setting them prevents issues
+    surfaceShader.setProperty('float inputs:metallic', '0.0', 'float');
+    surfaceShader.setProperty('float inputs:roughness', '0.5', 'float');
+    console.log(`[buildUsdMaterial] Using specular workflow - metallic/roughness set to defaults (ignored when useSpecularWorkflow=1)`);
   }
 
-  // Add standard PBR properties
-  surfaceShader.setProperty('float inputs:opacity', '1', 'float');
-  surfaceShader.setProperty('int inputs:useSpecularWorkflow', '0', 'int');
+  // Process opacity from baseColorFactor/diffuseFactor alpha and alphaMode
+  // Note: alphaMode and alphaCutoff are already declared above (before texture processing)
+  // This is only used when there's NO baseColorTexture (opacity comes from baseColorFactor/diffuseFactor)
+  // When there IS a baseColorTexture, opacity is connected from texture alpha channel (see above)
+  // For PBRSpecularGlossiness materials, use diffuseFactor instead of baseColorFactor
+  let baseColorFactorForOpacity = material.getBaseColorFactor();
+  if (hasPBRSpecGloss) {
+    const specGlossExtension = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+    if (specGlossExtension) {
+      const diffuseFactor = specGlossExtension.getDiffuseFactor();
+      if (diffuseFactor && diffuseFactor.length >= 4) {
+        baseColorFactorForOpacity = diffuseFactor; // Use diffuseFactor for PBRSpecularGlossiness
+      }
+    }
+  }
+
+  let opacity = 1.0;
+  if (baseColorFactorForOpacity && baseColorFactorForOpacity.length >= 4) {
+    opacity = baseColorFactorForOpacity[3]; // 4th element is alpha
+  }
+
+  // Handle alphaMode: OPAQUE, MASK, or BLEND
+  // For OPAQUE, opacity is always 1.0 (alpha is ignored)
+  // For MASK, opacity is 1.0 if alpha >= alphaCutoff, else 0.0
+  // For BLEND, opacity is the alpha value directly
+  if (alphaMode === Material.AlphaMode.OPAQUE) {
+    opacity = 1.0;
+  } else if (alphaMode === Material.AlphaMode.MASK) {
+    // MASK mode: fully opaque if alpha >= cutoff, else fully transparent
+    // Note: USD PreviewSurface doesn't support alpha cutoff directly,
+    // so we set opacity to 1.0 or 0.0 based on the cutoff
+    opacity = opacity >= alphaCutoff ? 1.0 : 0.0;
+  } else if (alphaMode === Material.AlphaMode.BLEND) {
+    // BLEND mode: use alpha value directly for transparency
+    // opacity is already set from baseColorFactor[3]
+  }
+
+  surfaceShader.setProperty('float inputs:opacity', opacity.toString(), 'float');
+
+  // Log opacity processing for debugging
+  if (alphaMode !== Material.AlphaMode.OPAQUE || opacity !== 1.0) {
+    console.log(`[buildUsdMaterial] Processed opacity for material: ${materialName}`, {
+      alphaMode: Material.AlphaMode[alphaMode],
+      alphaCutoff,
+      baseColorFactorAlpha: baseColorFactorForOpacity && baseColorFactorForOpacity.length >= 4 ? baseColorFactorForOpacity[3] : undefined,
+      finalOpacity: opacity
+    });
+  }
+
+  // useSpecularWorkflow flag is already set above (before texture processing)
+
+  // Handle PBRSpecularGlossiness factors when no textures are present
+  if (hasPBRSpecGloss) {
+    const specGlossExtension = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+    if (specGlossExtension) {
+      // Check if we have specularGlossinessTexture - if not, use factors
+      const specularGlossinessTexture = specGlossExtension.getSpecularGlossinessTexture();
+      if (!specularGlossinessTexture) {
+        // No texture - use specularFactor and glossinessFactor directly
+        const specularFactor = specGlossExtension.getSpecularFactor();
+        if (specularFactor) {
+          surfaceShader.setProperty(
+            'color3f inputs:specularColor',
+            `(${specularFactor[0]}, ${specularFactor[1]}, ${specularFactor[2]})`
+          );
+        }
+        const glossinessFactor = specGlossExtension.getGlossinessFactor();
+        if (glossinessFactor !== undefined) {
+          // Use 'glossiness' input when useSpecularWorkflow=1
+          // This matches AR Quick Look's extended UsdPreviewSurface implementation
+          surfaceShader.setProperty('float inputs:glossiness', glossinessFactor.toString(), 'float');
+        }
+        console.log(`[buildUsdMaterial] Set PBRSpecularGlossiness factors (no texture): specularFactor=${specularFactor}, glossinessFactor=${glossinessFactor}`);
+      }
+    }
+  }
 
   // Add outputs:surface declaration - required for rendering
   surfaceShader.setProperty('token outputs:surface', '');
@@ -478,9 +722,11 @@ export async function buildUsdMaterial(
 
   // Collect textures and properties from all extension processors
   const allProperties: Record<string, unknown> = {};
+  const extensionTextures: TextureReference[] = [];
   for (const result of extensionResults) {
     if (result.processed) {
       if (result.textures.length > 0) {
+        extensionTextures.push(...result.textures);
         textures.push(...result.textures);
       }
       if (result.properties) {
@@ -488,6 +734,129 @@ export async function buildUsdMaterial(
       }
     } else if (result.error) {
       console.warn(`[buildUsdMaterial] Extension processing error: ${result.error}`);
+    }
+  }
+
+  // Create shader nodes for extension textures and connect to PreviewSurface
+  for (const texRef of extensionTextures) {
+    if (!texRef.texture) continue; // Skip baked textures (already handled)
+
+    try {
+      const textureNodeName = `Texture_${texRef.id}`;
+      const isNormalMap = texRef.type === 'normal' || texRef.type === 'clearcoatNormal';
+
+      // Get TextureInfo from material extension dynamically
+      // This function handles all supported GLTF material extensions
+      const extensionTextureInfo = getExtensionTextureInfo(material, texRef.type);
+
+      // Create texture shader node
+      const { textureShader } = createOptimizedTextureShader(
+        materialPath,
+        texRef.id,
+        textureNodeName,
+        isNormalMap,
+        texRef.texture,
+        extensionTextureInfo,
+        materialNode,
+        uvSetReaders,
+        uvSetTransforms
+      );
+
+      materialNode.addChild(textureShader);
+
+      // Connect to PreviewSurface based on texture type
+      switch (texRef.type) {
+        case 'diffuse':
+          // PBRSpecularGlossiness diffuse texture - use as diffuseColor if not already set
+          if (!baseColorTexture && !bakedVertexColorTexture) {
+            surfaceShader.setProperty(
+              'color3f inputs:diffuseColor.connect',
+              `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+              'connection'
+            );
+            console.log(`[buildUsdMaterial] Connected extension diffuse texture to diffuseColor: ${texRef.id}`);
+          }
+          break;
+        case 'specular':
+          // PBRSpecularGlossiness specularGlossinessTexture
+          // RGB channel → specularColor, A channel → glossiness
+          // Use 'glossiness' input when useSpecularWorkflow=1
+          // This matches AR Quick Look's extended UsdPreviewSurface implementation
+          surfaceShader.setProperty(
+            'color3f inputs:specularColor.connect',
+            `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+            'connection'
+          );
+          surfaceShader.setProperty(
+            'float inputs:glossiness.connect',
+            `<${materialPath}/${textureNodeName}.outputs:a>`,
+            'connection'
+          );
+          console.log(`[buildUsdMaterial] Connected PBRSpecularGlossiness texture: RGB→specularColor, A→glossiness: ${texRef.id}`);
+          break;
+        case 'specularColor':
+          // KHR_materials_specular specularColorTexture - only RGB
+          surfaceShader.setProperty(
+            'color3f inputs:specularColor.connect',
+            `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+            'connection'
+          );
+          console.log(`[buildUsdMaterial] Connected extension specularColor texture to specularColor: ${texRef.id}`);
+          break;
+        case 'clearcoat':
+          surfaceShader.setProperty(
+            'float inputs:clearcoat.connect',
+            `<${materialPath}/${textureNodeName}.outputs:r>`,
+            'connection'
+          );
+          break;
+        case 'clearcoatRoughness':
+          surfaceShader.setProperty(
+            'float inputs:clearcoatRoughness.connect',
+            `<${materialPath}/${textureNodeName}.outputs:g>`,
+            'connection'
+          );
+          break;
+        case 'clearcoatNormal':
+          surfaceShader.setProperty(
+            'normal3f inputs:clearcoatNormal.connect',
+            `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+            'connection'
+          );
+          break;
+        case 'sheenColor':
+          surfaceShader.setProperty(
+            'color3f inputs:sheenColor.connect',
+            `<${materialPath}/${textureNodeName}.outputs:rgb>`,
+            'connection'
+          );
+          break;
+        case 'sheenRoughness':
+          surfaceShader.setProperty(
+            'float inputs:sheenRoughness.connect',
+            `<${materialPath}/${textureNodeName}.outputs:a>`,
+            'connection'
+          );
+          break;
+        case 'transmission':
+          surfaceShader.setProperty(
+            'float inputs:transmission.connect',
+            `<${materialPath}/${textureNodeName}.outputs:r>`,
+            'connection'
+          );
+          break;
+        case 'thickness':
+          surfaceShader.setProperty(
+            'float inputs:thickness.connect',
+            `<${materialPath}/${textureNodeName}.outputs:r>`,
+            'connection'
+          );
+          break;
+        default:
+          console.warn(`[buildUsdMaterial] Unhandled extension texture type: ${texRef.type}`);
+      }
+    } catch (error) {
+      console.warn(`[buildUsdMaterial] Failed to create shader for extension texture ${texRef.id}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -612,16 +981,194 @@ function getTextureTransform(material: Material, textureType: 'baseColor' | 'nor
 }
 
 /**
- * Create texture shader with shared UV reader and Transform2d for optimal USDZ compatibility
+ * Get texture wrapping modes (wrapS/wrapT) from GLTF TextureInfo
+ * Maps GLTF wrap modes to USD wrap modes
+ * 
+ * GLTF wrap modes (WebGL enum values):
+ * - 10497 = REPEAT
+ * - 33071 = CLAMP_TO_EDGE
+ * - 33648 = MIRRORED_REPEAT
+ * 
+ * USD wrap modes:
+ * - 'repeat' = REPEAT
+ * - 'clamp' = CLAMP_TO_EDGE
+ * - 'mirror' = MIRRORED_REPEAT
+ */
+function getTextureWrapModes(textureInfo: TextureInfo | null): { wrapS: 'repeat' | 'clamp' | 'mirror'; wrapT: 'repeat' | 'clamp' | 'mirror' } {
+  // Default to 'repeat' (GLTF spec default)
+  let wrapS: 'repeat' | 'clamp' | 'mirror' = 'repeat';
+  let wrapT: 'repeat' | 'clamp' | 'mirror' = 'repeat';
+
+  if (textureInfo) {
+    // Get wrap modes from TextureInfo (which includes sampler properties)
+    const wrapSMode = textureInfo.getWrapS();
+    const wrapTMode = textureInfo.getWrapT();
+
+    // Map GLTF wrap mode to USD wrap mode
+    // GLTF uses WebGL enum values: 10497 (REPEAT), 33071 (CLAMP_TO_EDGE), 33648 (MIRRORED_REPEAT)
+    if (wrapSMode === 33071) { // CLAMP_TO_EDGE
+      wrapS = 'clamp';
+    } else if (wrapSMode === 33648) { // MIRRORED_REPEAT
+      wrapS = 'mirror';
+    } else { // 10497 = REPEAT or undefined (defaults to REPEAT)
+      wrapS = 'repeat';
+    }
+
+    if (wrapTMode === 33071) { // CLAMP_TO_EDGE
+      wrapT = 'clamp';
+    } else if (wrapTMode === 33648) { // MIRRORED_REPEAT
+      wrapT = 'mirror';
+    } else { // 10497 = REPEAT or undefined (defaults to REPEAT)
+      wrapT = 'repeat';
+    }
+  }
+
+  return { wrapS, wrapT };
+}
+
+/**
+ * Get TextureInfo from material extension based on texture type
+ * Dynamically retrieves TextureInfo for all supported GLTF material extensions
+ * 
+ * @param material - GLTF material
+ * @param textureType - Type of texture to get TextureInfo for
+ * @returns TextureInfo or null if not found
+ */
+function getExtensionTextureInfo(material: Material, textureType: TextureType): TextureInfo | null {
+  switch (textureType) {
+    // PBRSpecularGlossiness extension
+    case 'specular': {
+      const specGloss = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+      return specGloss?.getSpecularGlossinessTextureInfo() || null;
+    }
+    case 'diffuse': {
+      // Check if it's from PBRSpecularGlossiness extension
+      const specGloss = material.getExtension<PBRSpecularGlossiness>('KHR_materials_pbrSpecularGlossiness');
+      if (specGloss) {
+        return specGloss.getDiffuseTextureInfo();
+      }
+      // Otherwise, it's the standard baseColorTexture (handled separately)
+      return null;
+    }
+    // KHR_materials_specular extension
+    case 'specularColor': {
+      const specular = material.getExtension<Specular>('KHR_materials_specular');
+      return specular?.getSpecularColorTextureInfo() || null;
+    }
+    // KHR_materials_clearcoat extension
+    case 'clearcoat': {
+      const clearcoat = material.getExtension<Clearcoat>('KHR_materials_clearcoat');
+      return clearcoat?.getClearcoatTextureInfo() || null;
+    }
+    case 'clearcoatRoughness': {
+      const clearcoat = material.getExtension<Clearcoat>('KHR_materials_clearcoat');
+      return clearcoat?.getClearcoatRoughnessTextureInfo() || null;
+    }
+    case 'clearcoatNormal': {
+      const clearcoat = material.getExtension<Clearcoat>('KHR_materials_clearcoat');
+      return clearcoat?.getClearcoatNormalTextureInfo() || null;
+    }
+    // KHR_materials_sheen extension
+    case 'sheenColor': {
+      const sheen = material.getExtension<Sheen>('KHR_materials_sheen');
+      return sheen?.getSheenColorTextureInfo() || null;
+    }
+    case 'sheenRoughness': {
+      const sheen = material.getExtension<Sheen>('KHR_materials_sheen');
+      return sheen?.getSheenRoughnessTextureInfo() || null;
+    }
+    // KHR_materials_transmission extension
+    case 'transmission': {
+      const transmission = material.getExtension<Transmission>('KHR_materials_transmission');
+      return transmission?.getTransmissionTextureInfo() || null;
+    }
+    // KHR_materials_volume extension
+    case 'thickness': {
+      const volume = material.getExtension<Volume>('KHR_materials_volume');
+      return volume?.getThicknessTextureInfo() || null;
+    }
+    // KHR_materials_iridescence extension
+    case 'iridescence': {
+      const iridescence = material.getExtension<Iridescence>('KHR_materials_iridescence');
+      return iridescence?.getIridescenceTextureInfo() || null;
+    }
+    case 'iridescenceThickness': {
+      const iridescence = material.getExtension<Iridescence>('KHR_materials_iridescence');
+      return iridescence?.getIridescenceThicknessTextureInfo() || null;
+    }
+    // KHR_materials_diffuse_transmission extension
+    case 'diffuseTransmission': {
+      const diffuseTransmission = material.getExtension<DiffuseTransmission>('KHR_materials_diffuse_transmission');
+      return diffuseTransmission?.getDiffuseTransmissionTextureInfo() || null;
+    }
+    case 'diffuseTransmissionColor': {
+      const diffuseTransmission = material.getExtension<DiffuseTransmission>('KHR_materials_diffuse_transmission');
+      return diffuseTransmission?.getDiffuseTransmissionColorTextureInfo() || null;
+    }
+    // KHR_materials_anisotropy extension
+    case 'anisotropy': {
+      const anisotropy = material.getExtension<Anisotropy>('KHR_materials_anisotropy');
+      return anisotropy?.getAnisotropyTextureInfo() || null;
+    }
+    // Standard PBR textures (handled separately, not extensions)
+    case 'normal':
+    case 'metallicRoughness':
+    case 'emissive':
+    case 'occlusion':
+      return null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Create texture shader with UV reader and Transform2d
+ * Creates a Transform2d per texture if it has texture transforms, otherwise uses shared one
+ * Uses the correct PrimvarReader based on the texture's texCoord (UV set)
  */
 function createOptimizedTextureShader(
   materialPath: string,
   textureId: string,
   textureNodeName: string,
   isNormalMap: boolean,
-  texture: Texture
-): UsdNode {
-  // Use shared Transform2d for optimal USDZ compatibility
+  texture: Texture,
+  textureInfo: TextureInfo | null,
+  materialNode: UsdNode,
+  uvSetReaders: Map<number, UsdNode>,
+  uvSetTransforms: Map<number, UsdNode>,
+  scaleFactor?: [number, number, number, number] // Optional scale factor (e.g., baseColorFactor)
+): { textureShader: UsdNode; transform2d: UsdNode | undefined } {
+  // Get UV set index from textureInfo (defaults to 0 if not specified)
+  const uvSetIndex = textureInfo ? textureInfo.getTexCoord() : 0;
+
+  // Get or create PrimvarReader for this UV set
+  let uvReader = uvSetReaders.get(uvSetIndex);
+  if (!uvReader) {
+    // Create PrimvarReader for this UV set
+    const primvarName = uvSetIndex === 0 ? 'st' : `st${uvSetIndex}`;
+    uvReader = new UsdNode(`${materialPath}/PrimvarReader_${primvarName}`, 'Shader');
+    uvReader.setProperty('uniform token info:id', 'UsdPrimvarReader_float2');
+    uvReader.setProperty('float2 inputs:fallback', '(0, 0)', 'float2');
+    uvReader.setProperty('string inputs:varname', primvarName, 'string');
+    uvReader.setProperty('float2 outputs:result', '');
+    materialNode.addChild(uvReader);
+    uvSetReaders.set(uvSetIndex, uvReader);
+  }
+
+  // Get or create Transform2d for this UV set (shared, no transform)
+  let sharedTransform2d = uvSetTransforms.get(uvSetIndex);
+  if (!sharedTransform2d) {
+    const primvarName = uvSetIndex === 0 ? 'st' : `st${uvSetIndex}`;
+    sharedTransform2d = new UsdNode(`${materialPath}/Transform2d_${primvarName}`, 'Shader');
+    sharedTransform2d.setProperty('uniform token info:id', 'UsdTransform2d');
+    sharedTransform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_${primvarName}.outputs:result>`, 'float2');
+    sharedTransform2d.setProperty('float inputs:rotation', '0', 'float');
+    sharedTransform2d.setProperty('float2 inputs:scale', '(1, 1)', 'float2');
+    sharedTransform2d.setProperty('float2 inputs:translation', '(0, 0)', 'float2');
+    sharedTransform2d.setProperty('float2 outputs:result', '');
+    materialNode.addChild(sharedTransform2d);
+    uvSetTransforms.set(uvSetIndex, sharedTransform2d);
+  }
 
   // Create texture shader
   const textureShader = new UsdNode(`${materialPath}/${textureNodeName}`, 'Shader');
@@ -638,12 +1185,45 @@ function createOptimizedTextureShader(
     textureShader.setProperty('token inputs:sourceColorSpace', 'sRGB', 'token');
   }
 
-  // Set wrapping mode
-  textureShader.setProperty('token inputs:wrapS', 'repeat', 'token');
-  textureShader.setProperty('token inputs:wrapT', 'repeat', 'token');
+  // Extract wrapping modes from GLTF TextureInfo dynamically
+  const { wrapS, wrapT } = getTextureWrapModes(textureInfo);
+  textureShader.setProperty('token inputs:wrapS', wrapS, 'token');
+  textureShader.setProperty('token inputs:wrapT', wrapT, 'token');
 
-  // Connect to shared Transform2d for optimal USDZ compatibility
-  const transformConnection = `<${materialPath}/Transform2d_diffuse.outputs:result>`;
+  // Check if this texture has KHR_texture_transform
+  let transform2d: UsdNode | undefined;
+  let transformConnection: string;
+  const primvarName = uvSetIndex === 0 ? 'st' : `st${uvSetIndex}`;
+
+  if (textureInfo) {
+    const textureTransform = extractTextureTransform(textureInfo);
+    if (textureTransform && (textureTransform.offset[0] !== 0 || textureTransform.offset[1] !== 0 ||
+      textureTransform.scale[0] !== 1 || textureTransform.scale[1] !== 1 ||
+      textureTransform.rotation !== 0)) {
+      // This texture has transform - create dedicated Transform2d
+      const transform2dName = `Transform2d_${textureId}`;
+      transform2d = new UsdNode(`${materialPath}/${transform2dName}`, 'Shader');
+      transform2d.setProperty('uniform token info:id', 'UsdTransform2d');
+      transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_${primvarName}.outputs:result>`, 'float2');
+
+      const rotationRad = textureTransform.rotation;
+      const rotationDeg = (rotationRad * 180) / Math.PI;
+      transform2d.setProperty('float inputs:rotation', rotationDeg.toString(), 'float');
+      transform2d.setProperty('float2 inputs:scale', `(${textureTransform.scale[0]}, ${textureTransform.scale[1]})`, 'float2');
+      transform2d.setProperty('float2 inputs:translation', `(${textureTransform.offset[0]}, ${textureTransform.offset[1]})`, 'float2');
+      transform2d.setProperty('float2 outputs:result', '');
+
+      materialNode.addChild(transform2d);
+      transformConnection = `<${materialPath}/${transform2dName}.outputs:result>`;
+    } else {
+      // No transform - use shared Transform2d for this UV set
+      transformConnection = `<${materialPath}/Transform2d_${primvarName}.outputs:result>`;
+    }
+  } else {
+    // No TextureInfo - use shared Transform2d for UV set 0
+    transformConnection = `<${materialPath}/Transform2d_st.outputs:result>`;
+  }
+
   textureShader.setProperty(
     'float2 inputs:st.connect',
     transformConnection,
@@ -657,17 +1237,32 @@ function createOptimizedTextureShader(
     textureShader.setProperty('float4 inputs:scale', '(2, 2, 2, 1)', 'float4');
     textureShader.setProperty('float4 inputs:bias', '(-1, -1, -1, 0)', 'float4');
   } else {
-    // Regular textures use default scale
-    textureShader.setProperty('float4 inputs:scale', '(1, 1, 1, 1)', 'float4');
+    // Regular textures: use scaleFactor if provided (e.g., baseColorFactor), otherwise default to (1, 1, 1, 1)
+    // baseColorFactor is applied as scale to the texture for proper color tinting
+    // ALWAYS apply scaleFactor if provided, even if it's (1, 1, 1, 1) - this ensures consistency
+    if (scaleFactor) {
+      textureShader.setProperty('float4 inputs:scale', `(${scaleFactor[0]}, ${scaleFactor[1]}, ${scaleFactor[2]}, ${scaleFactor[3]})`, 'float4');
+      // Log scale application for debugging
+      const isNotDefault = scaleFactor[0] !== 1 || scaleFactor[1] !== 1 || scaleFactor[2] !== 1 || scaleFactor[3] !== 1;
+      if (isNotDefault) {
+        console.log(`[createOptimizedTextureShader] Applied non-default scale to texture: ${textureNodeName}`, {
+          scale: scaleFactor,
+          textureId
+        });
+      }
+    } else {
+      textureShader.setProperty('float4 inputs:scale', '(1, 1, 1, 1)', 'float4');
+    }
   }
 
   // Add outputs for individual channels and RGB
   textureShader.setProperty('float outputs:r', '');
   textureShader.setProperty('float outputs:g', '');
   textureShader.setProperty('float outputs:b', '');
+  textureShader.setProperty('float outputs:a', '');
   textureShader.setProperty('float3 outputs:rgb', '');
 
-  return textureShader;
+  return { textureShader, transform2d };
 }
 
 /**

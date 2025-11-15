@@ -168,7 +168,7 @@ export class UsdNode {
       usda += "(\n";
       usda += "    customLayerData = {\n";
       usda += "        string creator = \"WebUSD Framework\"\n";
-      
+
       // Add XMP metadata if present
       const xmpMetadata = this._metadata.get('xmpMetadata') as Record<string, unknown> | undefined;
       if (xmpMetadata) {
@@ -176,7 +176,7 @@ export class UsdNode {
         const xmpData = xmpMetadata.xmp as { context: Record<string, string>; properties: Record<string, unknown> } | undefined;
         if (xmpData) {
           usda += "        dictionary xmp = {\n";
-          
+
           // Add context
           if (xmpData.context && Object.keys(xmpData.context).length > 0) {
             usda += "            dictionary context = {\n";
@@ -186,7 +186,7 @@ export class UsdNode {
             }
             usda += "            }\n";
           }
-          
+
           // Add properties
           if (xmpData.properties && Object.keys(xmpData.properties).length > 0) {
             usda += "            dictionary properties = {\n";
@@ -205,11 +205,11 @@ export class UsdNode {
             }
             usda += "            }\n";
           }
-          
+
           usda += "        }\n";
         }
       }
-      
+
       usda += "    }\n";
 
       // defaultPrim must be a direct child of the root layer
@@ -562,9 +562,9 @@ export class UsdNode {
               const ipKeyParts = ip.key.split(' ');
               const ipPropertyName = ipKeyParts.length > 1 ? ipKeyParts[ipKeyParts.length - 1] : ip.key;
               // Match both 'primvars:displayColor:interpolation' and 'uniform token primvars:displayColor:interpolation'
-              return ipPropertyName === propertyName + ':interpolation' || 
-                     ip.key === 'uniform token primvars:displayColor:interpolation' ||
-                     ip.key === 'primvars:displayColor:interpolation';
+              return ipPropertyName === propertyName + ':interpolation' ||
+                ip.key === 'uniform token primvars:displayColor:interpolation' ||
+                ip.key === 'primvars:displayColor:interpolation';
             });
             if (interpolationProp) {
               usda += `${space}    ${typeDeclaration} ${propertyName} = ${prop.value} (\n`;
@@ -656,10 +656,24 @@ export class UsdNode {
           } else if (prop.type === 'string') {
             // For string types, quote the value
             value = JSON.stringify(prop.value);
+            // Ensure inputs:varname is written as 'string' not 'token' (USDZ validator requirement)
+            if (prop.key.includes('inputs:varname')) {
+              // Replace 'token' with 'string' in the key if present
+              const key = prop.key.replace(/^token\s+/, 'string ');
+              usda += `${space}    ${key} = ${value}\n`;
+              continue;
+            }
           } else if (prop.type === 'token') {
             // For token types, don't quote if it's not already quoted
             const valueStr = prop.value as string;
             value = valueStr.startsWith('"') ? valueStr : JSON.stringify(valueStr);
+            // Ensure inputs:varname is written as 'string' not 'token' (USDZ validator requirement)
+            if (prop.key.includes('inputs:varname')) {
+              // Replace 'token' with 'string' in the key
+              const key = prop.key.replace(/^token\s+/, 'string ');
+              usda += `${space}    ${key} = ${value}\n`;
+              continue;
+            }
           } else {
             value = JSON.stringify(prop.value);
           }

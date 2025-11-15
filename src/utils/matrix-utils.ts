@@ -120,23 +120,27 @@ export function buildMatrixFromTRS(
   const m21 = 2 * (yz + wx);
   const m22 = 1 - 2 * (xx + yy);
 
-  // Apply scale
+  // Apply scale to rotation matrix (S * R)
+  // USD uses S * R * T order (reversed from GLTF's T * R * S)
+  // Scale is applied per-row: row 0 uses s[0], row 1 uses s[1], row 2 uses s[2]
   const m00s = m00 * s[0];
-  const m01s = m01 * s[1];
-  const m02s = m02 * s[2];
-  const m10s = m10 * s[0];
+  const m01s = m01 * s[0];
+  const m02s = m02 * s[0];
+  const m10s = m10 * s[1];
   const m11s = m11 * s[1];
-  const m12s = m12 * s[2];
-  const m20s = m20 * s[0];
-  const m21s = m21 * s[1];
+  const m12s = m12 * s[1];
+  const m20s = m20 * s[2];
+  const m21s = m21 * s[2];
   const m22s = m22 * s[2];
 
-  // Build final matrix (row-major): T * R * S
+  // Build final matrix (row-major): S * R * T
+  // Translation goes in 4th row (m30, m31, m32), not 4th column
+  // This matches USD's matrix format convention
   return formatMatrixFromComponents(
-    m00s, m01s, m02s, t[0],
-    m10s, m11s, m12s, t[1],
-    m20s, m21s, m22s, t[2],
-    0, 0, 0, 1
+    m00s, m01s, m02s, 0.0,
+    m10s, m11s, m12s, 0.0,
+    m20s, m21s, m22s, 0.0,
+    t[0], t[1], t[2], 1.0
   );
 }
 
