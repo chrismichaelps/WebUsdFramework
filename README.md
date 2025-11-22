@@ -7,13 +7,13 @@ This library builds USD schemas based on the [OpenUSD Core API](https://openusd.
 
 ⚠️ **This is a proof of concept (POC)** - The library is currently in active development and should be used for experimental purposes. While functional, it may not be production-ready for all use cases.
 
-[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismichaelps)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismperezsantiago)
 
 > **Support the Project**
 >
 > To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
 >
-> [**Donate via PayPal**](https://www.paypal.me/chrismichaelps)
+> [**Donate via PayPal**](https://www.paypal.me/chrismperezsantiago)
 
 ## Prerequisites
 
