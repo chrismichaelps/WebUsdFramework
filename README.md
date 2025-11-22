@@ -319,14 +319,6 @@ not be a good fit for your project(s).
 Please :star: this repository if you like it or this project helped you!\
 Feel free to open issues or submit pull-requests to help me improving my work.
 
-[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismichaelps)
-
-> **Support the Project** 💖
->
-> To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
->
-> [**Donate via PayPal**](https://www.paypal.me/chrismichaelps)
-
 ---
 
 ### **:robot: Author**
