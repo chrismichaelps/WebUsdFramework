@@ -9,6 +9,25 @@ import { DEFAULT_CONFIG } from '../constants/config';
 import { UpAxisSchema, CompressionSchema } from './base-schemas';
 
 /**
+ * GLTF Preprocessing Options Schema
+ */
+export const GltfPreprocessOptionsSchema = z.object({
+  dequantize: z.boolean().optional().default(true),
+  generateNormals: z.boolean().optional().default(true),
+  prune: z.boolean().optional().default(false),
+  dedup: z.boolean().optional().default(false),
+  logBounds: z.boolean().optional().default(false),
+  weld: z.boolean().optional().default(false),
+  center: z.union([z.boolean(), z.enum(['center', 'above', 'below'])]).optional().default(false),
+  resample: z.boolean().optional().default(false),
+  unlit: z.boolean().optional().default(false),
+  flatten: z.boolean().optional().default(false),
+  metalRough: z.boolean().optional().default(false),
+  vertexColorSpace: z.enum(['srgb', 'srgb-linear']).optional(),
+  join: z.boolean().optional().default(false),
+});
+
+/**
  * WebUSD Configuration Schema
  */
 export const WebUsdConfigSchema = z.object({
@@ -16,6 +35,7 @@ export const WebUsdConfigSchema = z.object({
   debugOutputDir: z.string().optional().default('./debug-output'),
   upAxis: UpAxisSchema.optional().default('Y'),
   metersPerUnit: z.number().positive().optional().default(1),
+  preprocess: GltfPreprocessOptionsSchema.optional(),
 });
 
 /**
@@ -26,6 +46,7 @@ export const GltfTransformConfigSchema = z.object({
   debugOutputDir: z.string().optional().default('./debug-output'),
   upAxis: UpAxisSchema.optional().default('Y'),
   metersPerUnit: z.number().positive().optional().default(1),
+  preprocess: GltfPreprocessOptionsSchema.optional(),
 });
 
 /**
@@ -86,6 +107,7 @@ export const UsdAttributeValueSchema = z.union([
  * Type exports for TypeScript inference
  */
 export type WebUsdConfig = z.infer<typeof WebUsdConfigSchema>;
+export type GltfPreprocessOptions = z.infer<typeof GltfPreprocessOptionsSchema>;
 export type GltfTransformConfig = z.infer<typeof GltfTransformConfigSchema>;
 export type UsdzGenerationOptions = z.infer<typeof UsdzGenerationOptionsSchema>;
 export type DebugOutput = z.infer<typeof DebugOutputSchema>;

@@ -1,5 +1,4 @@
 # WebUsdFramework
-
 Library for converting GLB/GLTF/OBJ 3D models to USDZ format.
 
 This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
@@ -7,6 +6,14 @@ This library builds USD schemas based on the [OpenUSD Core API](https://openusd.
 ### Current Status
 
 ⚠️ **This is a proof of concept (POC)** - The library is currently in active development and should be used for experimental purposes. While functional, it may not be production-ready for all use cases.
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismichaelps)
+
+> **Support the Project**
+>
+> To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
+>
+> [**Donate via PayPal**](https://www.paypal.me/chrismichaelps)
 
 ## Prerequisites
 
@@ -38,6 +45,9 @@ const usdzBlob2 = await usd.convert('./model.gltf');
 // Convert OBJ file to USDZ
 const usdzBlob3 = await usd.convert('./model.obj');
 
+// Convert FBX file to USDZ
+const usdzBlob4 = await usd.convert('./model.fbx');
+
 // Save the result
 const fs = require('fs');
 const buffer = await usdzBlob.arrayBuffer();
@@ -52,7 +62,28 @@ const { defineConfig } = require('./build/index.js');
 // Enable debug mode for inspection
 const usd = defineConfig({
   debug: true,
-  debugOutputDir: './debug-output',
+  debugOutputDir: 'debug-output',
+  preprocess: {
+    dequantize: true,
+    generateNormals: true,
+    weld: true,
+    dedup: true,
+    prune: true,
+    logBounds: true,
+    center: 'center',
+    resample: true,
+    unlit: true,
+    flatten: false, // Warning: option as true may break animations
+    metalRough: true,
+    vertexColorSpace: 'srgb',
+    join: false,
+  },
+  unified: {
+    obj: {
+      enableLogging: true,
+      debugLogging: false,
+    },
+  },
 });
 
 // Convert with detailed logging
@@ -71,7 +102,31 @@ const usdzBlob = await usd.convert('./model.glb');
 const { defineConfig } = require('./build/index.js');
 const fs = require('fs');
 
-const usd = defineConfig();
+const usd = defineConfig({
+  debug: true,
+  debugOutputDir: 'debug-output',
+  preprocess: {
+    dequantize: true,
+    generateNormals: true,
+    weld: true,
+    dedup: true,
+    prune: true,
+    logBounds: true,
+    center: 'center',
+    resample: true,
+    unlit: true,
+    flatten: false, // Warning: option as true may break animations
+    metalRough: true,
+    vertexColorSpace: 'srgb',
+    join: false,
+  },
+  unified: {
+    obj: {
+      enableLogging: true,
+      debugLogging: false,
+    },
+  },
+});
 
 // From file system (Node.js) - GLB files
 const glbBuffer = fs.readFileSync('model.glb').buffer;
@@ -99,6 +154,27 @@ const config = {
   debugOutputDir: './output',
   upAxis: 'Y',
   metersPerUnit: 1,
+  preprocess: {
+    dequantize: true,
+    generateNormals: true,
+    weld: true,
+    dedup: true,
+    prune: true,
+    logBounds: true,
+    center: 'center',
+    resample: true,
+    unlit: true,
+    flatten: false, // Warning: may break animations
+    metalRough: true,
+    vertexColorSpace: 'srgb',
+    join: false,
+  },
+  unified: {
+    obj: {
+      enableLogging: true,
+      debugLogging: false,
+    },
+  },
 };
 
 const usd = defineConfig(config);
@@ -113,6 +189,24 @@ const buffer = await usdzBlob.arrayBuffer();
 fs.writeFileSync('output.usdz', Buffer.from(buffer));
 ```
 
+### Preprocessing Options
+
+The framework supports GLTF preprocessing transforms from `@gltf-transform/functions`:
+
+- **`dequantize`** (default: `true`) - Remove mesh quantization for USDZ compatibility
+- **`generateNormals`** (default: `true`) - Generate normals if missing
+- **`weld`** - Merge identical vertices for optimization
+- **`dedup`** - Remove duplicate resources
+- **`prune`** - Remove unused resources
+- **`logBounds`** - Calculate and log scene bounds
+- **`center`** - Center model at origin (`'center'`, `'above'`, `'below'`, or `false`)
+- **`resample`** - Optimize animation keyframes
+- **`unlit`** - Convert unlit materials to standard PBR
+- **`flatten`** - Flatten scene graph (may break animations)
+- **`metalRough`** - Convert spec/gloss materials to metal/rough PBR
+- **`vertexColorSpace`** - Convert vertex colors (`'srgb'` or `'srgb-linear'`)
+- **`join`** - Join compatible primitives to reduce draw calls
+
 ### OBJ File Support
 
 The framework includes comprehensive support for OBJ (Wavefront Object) files:
@@ -123,6 +217,7 @@ const { defineConfig } = require('./build/index.js');
 const usd = defineConfig({
   debug: true,
   debugOutputDir: './debug-output',
+  upAxis: 'Y', // Optional: Y or Z (default: Y)
 });
 
 // Convert OBJ file to USDZ
@@ -158,6 +253,43 @@ const usdzBlob = await usd.convert('./model.obj');
 5. Apply transformations for proper scaling and centering
 6. Package as USDZ with 64-byte alignment
 
+### FBX File Support
+
+The framework supports FBX files via `fbx2gltf` conversion:
+
+```javascript
+const { defineConfig } = require('./build/index.js');
+
+const usd = defineConfig({
+  debug: true,
+  debugOutputDir: './debug-output',
+});
+
+// Convert FBX file to USDZ
+// Automatically handles:
+// - Binary and ASCII FBX formats
+// - Embedded textures
+// - Skeletal animations
+// - Skinning weights
+const usdzBlob = await usd.convert('./model.fbx');
+```
+
+**Supported FBX Features:**
+
+- Meshes and geometry
+- Materials and textures (embedded or external)
+- Skeletal animations (bones/joints)
+- Skinning weights
+- Scene hierarchy
+- Cameras and Lights
+
+**FBX Conversion Process:**
+
+1. Convert FBX to GLTF using `fbx2gltf`
+2. Process GLTF structure to USD
+3. Convert animations to USD SkelAnimation
+4. Bind skeletons and meshes
+5. Package as USDZ
 
 ## **:handshake: Contributing**
 
@@ -186,6 +318,14 @@ not be a good fit for your project(s).
 
 Please :star: this repository if you like it or this project helped you!\
 Feel free to open issues or submit pull-requests to help me improving my work.
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismichaelps)
+
+> **Support the Project** 💖
+>
+> To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
+>
+> [**Donate via PayPal**](https://www.paypal.me/chrismichaelps)
 
 ---
 

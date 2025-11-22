@@ -1,7 +1,7 @@
 /**
  * WebUSD Framework
  * 
- * Converts GLB/GLTF/OBJ files to USDZ format.
+ * Converts GLB/GLTF/OBJ/FBX files to USDZ format.
  * 
  * @example
  * ```typescript
@@ -14,16 +14,20 @@
  * 
  * const usdzBlob = await usd.convert('model.glb');
  * const usdzBlob2 = await usd.convert('model.obj');
+ * const usdzBlob3 = await usd.convert('model.fbx');
  * ```
  */
 
 import { convertGlbToUsdz } from './converters/gltf-transform-converter';
 import { convertObjToUsdz } from './converters/obj-converter';
+import { convertFbxToGltfViaTool } from './converters/fbx-to-gltf-via-tool';
 import { UsdErrorFactory } from './errors';
 import { WebUsdConfigSchema, type WebUsdConfig } from './schemas';
 import { ZodError } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
+import { execSync } from 'child_process';
 
 /**
  * Main framework class
@@ -81,6 +85,19 @@ export class WebUsdFramework {
 
       const fileExtension = path.extname(filePath).toLowerCase();
 
+      // Handle ZIP files (extract and find FBX inside)
+      if (fileExtension === '.zip') {
+        const extractedFbxPath = await this.extractAndFindFbx(filePath);
+        if (extractedFbxPath) {
+          return await this.convert(extractedFbxPath, options);
+        } else {
+          throw UsdErrorFactory.conversionError(
+            'No FBX file found in ZIP archive',
+            'fbx_not_found_in_zip'
+          );
+        }
+      }
+
       // Handle different file types
       if (fileExtension === '.gltf') {
         return await convertGlbToUsdz(filePath, this.config);
@@ -109,6 +126,15 @@ export class WebUsdFramework {
           fileBuffer.byteOffset + fileBuffer.byteLength
         );
         return await convertGlbToUsdz(glbBuffer, this.config);
+      } else if (fileExtension === '.fbx') {
+        // Use FBX2glTF tool to convert FBX to GLB first
+        const glbBuffer = await convertFbxToGltfViaTool(filePath, {
+          binary: true,
+          verbose: this.config.debug
+        });
+
+        // Then convert GLB to USDZ
+        return await convertGlbToUsdz(glbBuffer, this.config);
       } else {
         throw UsdErrorFactory.conversionError(
           `Unsupported file format: ${fileExtension}`,
@@ -119,6 +145,48 @@ export class WebUsdFramework {
 
     // Handle ArrayBuffer input (GLB only)
     return await convertGlbToUsdz(input, this.config);
+  }
+
+  // Extract ZIP file and find FBX inside
+  private async extractAndFindFbx(zipPath: string): Promise<string | null> {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fbx-zip-'));
+
+    try {
+      // Extract ZIP using unzip command
+      execSync(`unzip -q "${zipPath}" -d "${tmpDir}"`);
+
+      // Find FBX file recursively
+      const findFbx = (dir: string): string | null => {
+        const files = fs.readdirSync(dir);
+
+        for (const file of files) {
+          const fullPath = path.join(dir, file);
+          const stat = fs.statSync(fullPath);
+
+          if (stat.isDirectory()) {
+            const found = findFbx(fullPath);
+            if (found) return found;
+          } else if (file.toLowerCase().endsWith('.fbx')) {
+            return fullPath;
+          }
+        }
+        return null;
+      };
+
+      const fbxPath = findFbx(tmpDir);
+      if (this.config.debug && fbxPath) {
+        console.log(`Found FBX in ZIP: ${fbxPath}`);
+      }
+
+      return fbxPath;
+    } catch (error) {
+      console.error('Error extracting ZIP:', error);
+      // Clean up on error
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch { }
+      return null;
+    }
   }
 
   /**
