@@ -1,5 +1,4 @@
 # WebUsdFramework
-
 Library for converting GLB/GLTF/OBJ 3D models to USDZ format.
 
 This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
@@ -7,6 +6,14 @@ This library builds USD schemas based on the [OpenUSD Core API](https://openusd.
 ### Current Status
 
 ⚠️ **This is a proof of concept (POC)** - The library is currently in active development and should be used for experimental purposes. While functional, it may not be production-ready for all use cases.
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismichaelps)
+
+> **Support the Project**
+>
+> To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
+>
+> [**Donate via PayPal**](https://www.paypal.me/chrismichaelps)
 
 ## Prerequisites
 
@@ -210,6 +217,7 @@ const { defineConfig } = require('./build/index.js');
 const usd = defineConfig({
   debug: true,
   debugOutputDir: './debug-output',
+  upAxis: 'Y', // Optional: Y or Z (default: Y)
 });
 
 // Convert OBJ file to USDZ
@@ -310,6 +318,14 @@ not be a good fit for your project(s).
 
 Please :star: this repository if you like it or this project helped you!\
 Feel free to open issues or submit pull-requests to help me improving my work.
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismichaelps)
+
+> **Support the Project** 💖
+>
+> To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
+>
+> [**Donate via PayPal**](https://www.paypal.me/chrismichaelps)
 
 ---
 
