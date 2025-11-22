@@ -59,3 +59,82 @@ export function extractTextureTransform(textureInfo: TextureInfo | null): {
   };
 }
 
+/**
+ * Get the correct file extension for a texture based on its data
+ */
+export function getTextureExtension(texture: Texture): string {
+  const image = texture.getImage();
+  if (!image) {
+    return 'png'; // Default fallback
+  }
+  const buffer = image.buffer as ArrayBuffer;
+  const data = new Uint8Array(buffer);
+
+  // Check for PNG header: 89 50 4E 47 0D 0A 1A 0A
+  if (data.length > 8 &&
+    data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47 &&
+    data[4] === 0x0D && data[5] === 0x0A && data[6] === 0x1A && data[7] === 0x0A) {
+    return 'png';
+  }
+
+  // Check for JPEG header: FF D8 FF
+  if (data.length > 3 && data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) {
+    return 'jpg';
+  }
+
+  // Check for WebP header: RIFF .... WEBPVP8
+  if (data.length > 12 &&
+    data[0] === 0x52 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x46 && // RIFF
+    data[8] === 0x57 && data[9] === 0x45 && data[10] === 0x42 && data[11] === 0x50 && // WEBP
+    data[12] === 0x56 && data[13] === 0x50 && data[14] === 0x38) { // VP8
+    return 'webp';
+  }
+
+  // Default to PNG if no known header is found
+  return 'png';
+}
+
+/**
+ * Get clean image data from texture, stripping any garbage data before the header.
+ * Fixes issues where external tools might prepend text/logs to the binary output.
+ */
+export function getCleanTextureImage(texture: Texture): Uint8Array | null {
+  const image = texture.getImage();
+  if (!image) return null;
+
+  const buffer = image.buffer as ArrayBuffer;
+  const data = new Uint8Array(buffer);
+
+  // Check for PNG header: 89 50 4E 47 0D 0A 1A 0A
+  // If it starts with it, return as is
+  if (data.length > 8 &&
+    data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47 &&
+    data[4] === 0x0D && data[5] === 0x0A && data[6] === 0x1A && data[7] === 0x0A) {
+    return data;
+  }
+
+  // Search for PNG header in the first 1024 bytes
+  const searchLimit = Math.min(data.length, 1024);
+  for (let i = 0; i < searchLimit - 8; i++) {
+    if (data[i] === 0x89 && data[i + 1] === 0x50 && data[i + 2] === 0x4E && data[i + 3] === 0x47 &&
+      data[i + 4] === 0x0D && data[i + 5] === 0x0A && data[i + 6] === 0x1A && data[i + 7] === 0x0A) {
+      // Found header, return slice from here
+      return data.slice(i);
+    }
+  }
+
+  // Check for JPEG header: FF D8 FF
+  if (data.length > 3 && data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) {
+    return data;
+  }
+
+  // Search for JPEG header
+  for (let i = 0; i < searchLimit - 3; i++) {
+    if (data[i] === 0xFF && data[i + 1] === 0xD8 && data[i + 2] === 0xFF) {
+      return data.slice(i);
+    }
+  }
+
+  // No known header found or already clean (but not PNG/JPEG), return original
+  return data;
+}

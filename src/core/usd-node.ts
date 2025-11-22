@@ -336,7 +336,11 @@ export class UsdNode {
       return !this._timeSamples.has(p.key);
     });
 
+    // Input properties that go in node body (for Lights, etc.)
+    const inputProperties = isShaderNode ? [] : this._properties.filter(p => p.key.includes("inputs:"));
+
     const otherProperties = isShaderNode ? [] : this._properties.filter(p =>
+      !p.key.includes("inputs:") && // Exclude inputs - they go in node body
       !(p.key.includes(":") && p.type === "token") &&
       p.key !== "xformOp:transform" &&
       p.key !== "xformOpOrder" &&
@@ -478,7 +482,7 @@ export class UsdNode {
 
     // Determine if we need braces for the node body
     // Material nodes need braces for their children (shaders) and connections
-    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || xformOpProperties.length > 0 || this._timeSamples.size > 0;
+    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || inputProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || xformOpProperties.length > 0 || this._timeSamples.size > 0;
 
     if (needsBraces) {
       usda += `${space}{\n`;
@@ -619,6 +623,33 @@ export class UsdNode {
         usda += `${space}    ${typeDeclaration} ${propertyName} = ${value}\n`;
       }
 
+      // Add input properties (in node body) - for Lights, etc.
+      for (const prop of inputProperties) {
+        let value;
+        if (prop.key.includes("inputs:color")) {
+          // For color inputs, don't quote the values
+          value = prop.value;
+        } else if (prop.type === 'color3f' || prop.type === 'float3' || prop.type === 'float' || prop.type === 'int') {
+          // For numeric types, don't quote the values
+          value = prop.value;
+        } else if (typeof prop.value === 'number') {
+          // For any numeric value, don't quote
+          value = prop.value;
+        } else {
+          value = JSON.stringify(prop.value);
+        }
+
+        // Use the full key as the property name (e.g., "color3f inputs:color")
+        // But we need to handle the type declaration if it's part of the key
+        if (prop.key.startsWith('color3f ') || prop.key.startsWith('float3 ')) {
+          usda += `${space}    ${prop.key} = ${value}\n`;
+        } else {
+          // If type is not in key, assume it's needed or handled by type property
+          // For inputs:color on lights, we usually see "color3f inputs:color"
+          usda += `${space}    ${prop.key} = ${value}\n`;
+        }
+      }
+
       // Add shader properties first (in node body)
       for (const prop of shaderProperties) {
         if (prop.value === undefined || prop.value === "") {
@@ -644,11 +675,11 @@ export class UsdNode {
           } else if ((prop.key.includes("inputs:wrapS") || prop.key.includes("inputs:wrapT") || prop.key.includes("inputs:sourceColorSpace"))) {
             // For token inputs with specific values, quote them
             value = JSON.stringify(prop.value);
-          } else if (prop.key.includes("inputs:") && (prop.key.includes("diffuseColor") || prop.key.includes("emissiveColor") || prop.key.includes("specularColor"))) {
+          } else if (prop.key.includes("inputs:") && (prop.key.includes("diffuseColor") || prop.key.includes("emissiveColor") || prop.key.includes("specularColor") || prop.key.includes("inputs:color"))) {
             // For color inputs, don't quote the values
             value = prop.value;
-          } else if (prop.type === 'float4' || prop.type === 'float3' || prop.type === 'float2' || prop.type === 'float') {
-            // For float types with explicit type annotation, don't quote
+          } else if (prop.type === 'float4' || prop.type === 'float3' || prop.type === 'float2' || prop.type === 'float' || prop.type === 'color3f') {
+            // For float/color types with explicit type annotation, don't quote
             value = prop.value;
           } else if (prop.type === 'int') {
             // For int types, don't quote

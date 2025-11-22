@@ -38,6 +38,9 @@ const usdzBlob2 = await usd.convert('./model.gltf');
 // Convert OBJ file to USDZ
 const usdzBlob3 = await usd.convert('./model.obj');
 
+// Convert FBX file to USDZ
+const usdzBlob4 = await usd.convert('./model.fbx');
+
 // Save the result
 const fs = require('fs');
 const buffer = await usdzBlob.arrayBuffer();
@@ -241,6 +244,44 @@ const usdzBlob = await usd.convert('./model.obj');
 4. Generate USD mesh nodes with embedded geometry
 5. Apply transformations for proper scaling and centering
 6. Package as USDZ with 64-byte alignment
+
+### FBX File Support
+
+The framework supports FBX files via `fbx2gltf` conversion:
+
+```javascript
+const { defineConfig } = require('./build/index.js');
+
+const usd = defineConfig({
+  debug: true,
+  debugOutputDir: './debug-output',
+});
+
+// Convert FBX file to USDZ
+// Automatically handles:
+// - Binary and ASCII FBX formats
+// - Embedded textures
+// - Skeletal animations
+// - Skinning weights
+const usdzBlob = await usd.convert('./model.fbx');
+```
+
+**Supported FBX Features:**
+
+- Meshes and geometry
+- Materials and textures (embedded or external)
+- Skeletal animations (bones/joints)
+- Skinning weights
+- Scene hierarchy
+- Cameras and Lights
+
+**FBX Conversion Process:**
+
+1. Convert FBX to GLTF using `fbx2gltf`
+2. Process GLTF structure to USD
+3. Convert animations to USD SkelAnimation
+4. Bind skeletons and meshes
+5. Package as USDZ
 
 ## **:handshake: Contributing**
 

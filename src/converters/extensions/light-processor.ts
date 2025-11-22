@@ -94,6 +94,9 @@ export function applyLightToUsdNode(usdNode: UsdNode, lightProps: LightPropertie
   // Create light prim as child of the node
   const lightNode = new UsdNode(`${nodePath}/Light`, lightType);
 
+  // Set purpose to "guide" to prevent lights from rendering as visible geometry
+  lightNode.setProperty('token purpose', 'guide', 'token');
+
   // Set color (RGB)
   lightNode.setProperty('color3f inputs:color', `(${lightProps.color[0]}, ${lightProps.color[1]}, ${lightProps.color[2]})`, 'color3f');
 

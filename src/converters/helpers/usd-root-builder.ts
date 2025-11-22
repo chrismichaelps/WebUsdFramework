@@ -5,6 +5,7 @@
  */
 
 import { UsdNode } from '../../core/usd-node';
+import { sanitizeName } from '../../utils';
 import {
   USD_NODE_TYPES,
   USD_ROOT_PATHS,
@@ -77,7 +78,7 @@ function createSceneNode(
   scenesNode: UsdNode,
   sceneName?: string
 ): UsdNode {
-  const name = sceneName || USD_DEFAULT_NAMES.SCENE;
+  const name = sanitizeName(sceneName || USD_DEFAULT_NAMES.SCENE);
   const sceneNode = new UsdNode(
     `${USD_ROOT_PATHS.SCENES}/${name}`,
     USD_NODE_TYPES.XFORM

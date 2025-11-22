@@ -21,7 +21,12 @@ import { UsdNode } from '../core/usd-node';
 import { sanitizeName } from '../utils/name-utils';
 import { bakeVertexColorsToTexture } from './helpers/vertex-color-baker';
 import { ExtensionFactory } from './extensions/extension-factory';
-import { extractTextureTransform } from './extensions/processors/texture-utils';
+import {
+  generateTextureId,
+  extractTextureTransform,
+  getCleanTextureImage,
+  getTextureExtension
+} from './extensions/processors/texture-utils';
 
 /**
  * Texture type definitions based on GLTF standard and extensions
@@ -1268,69 +1273,17 @@ function createOptimizedTextureShader(
 /**
  * Extract texture data as ArrayBuffer
  */
+/**
+ * Extract texture data as ArrayBuffer
+ */
 export async function extractTextureData(texture: Texture): Promise<ArrayBuffer> {
-  const image = texture.getImage();
-  if (!image) {
+  const cleanData = getCleanTextureImage(texture);
+  if (!cleanData) {
     throw new Error(`Texture has no image data`);
   }
 
-  // Image data is already in PNG/JPEG format from GLTF
-  // Convert ArrayBufferLike to ArrayBuffer
-  return image.buffer as ArrayBuffer;
-}
-
-/**
- * Get the correct file extension for a texture based on its data
- */
-function getTextureExtension(texture: Texture): string {
-  const image = texture.getImage();
-  if (!image) {
-    return 'png'; // Default fallback
-  }
-
-  const buffer = image.buffer as ArrayBuffer;
-  const uint8Array = new Uint8Array(buffer);
-
-  // Check for JPEG magic bytes (FF D8 FF)
-  if (uint8Array.length >= 3 && uint8Array[0] === 0xFF && uint8Array[1] === 0xD8 && uint8Array[2] === 0xFF) {
-    return 'jpg';
-  }
-
-  // Check for PNG magic bytes (89 50 4E 47 0D 0A 1A 0A)
-  if (uint8Array.length >= 8 &&
-    uint8Array[0] === 0x89 && uint8Array[1] === 0x50 && uint8Array[2] === 0x4E && uint8Array[3] === 0x47 &&
-    uint8Array[4] === 0x0D && uint8Array[5] === 0x0A && uint8Array[6] === 0x1A && uint8Array[7] === 0x0A) {
-    return 'png';
-  }
-
-  // Default to PNG if format is not recognized
-  return 'png';
-}
-
-/**
- * Generate a unique texture ID based on texture data hash and type
- */
-async function generateTextureId(texture: Texture, type: string): Promise<string> {
-  const image = texture.getImage();
-  if (!image) {
-    throw new Error(`Texture has no image data`);
-  }
-
-  const buffer = image.buffer as ArrayBuffer;
-
-  // Create a simple hash from the texture data
-  const uint8Array = new Uint8Array(buffer);
-  let hash = 0;
-  const step = Math.max(1, Math.floor(uint8Array.length / 1000)); // Sample every nth byte for performance
-
-  for (let i = 0; i < uint8Array.length; i += step) {
-    hash = ((hash << 5) - hash + uint8Array[i]) & 0xffffffff;
-  }
-
-  // Convert to positive hex string and take first 8 characters
-  const hashStr = Math.abs(hash).toString(16).substring(0, 8);
-
-  return `${hashStr}_${type}`;
+  // Convert Uint8Array to ArrayBuffer
+  return cleanData.buffer.slice(cleanData.byteOffset, cleanData.byteOffset + cleanData.byteLength) as ArrayBuffer;
 }
 
 /**

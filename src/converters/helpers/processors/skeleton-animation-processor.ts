@@ -70,16 +70,45 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
     }
 
     const channels = animation.listChannels();
+    
+    // Debug: log channel count and target info
+    this.logger.info(`Checking if animation ${animation.getName()} can be processed`, {
+      channelCount: channels.length,
+      skeletonCount: context.skeletonMap.size
+    });
 
     for (const channel of channels) {
       const targetNode = channel.getTargetNode();
       if (!targetNode) continue;
 
-      for (const [, skeletonData] of context.skeletonMap) {
+      for (const [skin, skeletonData] of context.skeletonMap) {
+        // Debug: check if target matches
+        const hasTarget = skeletonData.jointNodes.has(targetNode);
+        const skinJoints = skin.listJoints();
+        const isInSkinJoints = skinJoints.includes(targetNode);
+        
+        this.logger.debug(`Checking target node ${targetNode.getName()}`, {
+          hasInJointNodesMap: hasTarget,
+          isInSkinJoints,
+          skinJointCount: skinJoints.length,
+          jointNodesMapSize: skeletonData.jointNodes.size
+        });
+        
         if (skeletonData.jointNodes.has(targetNode)) {
           return true;
         }
       }
+    }
+    
+    // Log why we failed
+    if (channels.length > 0) {
+        const firstTarget = channels[0].getTargetNode();
+        this.logger.warn(`Animation ${animation.getName()} targets node ${firstTarget?.getName()} which is not in any skeleton`, {
+            targetNodeName: firstTarget?.getName(),
+            skeletonCount: context.skeletonMap.size
+        });
+    } else {
+      this.logger.warn(`Animation ${animation.getName()} has no channels`);
     }
 
     return false;
@@ -691,7 +720,7 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
  * This connects the skeleton to its SkelAnimation so viewers know what to play.
  */
 export function setSkeletonAnimationSources(
-  animationSourcesMap: Map<Skin, Array<{ path: string; name: string; index: number }>>,
+  animationSourcesMap: Map<Skin, Array<{ path: string; name: string; index: number; duration: number }>>,
   skeletonMap: Map<Skin, SkeletonData>,
   logger: Logger
 ): void {
@@ -702,15 +731,28 @@ export function setSkeletonAnimationSources(
     const skelRootNode = skeletonData.skelRootNode;
     const skelPrim = skeletonData.skeletonPrimNode;
 
-    const firstAnimationSource = `<${animationSources[0].path}>`;
+    // Find the best animation to use as default (longest duration)
+    // If all have 0 duration, use the first one
+    let defaultAnim = animationSources[0];
+    let maxDuration = -1;
 
-    const isUsingIndex0 = animationSources[0].index === 0;
+    for (const anim of animationSources) {
+      if (anim.duration > maxDuration) {
+        maxDuration = anim.duration;
+        defaultAnim = anim;
+      }
+    }
+
+    const defaultAnimationSource = `<${defaultAnim.path}>`;
+
+    const isUsingIndex0 = defaultAnim.index === 0;
     logger.info(`Setting animation source for skeleton`, {
       skeletonPath: skelRootNode.getPath(),
       skeletonPrimPath: skelPrim?.getPath(),
-      animationIndex: animationSources[0].index,
-      animationName: animationSources[0].name,
-      animationPath: animationSources[0].path,
+      animationIndex: defaultAnim.index,
+      animationName: defaultAnim.name,
+      animationPath: defaultAnim.path,
+      duration: defaultAnim.duration,
       isUsingIndex0,
       totalAnimations: animationSources.length
     });
@@ -718,28 +760,27 @@ export function setSkeletonAnimationSources(
     // Set animation source on Skeleton prim
     if (skelPrim) {
       ApiSchemaBuilder.addApiSchema(skelPrim, API_SCHEMAS.SKEL_BINDING);
-      skelPrim.setProperty('rel skel:animationSource', firstAnimationSource, 'rel');
+      skelPrim.setProperty('rel skel:animationSource', defaultAnimationSource, 'rel');
     }
 
     // Also set animation source on SkelRoot - Xcode/RealityKit needs it here, not just on the Skeleton prim
     ApiSchemaBuilder.addApiSchema(skelRootNode, API_SCHEMAS.SKEL_BINDING);
-    skelRootNode.setProperty('rel skel:animationSource', firstAnimationSource, 'rel');
+    skelRootNode.setProperty('rel skel:animationSource', defaultAnimationSource, 'rel');
 
     // Set the default animation name in customData
     if (animationSources.length > 0) {
-      const firstAnim = animationSources[0];
-      skelRootNode.setProperty('customData', { defaultAnimation: firstAnim.name });
+      skelRootNode.setProperty('customData', { defaultAnimation: defaultAnim.name });
       logger.info('Set customData.defaultAnimation on SkelRoot', {
         skelRootPath: skelRootNode.getPath(),
-        defaultAnimation: firstAnim.name,
-        animationPath: firstAnim.path
+        defaultAnimation: defaultAnim.name,
+        animationPath: defaultAnim.path
       });
     }
 
     logger.info(`Set all animations on skeleton`, {
       skeletonPath: skelRootNode.getPath(),
       animationCount: animationSources.length,
-      animations: animationSources.map(a => ({ index: a.index, name: a.name }))
+      animations: animationSources.map(a => ({ index: a.index, name: a.name, duration: a.duration }))
     });
   }
 }
