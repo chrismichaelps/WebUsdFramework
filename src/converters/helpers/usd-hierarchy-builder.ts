@@ -488,7 +488,17 @@ function attachGeometryReference(
   // Add standard mesh properties
   node.setProperty('token subdivisionScheme', 'none', 'token');
   node.setProperty('token visibility', 'inherited', 'token');
-  node.setProperty('token purpose', 'default', 'token');
+
+  // Set purpose to "guide" for control bones/helpers (hide from rendering)
+  // These are typically named with "Bone" in the name and are helper geometry
+  const nodePath = node.getPath();
+  const isControlBone = nodePath.includes('Bone') || nodePath.includes('_Bone_') || nodePath.includes('Armature');
+
+  if (isControlBone) {
+    node.setProperty('token purpose', 'guide', 'token');
+  } else {
+    node.setProperty('token purpose', 'default', 'token');
+  }
 }
 
 /**

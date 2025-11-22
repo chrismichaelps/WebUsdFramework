@@ -82,7 +82,7 @@ export function processAnimations(
   };
 
   const defaultFrameRate = ANIMATION.FRAME_RATE;
-  const animationSourcesMap = new Map<Skin, Array<{ path: string; name: string; index: number }>>();
+  const animationSourcesMap = new Map<Skin, Array<{ path: string; name: string; index: number; duration: number }>>();
   let firstAnimationDuration = 0;
   let detectedFrameRate: number | undefined = undefined;
   let firstAnimationMaxTimeCode: number | undefined = undefined;
@@ -135,11 +135,20 @@ export function processAnimations(
       continue;
     }
 
-    // Save duration, frame rate, and max time code from the first animation for header metadata
-    if (animIdx === 0) {
+    // Save duration, frame rate, and max time code
+    // We track the maximum duration across all animations to ensure the timeline covers everything
+    if (animationResult.duration > firstAnimationDuration) {
       firstAnimationDuration = animationResult.duration;
+    }
+
+    if (animationResult.detectedFrameRate && (!detectedFrameRate || animationResult.detectedFrameRate > detectedFrameRate)) {
       detectedFrameRate = animationResult.detectedFrameRate;
-      firstAnimationMaxTimeCode = animationResult.maxTimeCode;
+    }
+
+    if (animationResult.maxTimeCode !== undefined) {
+      if (firstAnimationMaxTimeCode === undefined || animationResult.maxTimeCode > firstAnimationMaxTimeCode) {
+        firstAnimationMaxTimeCode = animationResult.maxTimeCode;
+      }
     }
 
     // Collect skeleton animation sources so we can link them later
@@ -151,7 +160,8 @@ export function processAnimations(
       animationSourcesMap.get(targetSkin)!.push({
         path,
         name,
-        index
+        index,
+        duration: animationResult.duration
       });
     }
   }
