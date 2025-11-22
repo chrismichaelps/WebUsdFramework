@@ -11,8 +11,18 @@ dist/
 *.tsbuildinfo
 
 # Test files
-test-converter.js
+test-*.py
+test-*.js
+*test*.py
+analyze-*.js
+check-*.js
+compare-gltf-usdz.js
+debug-morph-targets.js
 rebuild.sh
+
+# Scripts
+open-usda.sh
+setup-usd-env.sh
 
 # Example files
 glb-files-examples/

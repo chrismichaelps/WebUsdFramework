@@ -57,9 +57,9 @@ class GlbParser implements IGltfParser {
           material.setBaseColorFactor(diffuseFactor);
         }
 
-        // Set metallic-roughness defaults (non-metallic, slightly rough)
-        material.setMetallicFactor(0.0);
-        material.setRoughnessFactor(0.9);
+        // DO NOT set metallic/roughness factors for PBRSpecularGlossiness materials
+        // These materials use specular workflow, not metallic/roughness workflow
+        // Setting these values would interfere with the specular workflow in USD PreviewSurface
       }
     }
   }
@@ -113,9 +113,9 @@ class GltfParser implements IGltfParser {
           material.setBaseColorFactor(diffuseFactor);
         }
 
-        // Set metallic-roughness defaults (non-metallic, slightly rough)
-        material.setMetallicFactor(0.0);
-        material.setRoughnessFactor(0.9);
+        // DO NOT set metallic/roughness factors for PBRSpecularGlossiness materials
+        // These materials use specular workflow, not metallic/roughness workflow
+        // Setting these values would interfere with the specular workflow in USD PreviewSurface
       }
     }
   }
@@ -207,9 +207,9 @@ class GltfParserWithFallback implements IGltfParser {
           material.setBaseColorFactor(diffuseFactor);
         }
 
-        // Set metallic-roughness defaults (non-metallic, slightly rough)
-        material.setMetallicFactor(0.0);
-        material.setRoughnessFactor(0.9);
+        // DO NOT set metallic/roughness factors for PBRSpecularGlossiness materials
+        // These materials use specular workflow, not metallic/roughness workflow
+        // Setting these values would interfere with the specular workflow in USD PreviewSurface
       }
     }
   }
