@@ -1,5 +1,5 @@
 # WebUsdFramework
-Library for converting GLB/GLTF/OBJ 3D models to USDZ format.
+Library for converting GLB/GLTF/OBJ/FBX 3D models to USDZ format.
 
 This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
 
