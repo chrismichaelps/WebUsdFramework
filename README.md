@@ -1,5 +1,5 @@
 # WebUsdFramework
-Library for converting GLB/GLTF/OBJ/FBX 3D models to USDZ format.
+Library for converting GLB/GLTF/OBJ/FBX/STL 3D models to USDZ format.
 
 This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
 
@@ -47,6 +47,9 @@ const usdzBlob3 = await usd.convert('./model.obj');
 
 // Convert FBX file to USDZ
 const usdzBlob4 = await usd.convert('./model.fbx');
+
+// Convert STL file to USDZ
+const usdzBlob5 = await usd.convert('./model.stl'); // or usd.convert('./path/to/stl/folder');
 
 // Save the result
 const fs = require('fs');
