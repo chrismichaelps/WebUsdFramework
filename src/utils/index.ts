@@ -7,3 +7,4 @@ export * from './usd-formatter';
 export * from './matrix-utils';
 export * from './transform-utils';
 export * from './time-code-converter';
+export * from './file-utils';

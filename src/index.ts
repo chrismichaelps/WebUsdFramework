@@ -1,7 +1,7 @@
 /**
  * WebUSD Framework
  * 
- * Converts GLB/GLTF/OBJ/FBX files to USDZ format.
+ * Converts GLB/GLTF/OBJ/FBX/STL files to USDZ format.
  * 
  * @example
  * ```typescript
@@ -15,12 +15,14 @@
  * const usdzBlob = await usd.convert('model.glb');
  * const usdzBlob2 = await usd.convert('model.obj');
  * const usdzBlob3 = await usd.convert('model.fbx');
+ * const usdzBlob4 = await usd.convert('model.stl');
  * ```
  */
 
 import { convertGlbToUsdz } from './converters/gltf-transform-converter';
 import { convertObjToUsdz } from './converters/obj-converter';
 import { convertFbxToGltfViaTool } from './converters/fbx-to-gltf-via-tool';
+import { convertStlToUsdz } from './converters/stl-converter';
 import { UsdErrorFactory } from './errors';
 import { WebUsdConfigSchema, type WebUsdConfig } from './schemas';
 import { ZodError } from 'zod';
@@ -135,6 +137,18 @@ export class WebUsdFramework {
 
         // Then convert GLB to USDZ
         return await convertGlbToUsdz(glbBuffer, this.config);
+      } else if (fileExtension === '.stl') {
+        // Convert STL to USDZ
+        const stlConfig = {
+          debug: this.config.debug,
+          debugOutputDir: this.config.debugOutputDir,
+          upAxis: this.config.upAxis,
+          metersPerUnit: this.config.metersPerUnit,
+          optimizeMesh: false,
+          defaultColor: [0.7, 0.7, 0.7] as [number, number, number],
+          autoComputeNormals: true
+        };
+        return await convertStlToUsdz(filePath, stlConfig);
       } else {
         throw UsdErrorFactory.conversionError(
           `Unsupported file format: ${fileExtension}`,
@@ -223,3 +237,10 @@ export function defineConfig(config: Partial<WebUsdConfig> = {}): WebUsdFramewor
  * TypeScript type exports
  */
 export type { WebUsdConfig } from './schemas';
+
+/**
+ * Direct converter exports
+ */
+export { convertGlbToUsdz } from './converters/gltf-transform-converter';
+export { convertObjToUsdz } from './converters/obj-converter';
+export { convertStlToUsdz } from './converters/stl-converter';

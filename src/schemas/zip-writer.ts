@@ -123,7 +123,14 @@ export const ZipHeaderSchema = z.object({
  * Type exports for TypeScript
  */
 export type ZipWriterOptions = z.infer<typeof ZipWriterOptionsSchema>;
-export type ZipFileInfo = z.infer<typeof ZipFileInfoSchema>;
+export interface ZipFileInfo {
+  name: string;
+  data: Uint8Array | Uint8Array[];
+  offset: number;
+  size: number;
+  uncompressedSize: number;
+  crc32: number;
+}
 export type FileName = z.infer<typeof FileNameSchema>;
 export type FileData = z.infer<typeof FileDataSchema>;
 export type ArchiveSize = z.infer<typeof ArchiveSizeSchema>;

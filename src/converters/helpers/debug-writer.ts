@@ -15,7 +15,7 @@ import { getTextureExtensionFromData } from './usd-packaging';
  * Debug Output Content
  */
 export interface DebugOutputContent {
-  usdContent: string;
+  usdContent: string | Generator<string>;
   geometryFiles: Map<string, ArrayBuffer>;
   textureFiles: Map<string, ArrayBuffer>;
   usdzBlob: Blob;
@@ -52,12 +52,33 @@ function ensureDirectoryExists(dirPath: string): void {
  */
 async function writeUsdFile(
   debugDir: string,
-  usdContent: string,
+  usdContent: string | Generator<string>,
   logger: Logger
 ): Promise<void> {
   const usdPath = path.join(debugDir, USD_FILE_NAMES.MODEL);
-  fs.writeFileSync(usdPath, usdContent);
-  logger.info(`Written ${usdPath}`, { fileSize: usdContent.length });
+
+  if (typeof usdContent === 'string') {
+    fs.writeFileSync(usdPath, usdContent);
+    logger.info(`Written ${usdPath}`, { fileSize: usdContent.length });
+  } else {
+    // Handle generator - write chunks
+    const writeStream = fs.createWriteStream(usdPath);
+    let totalSize = 0;
+
+    for (const chunk of usdContent) {
+      writeStream.write(chunk);
+      totalSize += chunk.length;
+    }
+
+    writeStream.end();
+
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+
+    logger.info(`Written ${usdPath}`, { fileSize: totalSize });
+  }
 }
 
 /**
