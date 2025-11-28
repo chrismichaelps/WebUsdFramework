@@ -296,6 +296,7 @@ const usdzBlob = await usd.convert('./model.fbx');
 The framework includes native support for STL (Stereolithography) files, widely used in 3D printing:
 
 ```javascript
+const fs = require('fs');
 const { defineConfig } = require('./build/index.js');
 
 const usd = defineConfig({
@@ -310,6 +311,9 @@ const usdzBlob = await usd.convert('./model.stl');
 // Generates separate USDZ files for each STL in the folder
 // Useful for multi-part 3D print models
 const batchResult = await usd.convert('./path/to/stl/folder');
+
+const buffer = await usdzBlob.arrayBuffer();
+fs.writeFileSync('output.usdz', Buffer.from(buffer));
 ```
 
 **Supported STL Features:**
