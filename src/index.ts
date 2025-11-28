@@ -19,10 +19,10 @@
  * ```
  */
 
-import { convertGlbToUsdz } from './converters/gltf-transform-converter';
-import { convertObjToUsdz } from './converters/obj-converter';
-import { convertFbxToGltfViaTool } from './converters/fbx-to-gltf-via-tool';
-import { convertStlToUsdz } from './converters/stl-converter';
+import { convertGlbToUsdz } from './converters/gltf';
+import { convertObjToUsdz } from './converters/obj';
+import { convertFbxToGltfViaTool } from './converters/fbx';
+import { convertStlToUsdz } from './converters/stl';
 import { UsdErrorFactory } from './errors';
 import { WebUsdConfigSchema, type WebUsdConfig } from './schemas';
 import { ZodError } from 'zod';
@@ -241,6 +241,6 @@ export type { WebUsdConfig } from './schemas';
 /**
  * Direct converter exports
  */
-export { convertGlbToUsdz } from './converters/gltf-transform-converter';
-export { convertObjToUsdz } from './converters/obj-converter';
-export { convertStlToUsdz } from './converters/stl-converter';
+export { convertGlbToUsdz } from './converters/gltf';
+export { convertObjToUsdz } from './converters/obj';
+export { convertStlToUsdz } from './converters/stl';
