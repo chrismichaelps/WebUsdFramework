@@ -291,6 +291,46 @@ const usdzBlob = await usd.convert('./model.fbx');
 4. Bind skeletons and meshes
 5. Package as USDZ
 
+### STL File Support
+
+The framework includes native support for STL (Stereolithography) files, widely used in 3D printing:
+
+```javascript
+const { defineConfig } = require('./build/index.js');
+
+const usd = defineConfig({
+  debug: true,
+  debugOutputDir: './debug-output',
+});
+
+// Convert single STL file
+const usdzBlob = await usd.convert('./model.stl');
+
+// Convert folder of STL files (Batch Mode)
+// Generates separate USDZ files for each STL in the folder
+// Useful for multi-part 3D print models
+const batchResult = await usd.convert('./path/to/stl/folder');
+```
+
+**Supported STL Features:**
+
+- **Binary and ASCII STL** formats (auto-detected)
+- **Vertex Colors** (binary STL non-standard extension)
+- **Automatic Centering** (centers model at origin)
+- **Normal Generation** (smooth normals calculation)
+- **Batch Processing** (convert entire folders of parts)
+- **Z-up to Y-up** conversion (standard for STL)
+
+**STL Conversion Process:**
+
+1. Detect format (Binary vs ASCII)
+2. Parse geometry (vertices, normals)
+3. Extract vertex colors (if present in binary header)
+4. Compute bounding box and center model at origin
+5. Generate smooth normals (if missing or requested)
+6. Apply Z-up to Y-up rotation
+7. Package as USDZ with binary encoding
+
 ## **:handshake: Contributing**
 
 - Fork it!

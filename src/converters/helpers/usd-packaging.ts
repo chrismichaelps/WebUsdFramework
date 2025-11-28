@@ -24,7 +24,7 @@ export interface PackageConfig {
  * Package Content
  */
 export interface PackageContent {
-  usdContent: string;
+  usdContent: string | Generator<string>;
   geometryFiles: Map<string, ArrayBuffer>;
   textureFiles: Map<string, ArrayBuffer>;
 }
@@ -44,8 +44,17 @@ export async function createUsdzPackage(
   });
 
   // Add main USD file
-  const usdContentBytes = new TextEncoder().encode(content.usdContent);
-  zipWriter.addFile(USD_FILE_NAMES.MODEL, usdContentBytes);
+  let usdContentChunks: Uint8Array[] = [];
+  if (typeof content.usdContent === 'string') {
+    usdContentChunks = [new TextEncoder().encode(content.usdContent)];
+  } else {
+    // Generator - encode chunks
+    const encoder = new TextEncoder();
+    for (const chunk of content.usdContent) {
+      usdContentChunks.push(encoder.encode(chunk));
+    }
+  }
+  zipWriter.addFile(USD_FILE_NAMES.MODEL, usdContentChunks);
 
   // Add geometry files
   for (const [geometryPath, geometryData] of content.geometryFiles) {

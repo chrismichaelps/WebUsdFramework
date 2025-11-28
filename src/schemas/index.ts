@@ -121,3 +121,7 @@ export { UpAxisSchema, CompressionSchema } from './base-schemas';
 
 // Re-export OBJ schemas
 export { ObjConverterConfigSchema, type ObjConverterConfig } from './obj-schemas';
+
+// Re-export STL schemas
+export { StlConverterConfigSchema, type StlConverterConfig } from './stl-schemas';
+

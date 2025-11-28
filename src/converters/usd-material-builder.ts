@@ -148,7 +148,7 @@ export async function buildUsdMaterial(
 
   const transform2d = new UsdNode(`${materialPath}/Transform2d_st`, 'Shader');
   transform2d.setProperty('uniform token info:id', 'UsdTransform2d');
-  transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_st.outputs:result>`, 'float2');
+  transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_st.outputs:result>`, 'connection');
   // Default values - will be updated if texture transform is found
   transform2d.setProperty('float inputs:rotation', '0', 'float');
   transform2d.setProperty('float2 inputs:scale', '(1, 1)', 'float2');
@@ -1166,7 +1166,7 @@ function createOptimizedTextureShader(
     const primvarName = uvSetIndex === 0 ? 'st' : `st${uvSetIndex}`;
     sharedTransform2d = new UsdNode(`${materialPath}/Transform2d_${primvarName}`, 'Shader');
     sharedTransform2d.setProperty('uniform token info:id', 'UsdTransform2d');
-    sharedTransform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_${primvarName}.outputs:result>`, 'float2');
+    sharedTransform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_${primvarName}.outputs:result>`, 'connection');
     sharedTransform2d.setProperty('float inputs:rotation', '0', 'float');
     sharedTransform2d.setProperty('float2 inputs:scale', '(1, 1)', 'float2');
     sharedTransform2d.setProperty('float2 inputs:translation', '(0, 0)', 'float2');
@@ -1209,7 +1209,7 @@ function createOptimizedTextureShader(
       const transform2dName = `Transform2d_${textureId}`;
       transform2d = new UsdNode(`${materialPath}/${transform2dName}`, 'Shader');
       transform2d.setProperty('uniform token info:id', 'UsdTransform2d');
-      transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_${primvarName}.outputs:result>`, 'float2');
+      transform2d.setProperty('float2 inputs:in.connect', `<${materialPath}/PrimvarReader_${primvarName}.outputs:result>`, 'connection');
 
       const rotationRad = textureTransform.rotation;
       const rotationDeg = (rotationRad * 180) / Math.PI;
@@ -1232,7 +1232,7 @@ function createOptimizedTextureShader(
   textureShader.setProperty(
     'float2 inputs:st.connect',
     transformConnection,
-    'token'
+    'connection'
   );
 
   // Add scale and bias based on texture type

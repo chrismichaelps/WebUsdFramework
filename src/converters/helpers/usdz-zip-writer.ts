@@ -5,14 +5,10 @@
  * Uses CRC32 checksums, DOS timestamps, and uncompressed storage.
  */
 
-import * as crc32 from 'crc-32';
 import {
   ZipWriterOptionsSchema,
-  ZipFileInfoSchema,
   FileNameSchema,
-  FileDataSchema,
   FileCountSchema,
-  Crc32Schema,
   DosTimeSchema,
   DosDateSchema,
   type ZipWriterOptions,
@@ -52,32 +48,44 @@ export class UsdzZipWriter {
   /**
    * Add a file to the ZIP archive
    */
-  addFile(fileName: string, data: Uint8Array): string {
+  addFile(fileName: string, data: Uint8Array | Uint8Array[]): string {
     // Validate file name
     const validatedFileName = FileNameSchema.parse(fileName);
 
-    // Validate file data
-    const validatedData = FileDataSchema.parse(data);
+    // Normalize data to chunks
+    const chunks = Array.isArray(data) ? data : [data];
 
-    // Calculate CRC32
-    const crc32 = this.calculateCrc32(validatedData);
+    // Calculate total size and CRC32
+    let size = 0;
+    let crc = ZIP_CONSTANTS.CRC32_INITIAL;
+    const crcTable = this.getCrc32Table();
+
+    for (const chunk of chunks) {
+      size += chunk.length;
+
+      // Update CRC32 for this chunk
+      for (let i = 0; i < chunk.length; i++) {
+        const byte = chunk[i];
+        crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+      }
+    }
+
+    // Finalize CRC32
+    const crc32 = (crc ^ ZIP_CONSTANTS.CRC32_INITIAL) >>> 0;
 
     const fileInfo: ZipFileInfo = {
       name: validatedFileName,
-      data: validatedData,
+      data: chunks, // Store as chunks
       offset: this.currentOffset, // This will be updated in generate()
-      size: validatedData.length,
-      uncompressedSize: validatedData.length,
+      size: size,
+      uncompressedSize: size,
       crc32: crc32
     };
 
-    // Validate file info
-    const validatedFileInfo = ZipFileInfoSchema.parse(fileInfo);
-
-    this.files.push(validatedFileInfo);
-
     // Update offset for next file (header size + filename length + data length)
-    this.currentOffset += ZIP_CONSTANTS.LOCAL_FILE_HEADER_SIZE + validatedFileName.length + validatedData.length;
+    this.currentOffset += ZIP_CONSTANTS.LOCAL_FILE_HEADER_SIZE + validatedFileName.length + size;
+
+    this.files.push(fileInfo);
 
     return validatedFileName;
   }
@@ -106,8 +114,16 @@ export class UsdzZipWriter {
       chunks.push(header);
       totalSize += header.length;
 
-      chunks.push(file.data);
-      totalSize += file.data.length;
+      // Write file data (handle chunks)
+      if (Array.isArray(file.data)) {
+        for (const chunk of file.data) {
+          chunks.push(chunk);
+          totalSize += chunk.length;
+        }
+      } else {
+        chunks.push(file.data);
+        totalSize += file.data.length;
+      }
     }
 
     // 2. Add padding before central directory
@@ -173,7 +189,7 @@ export class UsdzZipWriter {
     const totalHeaderSize = baseHeaderSize + extraFieldLength;
 
     const header = new Uint8Array(totalHeaderSize);
-    const view = new DataView(header.buffer);
+    const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
 
     // Local file header signature
     view.setUint32(0, ZIP_CONSTANTS.LOCAL_FILE_HEADER_SIGNATURE, true);
@@ -227,7 +243,7 @@ export class UsdzZipWriter {
     const now = new Date();
 
     const header = new Uint8Array(ZIP_CONSTANTS.CENTRAL_DIRECTORY_HEADER_SIZE + nameBytes.length);
-    const view = new DataView(header.buffer);
+    const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
 
     // Central directory file header signature
     view.setUint32(0, ZIP_CONSTANTS.CENTRAL_DIRECTORY_SIGNATURE, true);
@@ -291,7 +307,7 @@ export class UsdzZipWriter {
    */
   private createEndOfCentralDirectoryRecord(centralDirOffset: number, centralDirSize: number): Uint8Array {
     const record = new Uint8Array(ZIP_CONSTANTS.END_OF_CENTRAL_DIRECTORY_SIZE);
-    const view = new DataView(record.buffer);
+    const view = new DataView(record.buffer, record.byteOffset, record.byteLength);
 
     // End of central directory signature
     view.setUint32(0, ZIP_CONSTANTS.END_OF_CENTRAL_DIRECTORY_SIGNATURE, true);
@@ -336,39 +352,6 @@ export class UsdzZipWriter {
     }
     this.crcTable = table;
     return table;
-  }
-
-  /**
-   * Calculate CRC32 checksum with debugging and validation
-   */
-  private calculateCrc32(data: Uint8Array): number {
-    const crcTable = this.getCrc32Table();
-    let crc = ZIP_CONSTANTS.CRC32_INITIAL;
-
-    for (let i = 0; i < data.length; i++) {
-      const byte = data[i];
-      crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-    }
-
-    const result = (crc ^ ZIP_CONSTANTS.CRC32_INITIAL) >>> 0;
-
-    // Validate against external library
-    const libraryCrc = crc32.buf(data) >>> 0;
-
-    if (result !== libraryCrc) {
-      console.warn(`[UsdzZipWriter] CRC32 mismatch for ${data.length} bytes! Using library value.`);
-      return libraryCrc;
-    }
-
-    // Validate CRC32
-    const validatedCrc32 = Crc32Schema.parse(result);
-
-    // Validate empty file CRC32
-    if (data.length === 0) {
-      console.assert(validatedCrc32 === 0, `[UsdzZipWriter] Empty file CRC32 should be 0, got 0x${validatedCrc32.toString(16)}`);
-    }
-
-    return validatedCrc32;
   }
 
   /**
