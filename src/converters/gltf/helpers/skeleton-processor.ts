@@ -903,8 +903,8 @@ export function bindSkeletonToMesh(
 
   // Log joint indices statistics
   if (jointIndices.length > 0) {
-    const minIndex = Math.min(...jointIndices);
-    const maxIndex = Math.max(...jointIndices);
+    const minIndex = jointIndices.reduce((a, b) => a < b ? a : b, Infinity);
+    const maxIndex = jointIndices.reduce((a, b) => a > b ? a : b, -Infinity);
     const uniqueIndices = new Set(jointIndices).size;
 
     // Get skeleton joint count (from parameter or skeleton prim)
@@ -947,8 +947,8 @@ export function bindSkeletonToMesh(
 
   // Log joint weights statistics
   if (jointWeights.length > 0) {
-    const minWeight = Math.min(...jointWeights);
-    const maxWeight = Math.max(...jointWeights);
+    const minWeight = jointWeights.reduce((a, b) => a < b ? a : b, Infinity);
+    const maxWeight = jointWeights.reduce((a, b) => a > b ? a : b, -Infinity);
     const sumWeights = jointWeights.reduce((a, b) => a + b, 0);
     logger.info('Joint weights statistics', {
       minWeight,
