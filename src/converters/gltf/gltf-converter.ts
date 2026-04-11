@@ -410,8 +410,8 @@ export async function convertGlbToUsdz(
                   mappingLength: gjointToUjointMap.length,
                   mappingSample: gjointToUjointMap.slice(0, 10),
                   skeletonJointCount,
-                  originalIndicesMin: Math.min(...indicesArray),
-                  originalIndicesMax: Math.max(...indicesArray),
+                  originalIndicesMin: indicesArray.reduce((a: number, b: number) => a < b ? a : b, Infinity),
+                  originalIndicesMax: indicesArray.reduce((a: number, b: number) => a > b ? a : b, -Infinity),
                   originalIndicesUnique: new Set(indicesArray).size,
                   originalIndicesSample: indicesArray.slice(0, 20)
                 });
@@ -472,10 +472,10 @@ export async function convertGlbToUsdz(
                 logger.info('Validated joint indices for USD skeleton', {
                   originalIndicesSample: indicesArray.slice(0, 20),
                   validatedIndicesSample: remappedIndices.slice(0, 20),
-                  minOriginal: Math.min(...indicesArray),
-                  maxOriginal: Math.max(...indicesArray),
-                  minValidated: Math.min(...remappedIndices),
-                  maxValidated: Math.max(...remappedIndices),
+                  minOriginal: indicesArray.reduce((a: number, b: number) => a < b ? a : b, Infinity),
+                  maxOriginal: indicesArray.reduce((a: number, b: number) => a > b ? a : b, -Infinity),
+                  minValidated: remappedIndices.reduce((a: number, b: number) => a < b ? a : b, Infinity),
+                  maxValidated: remappedIndices.reduce((a: number, b: number) => a > b ? a : b, -Infinity),
                   uniqueOriginal: new Set(indicesArray).size,
                   uniqueValidated: new Set(remappedIndices).size,
                   changedIndicesCount: changedIndices.length,
