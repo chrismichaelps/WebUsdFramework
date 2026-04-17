@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Interfaces.Index
 
-/** [Project].Interfaces.Index - Core interface contracts for converter pipeline */
+/** WebUsdFramework.Interfaces.Index - Core interface contracts for converter pipeline */
 
 ### [Signatures]
 - `interface IConverter`

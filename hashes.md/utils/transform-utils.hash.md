@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.TransformUtils
 
-/** [Project].Utils.TransformUtils - Translation, rotation, and scale decomposition routines */
+/** WebUsdFramework.Utils.TransformUtils - Translation, rotation, and scale decomposition routines */
 
 ### [Signatures]
 - `decomposeTRS(matrix: number[]): { t: number[], r: number[], s: number[] }`

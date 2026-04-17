@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Obj.Helpers.ObjToUsdAdapter
 
-/** [Project].Converters.Obj.Helpers.ObjToUsdAdapter - Maps parsed OBJ geometry into UsdGeometryBuilder calls */
+/** WebUsdFramework.Converters.Obj.Helpers.ObjToUsdAdapter - Maps parsed OBJ geometry into UsdGeometryBuilder calls */
 
 ### [Signatures]
 - `class ObjToUsdAdapter`

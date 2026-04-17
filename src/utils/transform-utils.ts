@@ -1,10 +1,4 @@
-/**
- * Transform Utilities
- * 
- * Manages USD transform operations and xformOpOrder.
- * USD has strict rules about transforms - you can't mix matrix transforms
- * with individual ops (translate, orient, scale). This keeps everything consistent.
- */
+/** WebUsdFramework.Utils.TransformUtils - Translation, rotation, and scale decomposition routines */
 
 import { UsdNode } from '../core/usd-node';
 import { formatMatrix } from './matrix-utils';

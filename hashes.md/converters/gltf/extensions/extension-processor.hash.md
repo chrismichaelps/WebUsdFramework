@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Extensions.ExtensionProcessor
 
-/** [Project].Converters.Gltf.Extensions.ExtensionProcessor - Dispatcher for executing registered GLTF extensions */
+/** WebUsdFramework.Converters.Gltf.Extensions.ExtensionProcessor - Dispatcher for executing registered GLTF extensions */
 
 ### [Signatures]
 - `class ExtensionProcessor`

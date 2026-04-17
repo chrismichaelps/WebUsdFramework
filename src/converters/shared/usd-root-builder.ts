@@ -1,8 +1,4 @@
-/**
- * USD Root Structure Builder
- * 
- * Builds the root USD hierarchy structure.
- */
+/** WebUsdFramework.Converters.Shared.UsdRootBuilder - USD stage root container assembler */
 
 import { UsdNode } from '../../core/usd-node';
 import { sanitizeName } from '../../utils';

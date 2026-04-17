@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Skeleton
 
-/** [Project].Constants.Skeleton - Joint count limits and skeleton LOD thresholds */
+/** WebUsdFramework.Constants.Skeleton - Joint count limits and skeleton LOD thresholds */
 
 ### [Signatures]
 - `MAX_JOINTS_PER_SKIN: number`

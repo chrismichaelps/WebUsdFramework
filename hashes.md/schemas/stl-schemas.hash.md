@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Schemas.StlSchemas
 
-/** [Project].Schemas.StlSchemas - STL-specific USDA Mesh schema builders */
+/** WebUsdFramework.Schemas.StlSchemas - STL-specific USDA Mesh schema builders */
 
 ### [Signatures]
 - `buildStlMeshPrim(data: StlMeshData): string`

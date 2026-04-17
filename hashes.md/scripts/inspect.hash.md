@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/javascript.hash.md"
 
 ## @WebUsdFramework.Inspect
 
-/** [Project].Scripts.Inspect - Testing oracle verifying content-preservation between source and USDA output */
+/** WebUsdFramework.Inspect - Testing oracle verifying content-preservation between source and USDA output */
 
 ### [Signatures]
 - `$ node scripts/inspect.cjs <source> <outputUsda>`

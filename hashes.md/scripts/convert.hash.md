@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/javascript.hash.md"
 
 ## @WebUsdFramework.Convert
 
-/** [Project].Scripts.Convert - Node CLI delegator to test framework output */
+/** WebUsdFramework.Convert - Node CLI delegator to test framework output */
 
 ### [Signatures]
 - `$ node scripts/convert.cjs <input> [out-dir]`

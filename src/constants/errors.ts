@@ -1,6 +1,4 @@
-/**
- * Error Constants for WebUSD Framework
- */
+/** WebUsdFramework.Constants.Errors - String-keyed error code catalogue */
 
 /**
  * Error Codes

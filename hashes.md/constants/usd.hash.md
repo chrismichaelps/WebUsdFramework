@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Usd
 
-/** [Project].Constants.Usd - USD schema token strings and stage metadata keys */
+/** WebUsdFramework.Constants.Usd - USD schema token strings and stage metadata keys */
 
 ### [Signatures]
 - `USD_UP_AXIS: 'Y' | 'Z'`

@@ -1,9 +1,4 @@
-/**
- * Skeleton Processor
- * 
- * Converts GLTF skins to USD Skeleton nodes.
- * Handles joint hierarchies, bind transforms, and rest transforms.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.SkeletonProcessor - Maps GLTF skinning joints to USD SkelRoot and Skeleton nodes */
 
 import { Document, Node, Skin } from '@gltf-transform/core';
 import { UsdNode } from '../../../core/usd-node';

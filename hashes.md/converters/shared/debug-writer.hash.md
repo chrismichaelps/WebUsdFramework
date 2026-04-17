@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Shared.DebugWriter
 
-/** [Project].Converters.Shared.DebugWriter - Diagnostics and intermediate USDA file emit */
+/** WebUsdFramework.Converters.Shared.DebugWriter - Diagnostics and intermediate USDA file emit */
 
 ### [Signatures]
 - `writeDebugUsda(path: string, content: string): void`

@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.Index
 
-/** [Project].Utils.Index - Core framework utility functions barrel */
+/** WebUsdFramework.Utils.Index - Core framework utility functions barrel */
 
 ### [Signatures]
 - Re-exports formatters, converters, encoding, math helpers

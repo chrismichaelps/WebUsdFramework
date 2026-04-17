@@ -1,8 +1,4 @@
-/**
- * OBJ Converter Schemas
- * 
- * Validation schemas for OBJ file conversion configuration.
- */
+/** WebUsdFramework.Schemas.ObjSchemas - OBJ-specific USDA Mesh and material prim builders */
 
 import { z } from 'zod';
 import { UpAxisSchema } from './base-schemas';

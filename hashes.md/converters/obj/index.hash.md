@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Obj.Index
 
-/** [Project].Converters.Obj.Index - OBJ converter barrel export */
+/** WebUsdFramework.Converters.Obj.Index - OBJ converter barrel export */
 
 ### [Signatures]
 - Re-exports ObjConverter

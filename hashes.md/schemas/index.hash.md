@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Schemas.Index
 
-/** [Project].Schemas.Index - USDA prim schema builders and assembly functions */
+/** WebUsdFramework.Schemas.Index - USDA prim schema builders and assembly functions */
 
 ### [Signatures]
 - Builder functions for all USD prim schema types

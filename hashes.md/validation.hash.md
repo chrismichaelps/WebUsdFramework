@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Validation
 
-/** [Project].Src.Validation - Input format and option validation guards */
+/** WebUsdFramework.Validation - Input format and option validation guards */
 
 ### [Signatures]
 - `validateInputPath(p: string): void`

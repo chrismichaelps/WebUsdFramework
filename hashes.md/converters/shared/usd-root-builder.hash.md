@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Shared.UsdRootBuilder
 
-/** [Project].Converters.Shared.UsdRootBuilder - USD stage root container assembler */
+/** WebUsdFramework.Converters.Shared.UsdRootBuilder - USD stage root container assembler */
 
 ### [Signatures]
 - `class UsdRootBuilder`

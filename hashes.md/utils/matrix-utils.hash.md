@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.MatrixUtils
 
-/** [Project].Utils.MatrixUtils - 4x4 affine transformation matrix operations */
+/** WebUsdFramework.Utils.MatrixUtils - 4x4 affine transformation matrix operations */
 
 ### [Signatures]
 - `multiplyMatrix(a: number[], b: number[]): number[]`

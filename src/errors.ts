@@ -1,8 +1,4 @@
-/**
- * Custom Error Classes for USD Operations
- * 
- * Scalable error handling with Zod validation and tagged union pattern.
- */
+/** WebUsdFramework.Errors - Typed error class hierarchy for framework failures */
 
 import { ZodError, ZodIssue } from 'zod';
 import { ERROR_CODES } from './constants/errors';

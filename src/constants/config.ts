@@ -1,6 +1,4 @@
-/**
- * Configuration Constants
- */
+/** WebUsdFramework.Constants.Config - Default framework configuration values */
 
 /**
  * Default Configuration Values

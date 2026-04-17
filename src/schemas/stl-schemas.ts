@@ -1,8 +1,4 @@
-/**
- * STL Converter Schemas
- * 
- * Validation schemas for STL file conversion configuration.
- */
+/** WebUsdFramework.Schemas.StlSchemas - STL-specific USDA Mesh schema builders */
 
 import { z } from 'zod';
 import { UpAxisSchema } from './base-schemas';

@@ -1,9 +1,4 @@
-/**
- * XMP Metadata Extension Processor
- * 
- * Handles KHR_xmp_json_ld extension.
- * Extracts XMP metadata and stores it for USD customLayerData.
- */
+/** WebUsdFramework.Converters.Gltf.Extensions.XmpProcessor - KHR_xmp_json_ld processor translating to USD custom metadata */
 
 import { Document, Scene, Node, Mesh, Material, Texture, Animation } from '@gltf-transform/core';
 import { Packet } from '@gltf-transform/extensions';

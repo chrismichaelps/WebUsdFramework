@@ -1,9 +1,4 @@
-/**
- * USDZ ZIP Writer
- * 
- * ZIP file format with 64-byte alignment for file data.
- * Uses CRC32 checksums, DOS timestamps, and uncompressed storage.
- */
+/** WebUsdFramework.Converters.Shared.UsdzZipWriter - Domain-specific wrapper over zip-writer for USDZ rules */
 
 import {
   ZipWriterOptionsSchema,

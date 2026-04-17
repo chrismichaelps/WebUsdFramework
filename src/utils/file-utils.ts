@@ -1,8 +1,4 @@
-/**
- * File Utilities
- * 
- * Utility functions for file system operations.
- */
+/** WebUsdFramework.Utils.FileUtils - Virtual filesystem and path manipulation functions */
 
 import * as fs from 'fs';
 import * as path from 'path';

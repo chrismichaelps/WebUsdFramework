@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Helpers.SkeletonProcessor
 
-/** [Project].Converters.Gltf.Helpers.SkeletonProcessor - Maps GLTF skinning joints to USD SkelRoot and Skeleton nodes */
+/** WebUsdFramework.Converters.Gltf.Helpers.SkeletonProcessor - Maps GLTF skinning joints to USD SkelRoot and Skeleton nodes */
 
 ### [Signatures]
 - `class SkeletonProcessor`

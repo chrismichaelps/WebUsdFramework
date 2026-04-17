@@ -1,3 +1,5 @@
+/** WebUsdFramework.Converters.Obj.ObjConverter - Main OBJ to USDZ converter orchestra */
+
 import { ObjConverterConfig } from '../../schemas';
 import { Logger, LoggerFactory } from '../../utils';
 import { ObjParserFactory } from './obj-parser';

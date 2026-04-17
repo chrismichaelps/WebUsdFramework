@@ -1,10 +1,4 @@
-/**
- * API Schema Builder
- * 
- * Handles USD node API schemas in a clean, consistent way.
- * Think of this as a helper that manages the "prepend apiSchemas" property
- * on USD nodes, so you don't have to deal with the messy details yourself.
- */
+/** WebUsdFramework.Utils.ApiSchemaBuilder - API schema block generation for USD materials */
 
 import { UsdNode } from '../core/usd-node';
 

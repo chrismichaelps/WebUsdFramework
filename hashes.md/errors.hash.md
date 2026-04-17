@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Errors
 
-/** [Project].Src.Errors - Typed error class hierarchy for framework failures */
+/** WebUsdFramework.Errors - Typed error class hierarchy for framework failures */
 
 ### [Signatures]
 - `class FrameworkError extends Error`

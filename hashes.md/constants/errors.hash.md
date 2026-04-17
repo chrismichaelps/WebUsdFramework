@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Errors
 
-/** [Project].Constants.Errors - String-keyed error code catalogue */
+/** WebUsdFramework.Constants.Errors - String-keyed error code catalogue */
 
 ### [Signatures]
 - `ERROR_CODES: Readonly<Record<string, string>>`

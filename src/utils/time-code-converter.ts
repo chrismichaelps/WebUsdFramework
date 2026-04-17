@@ -1,11 +1,4 @@
-/**
- * Converts animation times between GLTF and USD formats.
- * 
- * GLTF stores animation times in seconds (like 0.033, 0.066, 0.1),
- * but USD needs integer frame numbers (like 0, 1, 2, 3).
- * 
- * This converter also ensures time codes start at 0.
- */
+/** WebUsdFramework.Utils.TimeCodeConverter - GLTF seconds to USDA time code mapping */
 
 import { formatUsdArray } from './usd-formatter';
 

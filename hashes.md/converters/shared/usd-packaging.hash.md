@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Shared.UsdPackaging
 
-/** [Project].Converters.Shared.UsdPackaging - Orchestrates USDA and payloads into final USDZ archive */
+/** WebUsdFramework.Converters.Shared.UsdPackaging - Orchestrates USDA and payloads into final USDZ archive */
 
 ### [Signatures]
 - `packUsdz(usda: string, assets: AssetRecord[]): Promise<Blob>`

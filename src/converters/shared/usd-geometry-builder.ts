@@ -1,8 +1,4 @@
-/**
- * USD Geometry Builder
- * 
- * Extracts geometry from GLTF and formats for USD.
- */
+/** WebUsdFramework.Converters.Shared.UsdGeometryBuilder - Generic agnostic mesh-to-USD translation layer */
 
 import { Mesh, Primitive } from '@gltf-transform/core';
 import { formatUsdTuple3, formatUsdTuple2 } from '../../utils/usd-formatter';

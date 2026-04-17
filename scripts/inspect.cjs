@@ -1,17 +1,5 @@
 #!/usr/bin/env node
-// Inspect a source model and a converted USD(Z) output, emit a content-preservation diff.
-//
-// Usage:
-//   node scripts/inspect.cjs <source> <outputUsda> [--json]
-//
-// The source can be .glb/.gltf/.obj/.stl/.fbx. The outputUsda is the intermediate
-// text USDA the framework writes in debug mode (debug-output/model.usda) — or a
-// path to a .usda that was extracted from the produced .usdz.
-//
-// This script is the framework's own correctness oracle: if the source has N
-// skinned meshes with an animation, the output must have N skel-animated
-// prims. If the source has T triangles, the output must have T. Any mismatch
-// is a conversion bug, regardless of what usdchecker says.
+/** WebUsdFramework.Inspect - Testing oracle verifying content-preservation between source and USDA output */
 
 const fs = require('node:fs');
 const path = require('node:path');

@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Extensions.LightProcessor
 
-/** [Project].Converters.Gltf.Extensions.LightProcessor - KHR_lights_punctual processor translating to USD lights */
+/** WebUsdFramework.Converters.Gltf.Extensions.LightProcessor - KHR_lights_punctual processor translating to USD lights */
 
 ### [Signatures]
 - `class LightProcessor implements IExtensionProcessor`

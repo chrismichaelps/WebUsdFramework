@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Helpers.AnimationProcessorFactory
 
-/** [Project].Converters.Gltf.Helpers.AnimationProcessorFactory - Resolves specific transform/morph processor per channel */
+/** WebUsdFramework.Converters.Gltf.Helpers.AnimationProcessorFactory - Resolves specific transform/morph processor per channel */
 
 ### [Signatures]
 - `class AnimationProcessorFactory`

@@ -1,9 +1,4 @@
-/**
- * GLTF-Transform Converter
- * 
- * Converts GLB/GLTF to USDZ format.
- * Uses external geometry files and handles materials/textures.
- */
+/** WebUsdFramework.Converters.Gltf.GltfConverter - Main orchestration class for GLTF/GLB to USDZ conversion */
 
 import { Document, Node, Skin } from '@gltf-transform/core';
 import { GltfTransformConfig } from '../../schemas';

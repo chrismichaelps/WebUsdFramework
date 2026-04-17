@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Extensions.XmpProcessor
 
-/** [Project].Converters.Gltf.Extensions.XmpProcessor - KHR_xmp_json_ld processor translating to USD custom metadata */
+/** WebUsdFramework.Converters.Gltf.Extensions.XmpProcessor - KHR_xmp_json_ld processor translating to USD custom metadata */
 
 ### [Signatures]
 - `class XmpProcessor implements IExtensionProcessor`

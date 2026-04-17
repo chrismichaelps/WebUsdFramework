@@ -1,23 +1,4 @@
-/**
- * WebUSD Framework
- * 
- * Converts GLB/GLTF/OBJ/FBX/STL files to USDZ format.
- * 
- * @example
- * ```typescript
- * import { defineConfig } from 'webusd-framework';
- * 
- * const usd = defineConfig({
- *   debug: true,
- *   debugOutputDir: './output'
- * });
- * 
- * const usdzBlob = await usd.convert('model.glb');
- * const usdzBlob2 = await usd.convert('model.obj');
- * const usdzBlob3 = await usd.convert('model.fbx');
- * const usdzBlob4 = await usd.convert('model.stl');
- * ```
- */
+/** WebUsdFramework.Index - Public API surface and defineConfig entry point */
 
 import { convertGlbToUsdz } from './converters/gltf';
 import { convertObjToUsdz } from './converters/obj';

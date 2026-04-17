@@ -1,9 +1,4 @@
-/**
- * USD Material Builder
- * 
- * Creates USD materials from GLTF materials.
- * Handles textures and PBR properties.
- */
+/** WebUsdFramework.Converters.Shared.UsdMaterialBuilder - PBR material shading network constructor */
 
 import { Material, Texture, Primitive, Document, TextureInfo } from '@gltf-transform/core';
 import {

@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Extensions.ExtensionFactory
 
-/** [Project].Converters.Gltf.Extensions.ExtensionFactory - Factory for instantiating GLTF extension handlers */
+/** WebUsdFramework.Converters.Gltf.Extensions.ExtensionFactory - Factory for instantiating GLTF extension handlers */
 
 ### [Signatures]
 - `class ExtensionFactory`

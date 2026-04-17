@@ -1,8 +1,4 @@
-/**
- * Encoding and Hashing Utilities
- * 
- * Utility functions for generating deterministic IDs and encoding operations.
- */
+/** WebUsdFramework.Utils.Encoding - Buffer and string encoding translation utilities */
 
 /**
  * Generates a deterministic hash-based ID from an input string

@@ -1,9 +1,4 @@
-/**
- * Matrix Utilities
- * 
- * Formats 4x4 transformation matrices for USD.
- * USD uses row-major matrix format, so we keep the formatting consistent here.
- */
+/** WebUsdFramework.Utils.MatrixUtils - 4x4 affine transformation matrix operations */
 
 import { formatUsdFloat } from './usd-formatter';
 

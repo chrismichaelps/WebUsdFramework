@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.ApiSchemaBuilder
 
-/** [Project].Utils.ApiSchemaBuilder - API schema block generation for USD materials */
+/** WebUsdFramework.Utils.ApiSchemaBuilder - API schema block generation for USD materials */
 
 ### [Signatures]
 - `buildMaterialBindingAPI(materialPath: string): string`

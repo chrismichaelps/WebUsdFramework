@@ -1,9 +1,4 @@
-/**
- * Extension Factory
- * 
- * Manages registration and retrieval of extension processors.
- * Uses the Factory pattern to allow dynamic extension handling.
- */
+/** WebUsdFramework.Converters.Gltf.Extensions.ExtensionFactory - Factory for instantiating GLTF extension handlers */
 
 import { Material } from '@gltf-transform/core';
 import { IExtensionProcessor, ExtensionProcessingContext, ExtensionProcessingResult } from './extension-processor';

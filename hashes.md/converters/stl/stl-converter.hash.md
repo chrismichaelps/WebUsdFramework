@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Stl.StlConverter
 
-/** [Project].Converters.Stl.StlConverter - Main orchestration class for ASCII/Binary STL to USDZ */
+/** WebUsdFramework.Converters.Stl.StlConverter - Main orchestration class for ASCII/Binary STL to USDZ */
 
 ### [Signatures]
 - `class StlConverter implements IConverter`

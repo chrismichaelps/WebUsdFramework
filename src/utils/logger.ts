@@ -1,8 +1,4 @@
-/**
- * Logger for WebUSD Framework
- * 
- * Supports different log levels and timing operations.
- */
+/** WebUsdFramework.Utils.Logger - Hierarchical scoped logging facility */
 
 /**
  * Log Levels

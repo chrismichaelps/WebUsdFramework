@@ -1,8 +1,4 @@
-/**
- * Geometry Processor
- * 
- * Processes GLTF meshes and creates USD geometry files.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.GeometryProcessor - GLTF accessor unpacker and delegator to UsdGeometryBuilder */
 
 import { Mesh } from '@gltf-transform/core';
 import { buildUsdGeometry, wrapGeometryInUsdFile } from '../../shared/usd-geometry-builder';

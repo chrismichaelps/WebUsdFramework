@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/bash.hash.md"
 
 ## @WebUsdFramework.ValidateUsdz
 
-/** [Project].Scripts.ValidateUsdz - E2E bash harness testing build, conversion, oracle inspection, and native toolkit loads */
+/** WebUsdFramework.ValidateUsdz - E2E bash harness testing build, conversion, oracle inspection, and native toolkit loads */
 
 ### [Signatures]
 - `$ scripts/validate-usdz.sh [input-model] [out-dir]`

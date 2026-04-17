@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.TimeCodeConverter
 
-/** [Project].Utils.TimeCodeConverter - GLTF seconds to USDA time code mapping */
+/** WebUsdFramework.Utils.TimeCodeConverter - GLTF seconds to USDA time code mapping */
 
 ### [Signatures]
 - `secondsToTimeCode(seconds: number): number`

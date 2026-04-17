@@ -1,9 +1,4 @@
-/**
- * ZIP Format Constants
- * 
- * Standard ZIP file format specifications.
- * Supports USDZ archive creation with 64-byte alignment requirements.
- */
+/** WebUsdFramework.Constants.Zip - USDZ zip archive alignment and magic byte constants */
 
 export const ZIP_CONSTANTS = {
   LOCAL_FILE_HEADER_SIGNATURE: 0x04034b50,

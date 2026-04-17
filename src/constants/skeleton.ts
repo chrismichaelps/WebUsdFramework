@@ -1,8 +1,4 @@
-/**
- * Skeleton Constants
- * 
- * Constants for skeleton and skinning operations in USD Skel.
- */
+/** WebUsdFramework.Constants.Skeleton - Joint count limits and skeleton LOD thresholds */
 
 export const SKELETON = {
   /**

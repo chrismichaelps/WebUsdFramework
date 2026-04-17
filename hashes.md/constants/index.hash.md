@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Index
 
-/** [Project].Constants.Index - Barrel re-export for all constant modules */
+/** WebUsdFramework.Constants.Index - Barrel re-export for all constant modules */
 
 ### [Signatures]
 - Re-exports: animation, config, errors, skeleton, usd, zip

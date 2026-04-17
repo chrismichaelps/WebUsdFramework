@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Types
 
-/** [Project].Src.Types - Shared primitive type aliases used project-wide */
+/** WebUsdFramework.Types - Shared primitive type aliases used project-wide */
 
 ### [Signatures]
 - Thin type aliases and branded primitive wrappers

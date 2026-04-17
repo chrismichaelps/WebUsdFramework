@@ -1,7 +1,3 @@
-/**
- * GLTF/GLB to USDZ Converter
- * 
- * Main entry point for GLTF/GLB format conversion.
- */
+/** WebUsdFramework.Converters.Gltf.Index - GLTF converter entry barrel */
 
 export { convertGlbToUsdz, parseGltfOrGlbDocument } from './gltf-converter';

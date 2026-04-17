@@ -1,9 +1,4 @@
-/**
- * OBJ to USD Adapter
- * 
- * Converts OBJ mesh data to USD format.
- * Handles geometry embedding and transformations.
- */
+/** WebUsdFramework.Converters.Obj.Helpers.ObjToUsdAdapter - Maps parsed OBJ geometry into UsdGeometryBuilder calls */
 
 import { ParsedGeometry } from '../obj-mesh-parser';
 import { UsdNode } from '../../../core/usd-node';

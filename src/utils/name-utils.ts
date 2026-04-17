@@ -1,8 +1,4 @@
-/**
- * Name Utilities
- * 
- * Utilities for sanitizing and generating names for USD paths.
- */
+/** WebUsdFramework.Utils.NameUtils - File and prim name sanitization for USD compliance */
 
 import { NAME_SANITIZATION_PATTERN } from '../constants/usd';
 

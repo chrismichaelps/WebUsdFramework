@@ -1,10 +1,4 @@
-/**
- * Animation Processor Factory
- * 
- * Factory pattern for creating animation processors based on animation type.
- * Supports multiple animation processing approaches (skeleton, node, etc.)
- * and can be extended for future animation types.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.AnimationProcessorFactory - Resolves specific transform/morph processor per channel */
 
 import { Animation, Node, Skin } from '@gltf-transform/core';
 import { UsdNode } from '../../../core/usd-node';

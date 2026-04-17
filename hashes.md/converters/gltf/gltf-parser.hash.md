@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.GltfParser
 
-/** [Project].Converters.Gltf.GltfParser - GLTF/GLB binary parsing and memory loading via gltf-transform */
+/** WebUsdFramework.Converters.Gltf.GltfParser - GLTF/GLB binary parsing and memory loading via gltf-transform */
 
 ### [Signatures]
 - `class GltfParser`

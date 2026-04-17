@@ -1,8 +1,4 @@
-/**
- * USD-Specific Constants
- * 
- * Constants for USD/USDZ file structure, node types, and properties.
- */
+/** WebUsdFramework.Constants.Usd - USD schema token strings and stage metadata keys */
 
 /**
  * USD Node Types

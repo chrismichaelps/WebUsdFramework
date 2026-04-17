@@ -1,8 +1,4 @@
-/**
- * GLTF Parser Factory
- * 
- * Factory pattern for selecting appropriate parser based on input type.
- */
+/** WebUsdFramework.Converters.Gltf.GltfParser - GLTF/GLB binary parsing and memory loading via gltf-transform */
 
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';

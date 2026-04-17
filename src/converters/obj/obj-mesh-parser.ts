@@ -1,9 +1,4 @@
-/**
- * OBJ File Parser
- * 
- * Parses OBJ files to USDZ format.
- * Extracts geometric data and handles materials/textures.
- */
+/** WebUsdFramework.Converters.Obj.ObjMeshParser - Handles text-based loading of OBJ geometries */
 
 export interface ParsedGeometry {
   meshName: string;

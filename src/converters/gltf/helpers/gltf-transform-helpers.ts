@@ -1,9 +1,4 @@
-/**
- * GLTF Transform Helpers
- * 
- * Utility functions from @gltf-transform/functions for preprocessing GLTF documents
- * before conversion to USDZ.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.GltfTransformHelpers - Wrapper utilities over @gltf-transform/core functions */
 
 import { Document } from '@gltf-transform/core';
 import {

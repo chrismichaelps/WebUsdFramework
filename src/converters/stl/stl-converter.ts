@@ -1,9 +1,4 @@
-/**
- * STL to USDZ Converter
- * 
- * Converts STL files (Stereolithography format) to USDZ format.
- * Supports both Binary and ASCII STL variants.
- */
+/** WebUsdFramework.Converters.Stl.StlConverter - Main orchestration class for ASCII/Binary STL to USDZ */
 
 import { StlConverterConfig } from '../../schemas';
 import { LoggerFactory } from '../../utils';

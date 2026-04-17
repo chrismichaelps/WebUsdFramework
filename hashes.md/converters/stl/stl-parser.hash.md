@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Stl.StlParser
 
-/** [Project].Converters.Stl.StlParser - Parses ASCII and Binary STL arrays into geometry objects */
+/** WebUsdFramework.Converters.Stl.StlParser - Parses ASCII and Binary STL arrays into geometry objects */
 
 ### [Signatures]
 - `class StlParser`

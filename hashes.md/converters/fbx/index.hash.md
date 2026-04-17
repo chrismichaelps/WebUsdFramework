@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Fbx.Index
 
-/** [Project].Converters.Fbx.Index - FBX converter entry barrel */
+/** WebUsdFramework.Converters.Fbx.Index - FBX converter entry barrel */
 
 ### [Signatures]
 - `class FbxConverter implements IConverter`

@@ -1,8 +1,4 @@
-/**
- * Base Schemas
- * 
- * Common validation schemas used across different converters.
- */
+/** WebUsdFramework.Schemas.BaseSchemas - Foundational USDA stage header and prim templates */
 
 import { z } from 'zod';
 

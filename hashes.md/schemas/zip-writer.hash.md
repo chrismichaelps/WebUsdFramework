@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Schemas.ZipWriter
 
-/** [Project].Schemas.ZipWriter - Uncompressed 64-byte aligned ZIP archive encoder for USDZ */
+/** WebUsdFramework.Schemas.ZipWriter - Uncompressed 64-byte aligned ZIP archive encoder for USDZ */
 
 ### [Signatures]
 - `class UsdzZipWriter`

@@ -1,8 +1,4 @@
-/**
- * Core Types for USD Node and GLTF-Transform Converter
- * 
- * Re-export types from schemas for backward compatibility.
- */
+/** WebUsdFramework.Types - Shared primitive type aliases used project-wide */
 
 export type {
   UsdPath,

@@ -1,8 +1,4 @@
-/**
- * Zod Schemas for WebUSD Framework
- * 
- * All validation schemas using Zod for type safety and validation.
- */
+/** WebUsdFramework.Schemas.Index - USDA prim schema builders and assembly functions */
 
 import { z } from 'zod';
 import { DEFAULT_CONFIG } from '../constants/config';

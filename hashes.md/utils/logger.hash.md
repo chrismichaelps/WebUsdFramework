@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.Logger
 
-/** [Project].Utils.Logger - Hierarchical scoped logging facility */
+/** WebUsdFramework.Utils.Logger - Hierarchical scoped logging facility */
 
 ### [Signatures]
 - `class Logger`

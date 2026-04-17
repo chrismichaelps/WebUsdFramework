@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Shared.UsdMaterialBuilder
 
-/** [Project].Converters.Shared.UsdMaterialBuilder - PBR material shading network constructor */
+/** WebUsdFramework.Converters.Shared.UsdMaterialBuilder - PBR material shading network constructor */
 
 ### [Signatures]
 - `class UsdMaterialBuilder`

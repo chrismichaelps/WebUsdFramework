@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Helpers.AnimationProcessor
 
-/** [Project].Converters.Gltf.Helpers.AnimationProcessor - Orchestrates GLTF animation curves into USD SkelAnimation */
+/** WebUsdFramework.Converters.Gltf.Helpers.AnimationProcessor - Orchestrates GLTF animation curves into USD SkelAnimation */
 
 ### [Signatures]
 - `class AnimationProcessor`

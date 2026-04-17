@@ -1,9 +1,4 @@
-/**
- * USD Formatter
- * 
- * Formats arrays, tuples, and vectors into USD syntax.
- * USD has specific syntax requirements, so we centralize this to keep things consistent.
- */
+/** WebUsdFramework.Utils.UsdFormatter - Textual USDA formatting and indentation tools */
 
 /**
  * Global precision for floating point numbers in USD output.

@@ -1,19 +1,4 @@
-/**
- * Vertex Color to Texture Baker
- * 
- * Bakes vertex colors to textures for better USDZ viewer compatibility.
- * This solves the issue where PrimvarReader can't access primvars from different prims
- * in some USDZ viewers (especially ARKit).
- * 
- * Function Usage:
- * - bakeVertexColorsToTexture: Main exported function, used in usd-material-builder.ts
- * - createTextureFromVertexColors: Internal, called by bakeVertexColorsToTexture
- * - rasterizeTriangle: Internal, called by createTextureFromVertexColors
- * - imageDataToPng: Internal, called by createTextureFromVertexColors
- * - generateVertexColorTextureId: Internal, called by bakeVertexColorsToTexture
- * 
- * All functions are actively used in the conversion pipeline.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.VertexColorBaker - PBR base color pre-multiplication routine */
 
 import { Primitive } from '@gltf-transform/core';
 

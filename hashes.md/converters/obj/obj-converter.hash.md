@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Obj.ObjConverter
 
-/** [Project].Converters.Obj.ObjConverter - Main OBJ to USDZ converter orchestra */
+/** WebUsdFramework.Converters.Obj.ObjConverter - Main OBJ to USDZ converter orchestra */
 
 ### [Signatures]
 - `class ObjConverter implements IConverter`

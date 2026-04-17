@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Core.UsdNode
 
-/** [Project].Core.UsdNode - Object-oriented USD stage graph abstraction */
+/** WebUsdFramework.Core.UsdNode - Object-oriented USD stage graph abstraction */
 
 ### [Signatures]
 - `class UsdNode`

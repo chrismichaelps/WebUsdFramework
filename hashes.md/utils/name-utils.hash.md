@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.NameUtils
 
-/** [Project].Utils.NameUtils - File and prim name sanitization for USD compliance */
+/** WebUsdFramework.Utils.NameUtils - File and prim name sanitization for USD compliance */
 
 ### [Signatures]
 - `sanitizeName(name: string): string`

@@ -1,10 +1,4 @@
-/**
- * Extension Processor Interface
- * 
- * Base interface for processing GLTF material extensions.
- * Each extension type should implement this interface to handle
- * texture extraction and material property conversion.
- */
+/** WebUsdFramework.Converters.Gltf.Extensions.ExtensionProcessor - Dispatcher for executing registered GLTF extensions */
 
 import { Material } from '@gltf-transform/core';
 import { TextureReference } from '../../shared/usd-material-builder';

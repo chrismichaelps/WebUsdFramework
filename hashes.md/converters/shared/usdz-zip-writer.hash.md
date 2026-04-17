@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Shared.UsdzZipWriter
 
-/** [Project].Converters.Shared.UsdzZipWriter - Domain-specific wrapper over zip-writer for USDZ rules */
+/** WebUsdFramework.Converters.Shared.UsdzZipWriter - Domain-specific wrapper over zip-writer for USDZ rules */
 
 ### [Signatures]
 - `class UsdzZipWriterWrapper`

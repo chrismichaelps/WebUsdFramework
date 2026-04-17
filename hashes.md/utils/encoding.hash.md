@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.Encoding
 
-/** [Project].Utils.Encoding - Buffer and string encoding translation utilities */
+/** WebUsdFramework.Utils.Encoding - Buffer and string encoding translation utilities */
 
 ### [Signatures]
 - `utf8ToBytes(str: string): Uint8Array`

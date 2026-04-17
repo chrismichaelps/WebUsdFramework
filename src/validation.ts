@@ -1,8 +1,4 @@
-/**
- * Validation Schemas for USD Operations
- * 
- * Re-export schemas from main schemas file for backward compatibility.
- */
+/** WebUsdFramework.Validation - Input format and option validation guards */
 
 export {
   UsdPathSchema,

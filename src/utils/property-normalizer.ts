@@ -1,14 +1,4 @@
-/**
- * Property Normalizer
- * 
- * Normalizes USD property values that can be arrays, strings, or undefined.
- * USD properties can be stored as:
- * - Arrays: ['value1', 'value2']
- * - Single strings: 'value1'
- * - Undefined: property doesn't exist
- * 
- * This normalizes them all to arrays so we can handle them consistently.
- */
+/** WebUsdFramework.Utils.PropertyNormalizer - USD property type formatting and fallback logic */
 
 /**
  * Converts a property value to an array.

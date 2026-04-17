@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.PropertyNormalizer
 
-/** [Project].Utils.PropertyNormalizer - USD property type formatting and fallback logic */
+/** WebUsdFramework.Utils.PropertyNormalizer - USD property type formatting and fallback logic */
 
 ### [Signatures]
 - `normalizeVector3(v: number[]): string`

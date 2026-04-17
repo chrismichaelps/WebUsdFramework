@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.UsdFormatter
 
-/** [Project].Utils.UsdFormatter - Textual USDA formatting and indentation tools */
+/** WebUsdFramework.Utils.UsdFormatter - Textual USDA formatting and indentation tools */
 
 ### [Signatures]
 - `formatUsda(primTree: UsdNode): string`

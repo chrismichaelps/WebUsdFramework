@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Obj.ObjParser
 
-/** [Project].Converters.Obj.ObjParser - Coordinating wrapper for complete OBJ+MTL parsing */
+/** WebUsdFramework.Converters.Obj.ObjParser - Coordinating wrapper for complete OBJ+MTL parsing */
 
 ### [Signatures]
 - `class ObjParser`

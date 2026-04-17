@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Index
 
-/** [Project].Converters.Gltf.Index - GLTF converter entry barrel */
+/** WebUsdFramework.Converters.Gltf.Index - GLTF converter entry barrel */
 
 ### [Signatures]
 - Re-exports GltfConverter

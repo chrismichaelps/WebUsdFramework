@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Animation
 
-/** [Project].Constants.Animation - USD animation timeline and FPS constants */
+/** WebUsdFramework.Constants.Animation - USD animation timeline and FPS constants */
 
 ### [Signatures]
 - `DEFAULT_FPS: number`

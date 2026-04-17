@@ -1,8 +1,4 @@
-/**
- * Debug Output Writer
- * 
- * Writes debug output files for development and testing.
- */
+/** WebUsdFramework.Converters.Shared.DebugWriter - Diagnostics and intermediate USDA file emit */
 
 import * as fs from 'fs';
 import * as path from 'path';

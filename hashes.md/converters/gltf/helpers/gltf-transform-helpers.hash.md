@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Helpers.GltfTransformHelpers
 
-/** [Project].Converters.Gltf.Helpers.GltfTransformHelpers - Wrapper utilities over @gltf-transform/core functions */
+/** WebUsdFramework.Converters.Gltf.Helpers.GltfTransformHelpers - Wrapper utilities over @gltf-transform/core functions */
 
 ### [Signatures]
 - `getMeshTriangles(mesh: Mesh): number`

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+/** WebUsdFramework.ValidateUsdz - E2E bash harness testing build, conversion, oracle inspection, and native toolkit loads */
+
 # Convert a model with WebUsdFramework and verify that conversion preserved
 # the source content (no missing meshes, no dropped animations, etc.).
 #

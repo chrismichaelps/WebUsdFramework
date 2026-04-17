@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Shared.UsdGeometryBuilder
 
-/** [Project].Converters.Shared.UsdGeometryBuilder - Generic agnostic mesh-to-USD translation layer */
+/** WebUsdFramework.Converters.Shared.UsdGeometryBuilder - Generic agnostic mesh-to-USD translation layer */
 
 ### [Signatures]
 - `class UsdGeometryBuilder`

@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Config
 
-/** [Project].Constants.Config - Default framework configuration values */
+/** WebUsdFramework.Constants.Config - Default framework configuration values */
 
 ### [Signatures]
 - `DEFAULT_CONFIG: Readonly<FrameworkOptions>`

@@ -1,9 +1,4 @@
-/**
- * USD Node Class
- * 
- * Minimal USD node implementation with only the methods actually used
- * by the GLTF-Transform converter.
- */
+/** WebUsdFramework.Core.UsdNode - Object-oriented USD stage graph abstraction */
 
 import {
   UsdPath,

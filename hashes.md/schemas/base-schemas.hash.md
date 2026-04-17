@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Schemas.BaseSchemas
 
-/** [Project].Schemas.BaseSchemas - Foundational USDA stage header and prim templates */
+/** WebUsdFramework.Schemas.BaseSchemas - Foundational USDA stage header and prim templates */
 
 ### [Signatures]
 - `buildStageHeader(meta: StageMeta): string`

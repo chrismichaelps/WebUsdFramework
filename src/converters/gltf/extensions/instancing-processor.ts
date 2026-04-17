@@ -1,9 +1,4 @@
-/**
- * GPU Instancing Extension Processor
- * 
- * Handles EXT_mesh_gpu_instancing extension.
- * Creates USD PointInstancer for efficient GPU instancing.
- */
+/** WebUsdFramework.Converters.Gltf.Extensions.InstancingProcessor - EXT_mesh_gpu_instancing processor translating to PointInstancer */
 
 import { Node, Accessor } from '@gltf-transform/core';
 import { InstancedMesh } from '@gltf-transform/extensions';

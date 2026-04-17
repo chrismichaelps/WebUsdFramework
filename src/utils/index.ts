@@ -1,3 +1,5 @@
+/** WebUsdFramework.Utils.Index - Core framework utility functions barrel */
+
 export * from './encoding';
 export * from './logger';
 export * from './name-utils';

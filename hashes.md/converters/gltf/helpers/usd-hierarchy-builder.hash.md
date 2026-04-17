@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.Helpers.UsdHierarchyBuilder
 
-/** [Project].Converters.Gltf.Helpers.UsdHierarchyBuilder - Maps GLTF node trees to USD Xform hierarchies */
+/** WebUsdFramework.Converters.Gltf.Helpers.UsdHierarchyBuilder - Maps GLTF node trees to USD Xform hierarchies */
 
 ### [Signatures]
 - `class UsdHierarchyBuilder`

@@ -1,8 +1,4 @@
-/**
- * USD Hierarchy Builder
- * 
- * Builds USD node hierarchy from GLTF nodes.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.UsdHierarchyBuilder - Maps GLTF node trees to USD Xform hierarchies */
 
 import { Document, Node, Mesh, Primitive, Material, Skin } from '@gltf-transform/core';
 import { MappingList } from '@gltf-transform/extensions';

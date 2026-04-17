@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Stl.Index
 
-/** [Project].Converters.Stl.Index - STL converter entry barrel */
+/** WebUsdFramework.Converters.Stl.Index - STL converter entry barrel */
 
 ### [Signatures]
 - Re-exports StlConverter

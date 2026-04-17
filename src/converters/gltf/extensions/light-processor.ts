@@ -1,9 +1,4 @@
-/**
- * Light Processor
- * 
- * Handles KHR_lights_punctual extension for nodes.
- * Processes light properties (color, intensity, type, range, cone angles).
- */
+/** WebUsdFramework.Converters.Gltf.Extensions.LightProcessor - KHR_lights_punctual processor translating to USD lights */
 
 import { Node } from '@gltf-transform/core';
 import { Light } from '@gltf-transform/extensions';

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// Convert a 3D model (GLB/GLTF/OBJ/FBX/STL) to USDZ using WebUsdFramework.
-// Usage: node scripts/convert.cjs <input> [out-dir]
+/** WebUsdFramework.Convert - Node CLI delegator to test framework output */
 
 const fs = require('node:fs');
 const path = require('node:path');

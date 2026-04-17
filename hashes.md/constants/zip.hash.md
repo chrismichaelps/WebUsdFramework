@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Constants.Zip
 
-/** [Project].Constants.Zip - USDZ zip archive alignment and magic byte constants */
+/** WebUsdFramework.Constants.Zip - USDZ zip archive alignment and magic byte constants */
 
 ### [Signatures]
 - `USDZ_ALIGNMENT: number`

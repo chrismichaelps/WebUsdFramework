@@ -1,5 +1,4 @@
-// FBX to GLTF Converter using FBX2glTF tool
-// Uses Autodesk's official tool to handle all FBX features correctly
+/** WebUsdFramework.Converters.Fbx.FbxToGltfViaTool - FBX to GLB conversion shell delegator */
 
 import * as fs from 'fs';
 import * as path from 'path';

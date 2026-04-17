@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Utils.FileUtils
 
-/** [Project].Utils.FileUtils - Virtual filesystem and path manipulation functions */
+/** WebUsdFramework.Utils.FileUtils - Virtual filesystem and path manipulation functions */
 
 ### [Signatures]
 - `getExt(filename: string): string`

@@ -1,8 +1,4 @@
-/**
- * USD Packaging Helper
- * 
- * Handles USDZ package creation and ZIP file management with proper alignment.
- */
+/** WebUsdFramework.Converters.Shared.UsdPackaging - Orchestrates USDA and payloads into final USDZ archive */
 
 import {
   DEFAULT_CONFIG,

@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Fbx.FbxToGltfViaTool
 
-/** [Project].Converters.Fbx.FbxToGltfViaTool - FBX to GLB conversion shell delegator */
+/** WebUsdFramework.Converters.Fbx.FbxToGltfViaTool - FBX to GLB conversion shell delegator */
 
 ### [Signatures]
 - `convertFbxToGlb(fbxPath: string): Promise<string>`

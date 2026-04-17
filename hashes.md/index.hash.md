@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Index
 
-/** [Project].Src.Index - Public API surface and defineConfig entry point */
+/** WebUsdFramework.Index - Public API surface and defineConfig entry point */
 
 ### [Signatures]
 - `defineConfig(options: FrameworkOptions): FrameworkInstance`

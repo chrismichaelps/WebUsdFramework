@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Converters.Gltf.GltfConverter
 
-/** [Project].Converters.Gltf.GltfConverter - Main orchestration class for GLTF/GLB to USDZ conversion */
+/** WebUsdFramework.Converters.Gltf.GltfConverter - Main orchestration class for GLTF/GLB to USDZ conversion */
 
 ### [Signatures]
 - `class GltfConverter implements IConverter`

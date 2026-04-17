@@ -1,3 +1,5 @@
+/** WebUsdFramework.Converters.Obj.ObjParser - Coordinating wrapper for complete OBJ+MTL parsing */
+
 import { ObjectFileParser, ParsedGeometry } from './obj-mesh-parser';
 
 export interface IObjParser {

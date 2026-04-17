@@ -1,6 +1,4 @@
-/**
- * Zod Schemas for ZIP Writer Validation
- */
+/** WebUsdFramework.Schemas.ZipWriter - Uncompressed 64-byte aligned ZIP archive encoder for USDZ */
 
 import { z } from 'zod';
 

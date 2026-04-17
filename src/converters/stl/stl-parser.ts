@@ -1,13 +1,4 @@
-/**
- * Modern STL Parser
- * 
- * Parses both Binary and ASCII STL files into structured mesh data.
- * STL (Stereolithography) format specifications:
- * - Binary: 80-byte header + uint32 triangle count + triangle data
- * - ASCII: Text-based format with facets and vertices
- * 
- * @see https://en.wikipedia.org/wiki/STL_(file_format)
- */
+/** WebUsdFramework.Converters.Stl.StlParser - Parses ASCII and Binary STL arrays into geometry objects */
 
 import { Logger, LogLevel } from '../../utils';
 

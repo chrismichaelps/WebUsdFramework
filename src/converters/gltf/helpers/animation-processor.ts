@@ -1,9 +1,4 @@
-/**
- * Main entry point for processing GLTF animations.
- * 
- * Routes animations to the right processor (skeleton or node animations)
- * and sets up the animation metadata that USD needs.
- */
+/** WebUsdFramework.Converters.Gltf.Helpers.AnimationProcessor - Orchestrates GLTF animation curves into USD SkelAnimation */
 
 import { Document, Node, Skin, Animation } from '@gltf-transform/core';
 import { Logger } from '../../../utils';

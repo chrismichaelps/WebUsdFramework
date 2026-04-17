@@ -1,8 +1,4 @@
-/**
- * Core Interfaces for WebUSD Framework
- * 
- * Clean interface definitions without magic values or hardcoded props.
- */
+/** WebUsdFramework.Interfaces.Index - Core interface contracts for converter pipeline */
 
 /**
  * WebUSD Configuration Interface

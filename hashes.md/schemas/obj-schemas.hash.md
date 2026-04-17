@@ -6,7 +6,7 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 
 ## @WebUsdFramework.Schemas.ObjSchemas
 
-/** [Project].Schemas.ObjSchemas - OBJ-specific USDA Mesh and material prim builders */
+/** WebUsdFramework.Schemas.ObjSchemas - OBJ-specific USDA Mesh and material prim builders */
 
 ### [Signatures]
 - `buildObjMeshPrim(data: ObjMeshData): string`

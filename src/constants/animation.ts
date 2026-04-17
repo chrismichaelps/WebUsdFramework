@@ -1,8 +1,5 @@
-/**
- * Animation Constants
- * 
- * Constants for animation timing and frame rates in USD.
- */
+/** WebUsdFramework.Constants.Animation - USD animation timeline and FPS constants */
+
 export const ANIMATION = {
   /**
    * Standard frame rate for USD animations.
