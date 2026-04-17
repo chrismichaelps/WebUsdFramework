@@ -1,0 +1,459 @@
+{
+  "shard_id": "@root/hashes.md",
+  "state_anchor": "BigInt:0x1",
+  "parent_bridge": "@root/hashes.md/local.map.json",
+  "git_anchor": "HEAD_SHA",
+  "cache_integrity": "VERIFIED",
+  "nodes": {
+    "src/index": {
+      "file_path": "@root/src/index.ts",
+      "hash_reference": "@root/hashes.md/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/errors": {
+      "file_path": "@root/src/errors.ts",
+      "hash_reference": "@root/hashes.md/errors.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/types": {
+      "file_path": "@root/src/types.ts",
+      "hash_reference": "@root/hashes.md/types.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/validation": {
+      "file_path": "@root/src/validation.ts",
+      "hash_reference": "@root/hashes.md/validation.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/errors.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/constants/index": {
+      "file_path": "@root/src/constants/index.ts",
+      "hash_reference": "@root/hashes.md/constants/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/constants/animation": {
+      "file_path": "@root/src/constants/animation.ts",
+      "hash_reference": "@root/hashes.md/constants/animation.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/constants/config": {
+      "file_path": "@root/src/constants/config.ts",
+      "hash_reference": "@root/hashes.md/constants/config.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/constants/errors": {
+      "file_path": "@root/src/constants/errors.ts",
+      "hash_reference": "@root/hashes.md/constants/errors.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/constants/skeleton": {
+      "file_path": "@root/src/constants/skeleton.ts",
+      "hash_reference": "@root/hashes.md/constants/skeleton.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/constants/usd": {
+      "file_path": "@root/src/constants/usd.ts",
+      "hash_reference": "@root/hashes.md/constants/usd.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/constants/zip": {
+      "file_path": "@root/src/constants/zip.ts",
+      "hash_reference": "@root/hashes.md/constants/zip.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/interfaces/index": {
+      "file_path": "@root/src/interfaces/index.ts",
+      "hash_reference": "@root/hashes.md/interfaces/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/schemas/index": {
+      "file_path": "@root/src/schemas/index.ts",
+      "hash_reference": "@root/hashes.md/schemas/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/schemas/base-schemas": {
+      "file_path": "@root/src/schemas/base-schemas.ts",
+      "hash_reference": "@root/hashes.md/schemas/base-schemas.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/schemas/obj-schemas": {
+      "file_path": "@root/src/schemas/obj-schemas.ts",
+      "hash_reference": "@root/hashes.md/schemas/obj-schemas.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/schemas/base-schemas.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/schemas/stl-schemas": {
+      "file_path": "@root/src/schemas/stl-schemas.ts",
+      "hash_reference": "@root/hashes.md/schemas/stl-schemas.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/schemas/base-schemas.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/schemas/zip-writer": {
+      "file_path": "@root/src/schemas/zip-writer.ts",
+      "hash_reference": "@root/hashes.md/schemas/zip-writer.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/constants/zip.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/utils/index": {
+      "file_path": "@root/src/utils/index.ts",
+      "hash_reference": "@root/hashes.md/utils/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/api-schema-builder": {
+      "file_path": "@root/src/utils/api-schema-builder.ts",
+      "hash_reference": "@root/hashes.md/utils/api-schema-builder.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/encoding": {
+      "file_path": "@root/src/utils/encoding.ts",
+      "hash_reference": "@root/hashes.md/utils/encoding.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/file-utils": {
+      "file_path": "@root/src/utils/file-utils.ts",
+      "hash_reference": "@root/hashes.md/utils/file-utils.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/logger": {
+      "file_path": "@root/src/utils/logger.ts",
+      "hash_reference": "@root/hashes.md/utils/logger.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/matrix-utils": {
+      "file_path": "@root/src/utils/matrix-utils.ts",
+      "hash_reference": "@root/hashes.md/utils/matrix-utils.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/name-utils": {
+      "file_path": "@root/src/utils/name-utils.ts",
+      "hash_reference": "@root/hashes.md/utils/name-utils.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/property-normalizer": {
+      "file_path": "@root/src/utils/property-normalizer.ts",
+      "hash_reference": "@root/hashes.md/utils/property-normalizer.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/time-code-converter": {
+      "file_path": "@root/src/utils/time-code-converter.ts",
+      "hash_reference": "@root/hashes.md/utils/time-code-converter.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/transform-utils": {
+      "file_path": "@root/src/utils/transform-utils.ts",
+      "hash_reference": "@root/hashes.md/utils/transform-utils.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/utils/usd-formatter": {
+      "file_path": "@root/src/utils/usd-formatter.ts",
+      "hash_reference": "@root/hashes.md/utils/usd-formatter.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/core/usd-node": {
+      "file_path": "@root/src/core/usd-node.ts",
+      "hash_reference": "@root/hashes.md/core/usd-node.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [
+        "@root/hashes.md/utils/logger.hash.md",
+        "@root/hashes.md/constants/usd.hash.md"
+      ],
+      "fidelity_level": "Active"
+    },
+    "src/converters/shared/debug-writer": {
+      "file_path": "@root/src/converters/shared/debug-writer.ts",
+      "hash_reference": "@root/hashes.md/converters/shared/debug-writer.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/shared/usd-geometry-builder": {
+      "file_path": "@root/src/converters/shared/usd-geometry-builder.ts",
+      "hash_reference": "@root/hashes.md/converters/shared/usd-geometry-builder.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/core/usd-node.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/shared/usd-material-builder": {
+      "file_path": "@root/src/converters/shared/usd-material-builder.ts",
+      "hash_reference": "@root/hashes.md/converters/shared/usd-material-builder.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/core/usd-node.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/shared/usd-packaging": {
+      "file_path": "@root/src/converters/shared/usd-packaging.ts",
+      "hash_reference": "@root/hashes.md/converters/shared/usd-packaging.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/shared/usdz-zip-writer.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/shared/usd-root-builder": {
+      "file_path": "@root/src/converters/shared/usd-root-builder.ts",
+      "hash_reference": "@root/hashes.md/converters/shared/usd-root-builder.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/core/usd-node.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/shared/usdz-zip-writer": {
+      "file_path": "@root/src/converters/shared/usdz-zip-writer.ts",
+      "hash_reference": "@root/hashes.md/converters/shared/usdz-zip-writer.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/schemas/zip-writer.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/fbx/fbx-to-gltf-via-tool": {
+      "file_path": "@root/src/converters/fbx/fbx-to-gltf-via-tool.ts",
+      "hash_reference": "@root/hashes.md/converters/fbx/fbx-to-gltf-via-tool.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/fbx/index": {
+      "file_path": "@root/src/converters/fbx/index.ts",
+      "hash_reference": "@root/hashes.md/converters/fbx/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/fbx/fbx-to-gltf-via-tool.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/gltf-converter": {
+      "file_path": "@root/src/converters/gltf/gltf-converter.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/gltf-converter.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [
+        "@root/hashes.md/converters/shared/usd-geometry-builder.hash.md",
+        "@root/hashes.md/converters/shared/usd-material-builder.hash.md",
+        "@root/hashes.md/converters/gltf/helpers/skeleton-processor.hash.md",
+        "@root/hashes.md/converters/gltf/helpers/animation-processor.hash.md"
+      ],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/gltf-parser": {
+      "file_path": "@root/src/converters/gltf/gltf-parser.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/gltf-parser.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/index": {
+      "file_path": "@root/src/converters/gltf/index.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/index.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/gltf/gltf-converter.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/extensions/extension-factory": {
+      "file_path": "@root/src/converters/gltf/extensions/extension-factory.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/extensions/extension-factory.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/extensions/extension-processor": {
+      "file_path": "@root/src/converters/gltf/extensions/extension-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/extensions/extension-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/gltf/extensions/extension-factory.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/extensions/instancing-processor": {
+      "file_path": "@root/src/converters/gltf/extensions/instancing-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/extensions/instancing-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/extensions/light-processor": {
+      "file_path": "@root/src/converters/gltf/extensions/light-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/extensions/light-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/extensions/xmp-processor": {
+      "file_path": "@root/src/converters/gltf/extensions/xmp-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/extensions/xmp-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/animation-processor": {
+      "file_path": "@root/src/converters/gltf/helpers/animation-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/animation-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [
+        "@root/hashes.md/utils/time-code-converter.hash.md",
+        "@root/hashes.md/core/usd-node.hash.md"
+      ],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/animation-processor-factory": {
+      "file_path": "@root/src/converters/gltf/helpers/animation-processor-factory.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/animation-processor-factory.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/gltf/helpers/animation-processor.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/geometry-processor": {
+      "file_path": "@root/src/converters/gltf/helpers/geometry-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/geometry-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/shared/usd-geometry-builder.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/gltf-transform-helpers": {
+      "file_path": "@root/src/converters/gltf/helpers/gltf-transform-helpers.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/gltf-transform-helpers.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/skeleton-processor": {
+      "file_path": "@root/src/converters/gltf/helpers/skeleton-processor.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/skeleton-processor.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [
+        "@root/hashes.md/core/usd-node.hash.md",
+        "@root/hashes.md/constants/skeleton.hash.md"
+      ],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/usd-hierarchy-builder": {
+      "file_path": "@root/src/converters/gltf/helpers/usd-hierarchy-builder.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/usd-hierarchy-builder.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/core/usd-node.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/gltf/helpers/vertex-color-baker": {
+      "file_path": "@root/src/converters/gltf/helpers/vertex-color-baker.ts",
+      "hash_reference": "@root/hashes.md/converters/gltf/helpers/vertex-color-baker.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/obj/obj-converter": {
+      "file_path": "@root/src/converters/obj/obj-converter.ts",
+      "hash_reference": "@root/hashes.md/converters/obj/obj-converter.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [
+        "@root/hashes.md/converters/shared/usd-geometry-builder.hash.md",
+        "@root/hashes.md/converters/shared/usd-material-builder.hash.md"
+      ],
+      "fidelity_level": "Active"
+    },
+    "src/converters/obj/obj-mesh-parser": {
+      "file_path": "@root/src/converters/obj/obj-mesh-parser.ts",
+      "hash_reference": "@root/hashes.md/converters/obj/obj-mesh-parser.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "src/converters/obj/obj-parser": {
+      "file_path": "@root/src/converters/obj/obj-parser.ts",
+      "hash_reference": "@root/hashes.md/converters/obj/obj-parser.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/obj/obj-mesh-parser.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/obj/helpers/obj-to-usd-adapter": {
+      "file_path": "@root/src/converters/obj/helpers/obj-to-usd-adapter.ts",
+      "hash_reference": "@root/hashes.md/converters/obj/helpers/obj-to-usd-adapter.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": ["@root/hashes.md/converters/shared/usd-geometry-builder.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "src/converters/stl/stl-converter": {
+      "file_path": "@root/src/converters/stl/stl-converter.ts",
+      "hash_reference": "@root/hashes.md/converters/stl/stl-converter.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [
+        "@root/hashes.md/converters/shared/usd-geometry-builder.hash.md",
+        "@root/hashes.md/converters/stl/stl-parser.hash.md"
+      ],
+      "fidelity_level": "Active"
+    },
+    "src/converters/stl/stl-parser": {
+      "file_path": "@root/src/converters/stl/stl-parser.ts",
+      "hash_reference": "@root/hashes.md/converters/stl/stl-parser.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/typescript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "scripts/convert": {
+      "file_path": "@root/scripts/convert.cjs",
+      "hash_reference": "@root/hashes.md/scripts/convert.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/javascript.hash.md",
+      "dependencies": [],
+      "fidelity_level": "Active"
+    },
+    "scripts/inspect": {
+      "file_path": "@root/scripts/inspect.cjs",
+      "hash_reference": "@root/hashes.md/scripts/inspect.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/javascript.hash.md",
+      "dependencies": ["@root/hashes.md/scripts/convert.hash.md"],
+      "fidelity_level": "Active"
+    },
+    "scripts/validate-usdz": {
+      "file_path": "@root/scripts/validate-usdz.sh",
+      "hash_reference": "@root/hashes.md/scripts/validate-usdz.hash.md",
+      "grammar_ref": "@root/hashes.md/grammar/bash.hash.md",
+      "dependencies": [
+        "@root/hashes.md/scripts/convert.hash.md",
+        "@root/hashes.md/scripts/inspect.hash.md"
+      ],
+      "fidelity_level": "Active"
+    }
+  }
+}

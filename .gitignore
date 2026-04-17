@@ -122,3 +122,6 @@ models
 
 # Claude Code local session state
 .claude/
+
+# FMCF-MASTER-SEED.md
+FMCF-MASTER-SEED.md

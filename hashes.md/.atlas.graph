@@ -1,0 +1,174 @@
+{
+  "graph_version": "1.0",
+  "state_anchor": "BigInt:0x1",
+  "description": "Directional dependency edges. When an upstream node changes, all downstream nodes are flagged DIRTY.",
+  "grammar_refs": {
+    "typescript": "@root/hashes.md/grammar/typescript.hash.md",
+    "javascript": "@root/hashes.md/grammar/javascript.hash.md",
+    "bash": "@root/hashes.md/grammar/bash.hash.md"
+  },
+  "edges": [
+    {
+      "from": "@root/src/core/usd-node.ts",
+      "to": "@root/src/converters/shared/usd-geometry-builder.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Geometry builder emits UsdNode tree nodes"
+    },
+    {
+      "from": "@root/src/core/usd-node.ts",
+      "to": "@root/src/converters/shared/usd-material-builder.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Material builder composes UsdNode shader graphs"
+    },
+    {
+      "from": "@root/src/core/usd-node.ts",
+      "to": "@root/src/converters/shared/usd-root-builder.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Root builder wraps the stage's top UsdNode"
+    },
+    {
+      "from": "@root/src/core/usd-node.ts",
+      "to": "@root/src/converters/gltf/helpers/skeleton-processor.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Skeleton processor writes joint-bind nodes"
+    },
+    {
+      "from": "@root/src/core/usd-node.ts",
+      "to": "@root/src/converters/gltf/helpers/animation-processor.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Animation processor appends SkelAnimation nodes"
+    },
+    {
+      "from": "@root/src/core/usd-node.ts",
+      "to": "@root/src/converters/gltf/helpers/usd-hierarchy-builder.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Hierarchy builder structures Xform node tree"
+    },
+    {
+      "from": "@root/src/converters/shared/usd-geometry-builder.ts",
+      "to": "@root/src/converters/gltf/gltf-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "GLTF converter delegates all mesh emit to geometry builder"
+    },
+    {
+      "from": "@root/src/converters/shared/usd-geometry-builder.ts",
+      "to": "@root/src/converters/obj/obj-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "OBJ converter emits mesh data via geometry builder"
+    },
+    {
+      "from": "@root/src/converters/shared/usd-geometry-builder.ts",
+      "to": "@root/src/converters/stl/stl-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "STL converter emits single mesh via geometry builder"
+    },
+    {
+      "from": "@root/src/converters/shared/usd-material-builder.ts",
+      "to": "@root/src/converters/gltf/gltf-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "GLTF converter delegates PBR material emit to material builder"
+    },
+    {
+      "from": "@root/src/converters/shared/usd-material-builder.ts",
+      "to": "@root/src/converters/obj/obj-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "MEDIUM",
+      "reason": "OBJ converter maps mtl data through material builder"
+    },
+    {
+      "from": "@root/src/converters/gltf/helpers/skeleton-processor.ts",
+      "to": "@root/src/converters/gltf/gltf-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "Skeleton processor output drives SkelRoot binding in converter"
+    },
+    {
+      "from": "@root/src/converters/gltf/helpers/animation-processor.ts",
+      "to": "@root/src/converters/gltf/gltf-converter.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "Animation processor output drives SkelAnimation in converter"
+    },
+    {
+      "from": "@root/src/converters/gltf/helpers/animation-processor.ts",
+      "to": "@root/src/converters/gltf/helpers/animation-processor-factory.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Factory instantiates concrete animation processor variants"
+    },
+    {
+      "from": "@root/src/converters/gltf/helpers/animation-processor-factory.ts",
+      "to": "@root/src/converters/gltf/helpers/processors/node-animation-processor.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "MEDIUM",
+      "reason": "Factory selects node animation processor for TRS channels"
+    },
+    {
+      "from": "@root/src/converters/gltf/helpers/animation-processor-factory.ts",
+      "to": "@root/src/converters/gltf/helpers/processors/skeleton-animation-processor.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Factory selects skeletal animation processor for skinned animations"
+    },
+    {
+      "from": "@root/src/converters/gltf/helpers/animation-processor-factory.ts",
+      "to": "@root/src/converters/gltf/helpers/processors/morph-target-animation-processor.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "MEDIUM",
+      "reason": "Factory selects morph-target processor for blend-shape channels"
+    },
+    {
+      "from": "@root/src/converters/gltf/extensions/extension-factory.ts",
+      "to": "@root/src/converters/gltf/extensions/extension-processor.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "MEDIUM",
+      "reason": "Extension processor dispatches to factory-resolved handlers"
+    },
+    {
+      "from": "@root/src/converters/shared/usdz-zip-writer.ts",
+      "to": "@root/src/converters/shared/usd-packaging.ts",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Packaging layer wraps zip writer for USDZ archive assembly"
+    },
+    {
+      "from": "@root/src/utils/time-code-converter.ts",
+      "to": "@root/src/converters/gltf/helpers/animation-processor.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "HIGH",
+      "reason": "Animation processor uses time-code converter for frame mapping"
+    },
+    {
+      "from": "@root/src/constants/skeleton.ts",
+      "to": "@root/src/converters/gltf/helpers/skeleton-processor.ts",
+      "type": "SCHEMA_CONTRACT",
+      "impact": "MEDIUM",
+      "reason": "Skeleton constants define joint limit and LOD thresholds"
+    },
+    {
+      "from": "@root/scripts/convert.cjs",
+      "to": "@root/scripts/validate-usdz.sh",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Shell harness invokes convert.cjs and parses its stdout path"
+    },
+    {
+      "from": "@root/scripts/inspect.cjs",
+      "to": "@root/scripts/validate-usdz.sh",
+      "type": "LAYER_DEPENDENCY",
+      "impact": "HIGH",
+      "reason": "Shell harness invokes inspect.cjs as the correctness oracle"
+    }
+  ],
+  "dirty_propagation_rule": "When a node's fidelity_level changes to DIRTY, recursively mark all nodes reachable via outgoing edges as DIRTY"
+}
