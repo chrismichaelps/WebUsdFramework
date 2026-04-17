@@ -116,3 +116,9 @@ public
 # Temporary folders
 tmp/
 temp/
+
+# Models (large test assets kept out of git)
+models
+
+# Claude Code local session state
+.claude/
