@@ -238,15 +238,10 @@ export async function buildUsdMaterial(
       transform: textureTransform
     });
 
-    // Apply texture transform to Transform2d if present
-    if (textureTransform) {
-      const rotationRad = textureTransform.rotation;
-      const rotationDeg = (rotationRad * 180) / Math.PI; // Convert radians to degrees
-      transform2d.setProperty('float inputs:rotation', rotationDeg.toString(), 'float');
-      transform2d.setProperty('float2 inputs:scale', `(${textureTransform.scale[0]}, ${textureTransform.scale[1]})`, 'float2');
-      transform2d.setProperty('float2 inputs:translation', `(${textureTransform.offset[0]}, ${textureTransform.offset[1]})`, 'float2');
-      console.log(`[buildUsdMaterial] Applied texture transform to Transform2d: offset=${textureTransform.offset}, scale=${textureTransform.scale}, rotation=${rotationDeg}°`);
-    }
+    // NOTE: Per-texture transforms are handled inside createOptimizedTextureShader
+    // via extractTextureTransform. Do NOT apply the transform to the shared
+    // Transform2d_st node here — that would leak the base color's transform to
+    // other textures on UV set 0 that don't have their own transform.
 
     // Create optimized texture shader network
     // Apply baseColorFactor/diffuseFactor as scale to the texture
