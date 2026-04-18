@@ -475,6 +475,7 @@ export async function buildUsdMaterial(
   }
 
   // Process emissive texture with optimized mapping
+  let emissiveTextureShaderNode: UsdNode | null = null;
   const emissiveTexture = material.getEmissiveTexture();
   if (emissiveTexture) {
     const textureId = await generateTextureId(emissiveTexture, 'emissive');
@@ -505,6 +506,7 @@ export async function buildUsdMaterial(
     );
 
     materialNode.addChild(textureShader);
+    emissiveTextureShaderNode = textureShader;
 
     // Connect to PreviewSurface
     surfaceShader.setProperty(
@@ -869,15 +871,25 @@ export async function buildUsdMaterial(
   // Apply extracted properties to material
   if (allProperties.emissiveStrength !== undefined) {
     const strength = allProperties.emissiveStrength as number;
-    const currentEmissive = surfaceShader.getProperty('color3f inputs:emissiveColor');
-    if (currentEmissive && typeof currentEmissive === 'string' && currentEmissive.includes('(')) {
-      // Multiply existing emissive color by strength
-      const match = currentEmissive.match(/\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
-      if (match) {
-        const r = parseFloat(match[1]) * strength;
-        const g = parseFloat(match[2]) * strength;
-        const b = parseFloat(match[3]) * strength;
-        surfaceShader.setProperty('color3f inputs:emissiveColor', `(${r}, ${g}, ${b})`);
+    if (emissiveTextureShaderNode) {
+      // Emissive is texture-connected: apply strength as scale on the texture shader.
+      // This multiplies the texture output by the strength value.
+      emissiveTextureShaderNode.setProperty(
+        'float4 inputs:scale',
+        `(${strength}, ${strength}, ${strength}, 1)`,
+        'float4'
+      );
+    } else {
+      // Emissive is a flat color: multiply the color by strength
+      const currentEmissive = surfaceShader.getProperty('color3f inputs:emissiveColor');
+      if (currentEmissive && typeof currentEmissive === 'string') {
+        const match = currentEmissive.match(/\(([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+        if (match) {
+          const r = parseFloat(match[1]) * strength;
+          const g = parseFloat(match[2]) * strength;
+          const b = parseFloat(match[3]) * strength;
+          surfaceShader.setProperty('color3f inputs:emissiveColor', `(${r}, ${g}, ${b})`);
+        }
       }
     }
   }
