@@ -45,12 +45,20 @@ export interface AnimationProcessorResult {
   name?: string;
   detectedFrameRate?: number; // Frame rate detected from animation time intervals
   maxTimeCode?: number; // Maximum time code including loop frame (if added)
-  animationSource?: {
+  /**
+   * One entry per skin this animation drives.
+   *
+   * A GLTF animation can target joints across multiple skins (e.g. a
+   * butterfly-swarm where every butterfly is its own skinned mesh yet they
+   * share one animation). Processors must emit one entry per skin; the caller
+   * binds `skel:animationSource` on each SkelRoot/Skeleton accordingly.
+   */
+  animationSources?: Array<{
     path: string;
     name: string;
     index: number;
     targetSkin: Skin;
-  };
+  }>;
 }
 
 /**
@@ -66,7 +74,7 @@ export class AnimationProcessorFactory {
     this.processors = [
       new SkeletonAnimationProcessor(logger),
       new MorphTargetAnimationProcessor(logger),
-      new NodeAnimationProcessor(logger)
+      new NodeAnimationProcessor(logger),
     ];
   }
 
@@ -75,7 +83,10 @@ export class AnimationProcessorFactory {
    * Checks processors in order until one can handle the animation
    * @deprecated Use getProcessors() instead to support animations with multiple channel types
    */
-  getProcessor(animation: Animation, context: AnimationProcessorContext): IAnimationProcessor | null {
+  getProcessor(
+    animation: Animation,
+    context: AnimationProcessorContext
+  ): IAnimationProcessor | null {
     for (const processor of this.processors) {
       if (processor.canProcess(animation, context)) {
         return processor;
@@ -107,4 +118,3 @@ export class AnimationProcessorFactory {
     this.processors.push(processor);
   }
 }
-
