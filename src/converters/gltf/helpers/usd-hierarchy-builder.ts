@@ -44,7 +44,6 @@ export interface HierarchyBuilderContext {
   skeletonMap?: Map<Skin, SkeletonData>;
 }
 
-// ─── Matrix helpers (kept local to avoid circular imports) ───────────────────
 
 /** Multiply two column-major 4×4 matrices (stored row-major as flat 16-element arrays). */
 function _mul4x4(a: number[], b: number[]): number[] {
@@ -958,4 +957,3 @@ function bindMaterial(node: UsdNode, materialInfo: MaterialInfo): void {
     USD_PROPERTY_TYPES.REL
   );
 }
-
