@@ -466,6 +466,16 @@ export async function buildUsdMaterial(
 
     materialNode.addChild(textureShader);
 
+    // Apply normal map scale factor from GLTF material.
+    // Default decode: n = texel * 2 - 1. With normalScale s applied to xy:
+    // n.xy = (texel.xy * 2 - 1) * s = texel.xy * 2s - s
+    // So scale = (2s, 2s, 2, 1), bias = (-s, -s, -1, 0)
+    const normalScale = material.getNormalScale();
+    if (normalScale !== 1) {
+      textureShader.setProperty('float4 inputs:scale', `(${2 * normalScale}, ${2 * normalScale}, 2, 1)`, 'float4');
+      textureShader.setProperty('float4 inputs:bias', `(${-normalScale}, ${-normalScale}, -1, 0)`, 'float4');
+    }
+
     // Connect to PreviewSurface via normal input
     surfaceShader.setProperty(
       'normal3f inputs:normal.connect',
