@@ -167,28 +167,50 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
         continue;
       }
 
-      // Calculate morph target count: total values / number of time samples
-      const morphTargetCount = Math.floor(values.length / times.length);
+      // GLTF spec: for CUBICSPLINE interpolation, the output accessor stores
+      // [in-tangent, value, out-tangent] per keyframe, so:
+      //   values.length = 3 × times.length × morphTargetCount
+      // For LINEAR/STEP:
+      //   values.length = times.length × morphTargetCount
+      const interpolation = sampler.getInterpolation();
+      const valuesPerKeyframe = interpolation === 'CUBICSPLINE' ? 3 : 1;
+      const morphTargetCount = Math.floor(values.length / (times.length * valuesPerKeyframe));
       if (morphTargetCount === 0) {
         this.logger.warn(`Cannot determine morph target count from animation data`, {
           animationName,
           targetNode: targetNode.getName(),
+          interpolation,
           timeSampleCount: times.length,
           valueCount: values.length
         });
         continue;
       }
 
+      // For CUBICSPLINE, extract only the keyframe values (index 1 of each triplet per target)
+      // Layout: [inTangent_0..N, value_0..N, outTangent_0..N] per keyframe
+      let weightValues = values;
+      if (interpolation === 'CUBICSPLINE') {
+        weightValues = [];
+        for (let ki = 0; ki < times.length; ki++) {
+          const stride = morphTargetCount * 3;
+          const base = ki * stride + morphTargetCount; // skip in-tangents
+          for (let wi = 0; wi < morphTargetCount; wi++) {
+            weightValues.push(values[base + wi]);
+          }
+        }
+      }
+
       // Validate that we have the right number of values
       const expectedValueCount = times.length * morphTargetCount;
-      if (values.length !== expectedValueCount) {
+      if (weightValues.length !== expectedValueCount) {
         this.logger.warn(`Morph target weight count mismatch, using calculated count`, {
           animationName,
           targetNode: targetNode.getName(),
+          interpolation,
           morphTargetCount,
           timeSampleCount: times.length,
           expectedValueCount,
-          actualValueCount: values.length
+          actualValueCount: weightValues.length
         });
       }
 
@@ -226,7 +248,7 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
       for (let i = 0; i < times.length; i++) {
         const time = times[i];
         const startIdx = i * morphTargetCount;
-        const weights = values.slice(startIdx, startIdx + morphTargetCount);
+        const weights = weightValues.slice(startIdx, startIdx + morphTargetCount);
 
         // Store weights for this time (if multiple channels target the same mesh, use the last one)
         meshAnim.weights.set(time, weights);
@@ -237,7 +259,7 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
         targetNode: targetNode.getName(),
         morphTargetCount,
         timeSampleCount: times.length,
-        weightCount: values.length
+        weightCount: weightValues.length
       });
     }
 
