@@ -1,127 +1,97 @@
 # WebUsdFramework
-Library for converting GLB/GLTF/OBJ/FBX/STL 3D models to USDZ format.
 
-This library builds USD schemas based on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications. The USD schema implementation follows the Universal Scene Description standards developed by Pixar Animation Studios.
+A Node.js library for converting 3D model files to Apple-compatible USDZ format. Built on the [OpenUSD Core API](https://openusd.org/release/api/usd_page_front.html) specifications by Pixar Animation Studios.
 
-### Current Status
-
-⚠️ **This is a proof of concept (POC)** - The library is currently in active development and should be used for experimental purposes. While functional, it may not be production-ready for all use cases.
-
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-green.svg)](https://nodejs.org)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.me/chrismperezsantiago)
 
-> **Support the Project**
->
-> To keep this library maintained and evolving, your contribution would be greatly appreciated! It helps keep me motivated to continue collaborating and improving this framework for everyone.
->
-> [**Donate via PayPal**](https://www.paypal.me/chrismperezsantiago)
+> **Support the Project** -- To keep this library maintained and evolving, your contribution would be greatly appreciated.
+> [Donate via PayPal](https://www.paypal.me/chrismperezsantiago)
+
+## Supported Formats
+
+| Input Format | Extensions | Features |
+|---|---|---|
+| **GLB / GLTF** | `.glb`, `.gltf` | Meshes, materials, textures, skeletal animations, blend shapes, skinning |
+| **OBJ** | `.obj` | Vertices, normals, UVs, face groups, materials (`mtllib`), vertex colors |
+| **FBX** | `.fbx` | Binary/ASCII, embedded textures, skeletal animations, skinning (via `fbx2gltf`) |
+| **STL** | `.stl` | Binary/ASCII, vertex colors, batch folder conversion, Z-up to Y-up |
+| **PLY** | `.ply` | Binary/ASCII, vertex colors, point clouds, mesh decimation via vertex clustering |
+
+All outputs are packaged as `.usdz` with 64-byte alignment, validated against `usdchecker --arkit`.
 
 ## Prerequisites
 
-- [x] `Node.js >= 22.0.0`
-- [x] `Yarn >= 1.x`
+- Node.js >= 22.0.0
+- pnpm (or npm/yarn)
+- `fbx2gltf` on PATH (only for FBX conversion)
 
-# 📚 Documentation
-
-## **:package: Installation**
+## Installation
 
 ```shell
 pnpm install
 ```
 
-### Basic Usage
+## Quick Start
 
 ```javascript
-const { defineConfig } = require('./build/index.js');
+const { defineConfig } = require('webusdframework');
+const fs = require('fs');
 
-// Create framework instance
 const usd = defineConfig();
 
-// Convert GLB file to USDZ
 const usdzBlob = await usd.convert('./model.glb');
 
-// Convert GLTF file to USDZ
-const usdzBlob2 = await usd.convert('./model.gltf');
-
-// Convert OBJ file to USDZ
-const usdzBlob3 = await usd.convert('./model.obj');
-
-// Convert FBX file to USDZ
-const usdzBlob4 = await usd.convert('./model.fbx');
-
-// Convert STL file to USDZ
-const usdzBlob5 = await usd.convert('./model.stl'); // or usd.convert('./path/to/stl/folder');
-
-// Save the result
-const fs = require('fs');
 const buffer = await usdzBlob.arrayBuffer();
 fs.writeFileSync('output.usdz', Buffer.from(buffer));
 ```
 
-### With Debug Output
+The `convert()` method accepts a file path (string) or an `ArrayBuffer`. The file extension determines which converter is used.
 
 ```javascript
-const { defineConfig } = require('./build/index.js');
-
-// Enable debug mode for inspection
-const usd = defineConfig({
-  debug: true,
-  debugOutputDir: 'debug-output',
-  preprocess: {
-    dequantize: true,
-    generateNormals: true,
-    weld: true,
-    dedup: true,
-    prune: true,
-    logBounds: true,
-    center: 'center',
-    resample: true,
-    unlit: true,
-    flatten: false, // Warning: option as true may break animations
-    metalRough: true,
-    vertexColorSpace: 'srgb',
-    join: false,
-  },
-  unified: {
-    obj: {
-      enableLogging: true,
-      debugLogging: false,
-    },
-  },
-});
-
-// Convert with detailed logging
-const usdzBlob = await usd.convert('./model.glb');
-
-// Debug files will be created in ./debug-output/
-// - model.usda (main USD file)
-// - geometries/ (external geometry files)
-// - textures/ (texture files)
-// - converted.usdz (final package)
+await usd.convert('./scene.glb');       // GLB
+await usd.convert('./scene.gltf');      // GLTF (resolves external resources)
+await usd.convert('./model.obj');       // OBJ
+await usd.convert('./model.fbx');       // FBX
+await usd.convert('./part.stl');        // STL (single file)
+await usd.convert('./stl-folder/');     // STL (batch -- one USDZ per file)
+await usd.convert('./scan.ply');        // PLY
 ```
 
-### From ArrayBuffer
+You can also use the individual converter functions directly:
 
 ```javascript
-const { defineConfig } = require('./build/index.js');
-const fs = require('fs');
+const {
+  convertGlbToUsdz,
+  convertObjToUsdz,
+  convertStlToUsdz,
+  convertPlyToUsdz,
+} = require('webusdframework');
+```
 
+## Configuration
+
+```javascript
 const usd = defineConfig({
   debug: true,
-  debugOutputDir: 'debug-output',
+  debugOutputDir: './debug-output',
+  upAxis: 'Y',           // 'Y' or 'Z'
+  metersPerUnit: 1,
   preprocess: {
-    dequantize: true,
-    generateNormals: true,
-    weld: true,
-    dedup: true,
-    prune: true,
-    logBounds: true,
-    center: 'center',
-    resample: true,
-    unlit: true,
-    flatten: false, // Warning: option as true may break animations
-    metalRough: true,
-    vertexColorSpace: 'srgb',
-    join: false,
+    dequantize: true,     // Remove mesh quantization for USDZ compatibility
+    generateNormals: true,// Generate normals if missing
+    weld: true,           // Merge identical vertices
+    dedup: true,          // Remove duplicate resources
+    prune: true,          // Remove unused resources
+    logBounds: true,      // Log scene bounding box
+    center: 'center',     // Center at origin ('center', 'above', 'below', or false)
+    resample: true,       // Optimize animation keyframes
+    unlit: true,          // Convert unlit materials to PBR
+    flatten: false,       // Flatten scene graph (WARNING: breaks animations)
+    metalRough: true,     // Convert spec/gloss to metal/rough PBR
+    vertexColorSpace: 'srgb',  // 'srgb' or 'srgb-linear'
+    join: false,          // Join compatible primitives
   },
   unified: {
     obj: {
@@ -130,213 +100,66 @@ const usd = defineConfig({
     },
   },
 });
+```
 
-// From file system (Node.js) - GLB files
+Preprocessing options use `@gltf-transform/functions` and apply to GLB/GLTF/FBX inputs.
+
+## PLY Converter
+
+The PLY converter handles both meshes and point clouds, with support for vertex clustering decimation on large scans.
+
+```javascript
+const { convertPlyToUsdz } = require('webusdframework');
+const fs = require('fs');
+
+const plyBuffer = fs.readFileSync('./scan.ply');
+const usdz = await convertPlyToUsdz(plyBuffer.buffer, {
+  decimateTarget: 500000,   // Reduce to ~500K faces (0 = no decimation)
+  maxPoints: 1000000,       // Downsample point clouds (0 = no limit)
+  defaultColor: [0.7, 0.7, 0.7],  // Fallback color (linear RGB)
+  defaultPointWidth: 0.005, // Point size in scene units
+  upAxis: 'Y',
+  metersPerUnit: 1,
+});
+
+const buffer = await usdz.arrayBuffer();
+fs.writeFileSync('scan.usdz', Buffer.from(buffer));
+```
+
+**PLY features:**
+- Binary (little/big endian) and ASCII format parsing
+- Vertex colors (RGB, preserved through decimation)
+- Triangle mesh and point cloud geometry
+- Vertex clustering mesh decimation for large scans (millions of faces)
+
+## Debug Output
+
+When `debug: true` is set, the following files are written to `debugOutputDir`:
+
+```
+debug-output/
+  model.usda          # Human-readable USD scene
+  geometries/         # External geometry files
+  textures/           # Texture files
+  converted.usdz      # Final packaged output
+```
+
+## From ArrayBuffer
+
+Useful for server-side or in-memory workflows:
+
+```javascript
+const fs = require('fs');
+const { defineConfig } = require('webusdframework');
+
+const usd = defineConfig();
+
 const glbBuffer = fs.readFileSync('model.glb').buffer;
 const usdzBlob = await usd.convert(glbBuffer);
 
-// From file path - GLTF files
-const usdzBlob2 = await usd.convert('./model.gltf');
-
-// From file path - OBJ files
-const usdzBlob3 = await usd.convert('./model.obj');
-
-// Save the result
 const buffer = await usdzBlob.arrayBuffer();
 fs.writeFileSync('output.usdz', Buffer.from(buffer));
 ```
-
-### Advanced Configuration
-
-```javascript
-const { defineConfig } = require('./build/index.js');
-const fs = require('fs');
-
-const config = {
-  debug: true,
-  debugOutputDir: './output',
-  upAxis: 'Y',
-  metersPerUnit: 1,
-  preprocess: {
-    dequantize: true,
-    generateNormals: true,
-    weld: true,
-    dedup: true,
-    prune: true,
-    logBounds: true,
-    center: 'center',
-    resample: true,
-    unlit: true,
-    flatten: false, // Warning: may break animations
-    metalRough: true,
-    vertexColorSpace: 'srgb',
-    join: false,
-  },
-  unified: {
-    obj: {
-      enableLogging: true,
-      debugLogging: false,
-    },
-  },
-};
-
-const usd = defineConfig(config);
-
-// Works with GLB, GLTF, and OBJ files
-const usdzBlob = await usd.convert('./model.glb'); // GLB file
-const usdzBlob2 = await usd.convert('./model.gltf'); // GLTF file with external resources
-const usdzBlob3 = await usd.convert('./model.obj'); // OBJ file
-
-// Save the result
-const buffer = await usdzBlob.arrayBuffer();
-fs.writeFileSync('output.usdz', Buffer.from(buffer));
-```
-
-### Preprocessing Options
-
-The framework supports GLTF preprocessing transforms from `@gltf-transform/functions`:
-
-- **`dequantize`** (default: `true`) - Remove mesh quantization for USDZ compatibility
-- **`generateNormals`** (default: `true`) - Generate normals if missing
-- **`weld`** - Merge identical vertices for optimization
-- **`dedup`** - Remove duplicate resources
-- **`prune`** - Remove unused resources
-- **`logBounds`** - Calculate and log scene bounds
-- **`center`** - Center model at origin (`'center'`, `'above'`, `'below'`, or `false`)
-- **`resample`** - Optimize animation keyframes
-- **`unlit`** - Convert unlit materials to standard PBR
-- **`flatten`** - Flatten scene graph (may break animations)
-- **`metalRough`** - Convert spec/gloss materials to metal/rough PBR
-- **`vertexColorSpace`** - Convert vertex colors (`'srgb'` or `'srgb-linear'`)
-- **`join`** - Join compatible primitives to reduce draw calls
-
-### OBJ File Support
-
-The framework includes comprehensive support for OBJ (Wavefront Object) files:
-
-```javascript
-const { defineConfig } = require('./build/index.js');
-
-const usd = defineConfig({
-  debug: true,
-  debugOutputDir: './debug-output',
-  upAxis: 'Y', // Optional: Y or Z (default: Y)
-});
-
-// Convert OBJ file to USDZ
-const usdzBlob = await usd.convert('./model.obj');
-
-// OBJ-specific features:
-// - Vertex positions, normals, and UV coordinates
-// - Face definitions (triangles and polygons)
-// - Material groups and smoothing groups
-// - Color space conversion (sRGB to linear)
-// - Automatic mesh centering and scaling
-// - Embedded geometry approach for optimal USDZ compatibility
-```
-
-**Supported OBJ Features:**
-
-- Vertex positions (`v`)
-- Texture coordinates (`vt`)
-- Normal vectors (`vn`)
-- Face definitions (`f`)
-- Groups (`g`)
-- Objects (`o`)
-- Materials (`usemtl`, `mtllib`)
-- Smoothing groups (`s`)
-- Vertex colors (RGB values)
-
-**OBJ Conversion Process:**
-
-1. Parse OBJ file format
-2. Extract geometric data (vertices, faces, normals, UVs)
-3. Convert colors from sRGB to linear space
-4. Generate USD mesh nodes with embedded geometry
-5. Apply transformations for proper scaling and centering
-6. Package as USDZ with 64-byte alignment
-
-### FBX File Support
-
-The framework supports FBX files via `fbx2gltf` conversion:
-
-```javascript
-const { defineConfig } = require('./build/index.js');
-
-const usd = defineConfig({
-  debug: true,
-  debugOutputDir: './debug-output',
-});
-
-// Convert FBX file to USDZ
-// Automatically handles:
-// - Binary and ASCII FBX formats
-// - Embedded textures
-// - Skeletal animations
-// - Skinning weights
-const usdzBlob = await usd.convert('./model.fbx');
-```
-
-**Supported FBX Features:**
-
-- Meshes and geometry
-- Materials and textures (embedded or external)
-- Skeletal animations (bones/joints)
-- Skinning weights
-- Scene hierarchy
-- Cameras and Lights
-
-**FBX Conversion Process:**
-
-1. Convert FBX to GLTF using `fbx2gltf`
-2. Process GLTF structure to USD
-3. Convert animations to USD SkelAnimation
-4. Bind skeletons and meshes
-5. Package as USDZ
-
-### STL File Support
-
-The framework includes native support for STL (Stereolithography) files, widely used in 3D printing:
-
-```javascript
-const fs = require('fs');
-const { defineConfig } = require('./build/index.js');
-
-const usd = defineConfig({
-  debug: true,
-  debugOutputDir: './debug-output',
-});
-
-// Convert single STL file
-const usdzBlob = await usd.convert('./model.stl');
-
-// Convert folder of STL files (Batch Mode)
-// Generates separate USDZ files for each STL in the folder
-// Useful for multi-part 3D print models
-const batchResult = await usd.convert('./path/to/stl/folder');
-
-const buffer = await usdzBlob.arrayBuffer();
-fs.writeFileSync('output.usdz', Buffer.from(buffer));
-```
-
-**Supported STL Features:**
-
-- **Binary and ASCII STL** formats (auto-detected)
-- **Vertex Colors** (binary STL non-standard extension)
-- **Automatic Centering** (centers model at origin)
-- **Normal Generation** (smooth normals calculation)
-- **Batch Processing** (convert entire folders of parts)
-- **Z-up to Y-up** conversion (standard for STL)
-
-**STL Conversion Process:**
-
-1. Detect format (Binary vs ASCII)
-2. Parse geometry (vertices, normals)
-3. Extract vertex colors (if present in binary header)
-4. Compute bounding box and center model at origin
-5. Generate smooth normals (if missing or requested)
-6. Apply Z-up to Y-up rotation
-7. Package as USDZ with binary encoding
 
 ## **:handshake: Contributing**
 
