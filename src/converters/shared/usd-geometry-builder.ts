@@ -114,37 +114,13 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
   if (uvs) {
     const uvArray = uvs.getArray();
     if (uvArray && uvArray.length > 0) {
-      // Normalize UV coordinates to [0,1] range for proper texture mapping
-
-      // Find min/max values for normalization
-      let minU = Infinity, maxU = -Infinity;
-      let minV = Infinity, maxV = -Infinity;
-
-      for (let i = 0; i < uvArray.length; i += 2) {
-        const u = uvArray[i];
-        const v = uvArray[i + 1];
-        minU = Math.min(minU, u);
-        maxU = Math.max(maxU, u);
-        minV = Math.min(minV, v);
-        maxV = Math.max(maxV, v);
-      }
-
-      // Calculate normalization factors
-      const uSpan = maxU - minU;
-      const vSpan = maxV - minV;
-
-      // Generate normalized UV tuples
+      // Preserve GLTF UV coordinates as-is.
+      // GLTF allows UV values outside [0,1] for tiled/repeating textures.
+      // USD handles tiling via wrapS/wrapT = "repeat" on UsdUVTexture.
+      // Normalizing to [0,1] would destroy all tiling information.
       const uvTuples: string[] = [];
       for (let i = 0; i < uvArray.length; i += 2) {
-        const originalU = uvArray[i];
-        const originalV = uvArray[i + 1];
-
-        // Normalize to [0,1] range
-        const normalizedU = uSpan > 0 ? (originalU - minU) / uSpan : 0;
-        const normalizedV = vSpan > 0 ? (originalV - minV) / vSpan : 0;
-
-        // Use formatUsdTuple2 for consistent 7 decimal place precision
-        uvTuples.push(formatUsdTuple2(normalizedU, normalizedV));
+        uvTuples.push(formatUsdTuple2(uvArray[i], uvArray[i + 1]));
       }
       result.uvs = `[${uvTuples.join(', ')}]`;
     }
@@ -365,36 +341,15 @@ function generateNormals(normals: Float32Array | Int8Array | Int16Array | Uint8A
 function generateUVs(uvs: Float32Array | Int8Array | Int16Array | Uint8Array | Uint16Array | Uint32Array): string {
   const uvCount = uvs.length / 2;
 
-  // Normalize UV coordinates to [0,1] range for proper texture mapping
-
-  // Find min/max values for normalization
-  let minU = Infinity, maxU = -Infinity;
-  let minV = Infinity, maxV = -Infinity;
-
+  // Preserve GLTF UV coordinates as-is.
+  // GLTF allows UV values outside [0,1] for tiled/repeating textures.
+  // USD handles tiling via wrapS/wrapT = "repeat" on UsdUVTexture.
+  let content = `    texCoord2f[] primvars:st = [\n`;
   for (let i = 0; i < uvCount; i++) {
     const u = uvs[i * 2];
     const v = uvs[i * 2 + 1];
-    minU = Math.min(minU, u);
-    maxU = Math.max(maxU, u);
-    minV = Math.min(minV, v);
-    maxV = Math.max(maxV, v);
-  }
 
-  // Calculate normalization factors
-  const uSpan = maxU - minU;
-  const vSpan = maxV - minV;
-
-  // Generate USD content with normalized UV coordinates
-  let content = `    texCoord2f[] primvars:st = [\n`;
-  for (let i = 0; i < uvCount; i++) {
-    const originalU = uvs[i * 2];
-    const originalV = uvs[i * 2 + 1];
-
-    // Normalize to [0,1] range
-    const normalizedU = uSpan > 0 ? (originalU - minU) / uSpan : 0;
-    const normalizedV = vSpan > 0 ? (originalV - minV) / vSpan : 0;
-
-    content += `        (${normalizedU}, ${normalizedV})`;
+    content += `        (${u}, ${v})`;
     if (i < uvCount - 1) content += `,\n`;
   }
   content += `\n    ]\n`;
