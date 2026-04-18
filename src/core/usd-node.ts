@@ -118,11 +118,23 @@ export class UsdNode {
   }
 
   /**
-   * Remove a child node from this node
+   * Remove a child node from this node.
+   * First tries by name derived from the child's current path.
+   * Falls back to reference identity scan if the name doesn't match
+   * (can happen when updatePath was called after addChild).
    */
   removeChild(child: UsdNode): boolean {
     const childName = child._path.split('/').pop() || 'Unnamed';
-    return this._children.delete(childName);
+    if (this._children.get(childName) === child) {
+      return this._children.delete(childName);
+    }
+    // Fallback: child's path may have changed since it was added — scan by reference
+    for (const [key, value] of this._children) {
+      if (value === child) {
+        return this._children.delete(key);
+      }
+    }
+    return false;
   }
 
   /**
