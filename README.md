@@ -33,6 +33,36 @@ All outputs are packaged as `.usdz` with 64-byte alignment, validated against `u
 pnpm install
 ```
 
+## CLI
+
+The `webusd` CLI converts 3D models to USDZ:
+
+```shell
+webusd <input> [options]
+```
+
+**Options:**
+- `-o, --output <path>` — Output file path (default: `<input>.usdz`)
+- `-d, --debug` — Enable debug mode with intermediate files
+- `--decimate <n>` — Target face count for mesh decimation (PLY only)
+- `--up-axis <Y|Z>` — Up axis (default: Y)
+- `--meters-per-unit <n>` — Scene scale (default: 1)
+- `-h, --help` — Show help
+- `-v, --version` — Show version
+
+**Examples:**
+```shell
+webusd model.glb                           # GLB → USDZ
+webusd model.glb -o output.usdz -d        # With debug output
+webusd scan.ply --decimate 500000          # PLY with decimation
+webusd ./stl-folder/                       # STL batch mode
+```
+
+**Or use as a library:**
+```javascript
+const usdz = await usd.convert('./model.glb')
+```
+
 ## Quick Start
 
 ```javascript

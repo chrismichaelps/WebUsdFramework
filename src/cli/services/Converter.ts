@@ -1,19 +1,8 @@
-/**
- * Converter Service
- *
- * Orchestrates 3D model conversion to USDZ.
- * Depends on CliConfig and CliLogger (Layer<Converter, never, CliConfig | CliLogger>).
- */
-
-import { Effect, Context, Layer, Data } from "effect"
+import { Effect, Context, Layer } from "effect"
 import { CliConfig } from "./CliConfig"
 import { CliLogger } from "./CliLogger"
+import { ConversionError } from "../errors"
 import { defineConfig, convertPlyToUsdz } from "../../index"
-
-export class ConversionError extends Data.TaggedError("ConversionError")<{
-  readonly message: string
-  readonly cause?: unknown
-}> {}
 
 export interface ConverterShape {
   readonly run: Effect.Effect<string, ConversionError>
@@ -42,7 +31,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
 
         const startTime = Date.now()
 
-        // Read input file
         const fs = yield* Effect.try({
           try: () => require("fs") as typeof import("fs"),
           catch: (e) => new ConversionError({ message: "Failed to load fs module", cause: e }),
@@ -56,7 +44,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
         const resolvedInput = path.resolve(config.inputPath)
         const resolvedOutput = path.resolve(config.outputPath)
 
-        // Check if input exists
         const inputExists = yield* Effect.try({
           try: () => fs.existsSync(resolvedInput),
           catch: (e) => new ConversionError({ message: `Cannot access input: ${resolvedInput}`, cause: e }),
@@ -68,7 +55,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
           }))
         }
 
-        // Check if input is a directory (STL batch mode)
         const stat = yield* Effect.try({
           try: () => fs.statSync(resolvedInput),
           catch: (e) => new ConversionError({ message: `Cannot stat input: ${resolvedInput}`, cause: e }),
@@ -77,7 +63,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
         yield* logger.info(`Converting...`)
 
         if (stat.isDirectory()) {
-          // STL batch mode
           const usd = defineConfig({
             debug: config.debug,
             ...(config.debug ? { debugOutputDir: path.dirname(resolvedOutput) } : {}),
@@ -93,7 +78,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
             }),
           })
 
-          // Batch mode returns multiple results handled by the framework
           if (result instanceof Blob) {
             const buffer = yield* Effect.tryPromise({
               try: () => result.arrayBuffer(),
@@ -105,7 +89,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
             })
           }
         } else if (config.format === ".ply") {
-          // PLY uses its own converter directly
           const inputBuffer = yield* Effect.try({
             try: () => {
               const buf = fs.readFileSync(resolvedInput)
@@ -138,7 +121,6 @@ export const ConverterLive: Layer.Layer<Converter, never, CliConfig | CliLogger>
             catch: (e) => new ConversionError({ message: `Failed to write output: ${resolvedOutput}`, cause: e }),
           })
         } else {
-          // GLB, GLTF, OBJ, FBX, STL single file
           const usd = defineConfig({
             debug: config.debug,
             ...(config.debug ? { debugOutputDir: path.dirname(resolvedOutput) } : {}),

@@ -1,13 +1,9 @@
-/**
- * CLI Entry Point
- *
- * Composes all service layers and runs the conversion program.
- */
-
 import { Effect, Layer } from "effect"
-import { CliConfigLive, CliConfigError } from "./services/CliConfig"
+import { CliConfigLive } from "./services/CliConfig"
 import { CliLoggerLive } from "./services/CliLogger"
-import { Converter, ConverterLive, ConversionError } from "./services/Converter"
+import { Converter, ConverterLive } from "./services/Converter"
+import { CliConfigError, ConversionError } from "./errors"
+import { CLI_VERSION } from "./constants"
 
 const AppConfigLive = Layer.merge(CliConfigLive, CliLoggerLive)
 
@@ -26,7 +22,7 @@ const runnable = program.pipe(
   Effect.catchTag("CliConfigError", (e: CliConfigError) =>
     Effect.sync(() => {
       console.log(e.message)
-      process.exit(e.message.includes("Usage:") || e.message.startsWith("webusd v") ? 0 : 1)
+      process.exit(e.message.includes("Usage:") || e.message.startsWith(`webusd ${CLI_VERSION}`) ? 0 : 1)
     }),
   ),
   Effect.catchTag("ConversionError", (e: ConversionError) =>
