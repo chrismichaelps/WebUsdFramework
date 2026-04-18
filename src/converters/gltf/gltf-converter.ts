@@ -315,6 +315,81 @@ export async function convertGlbToUsdz(
         });
       }
 
+      // Pre-compute ancestor world transforms for each skeleton BEFORE bindSkeletonToMesh
+      // modifies the hierarchy. When SkelRoots are moved to the stage root for defaultPrim
+      // compatibility, they lose ancestor transforms (scale, rotation, translation).
+      // We walk UP the GLTF node tree from the skeleton's root joint to accumulate
+      // the world transform of all ancestor nodes, then store it so we can apply it
+      // to the SkelRoot when it's moved to the top level.
+      {
+        // 4x4 matrix multiply (row-major)
+        function mul4x4(a: number[], b: number[]): number[] {
+          const r = new Array(16).fill(0);
+          for (let row = 0; row < 4; row++)
+            for (let col = 0; col < 4; col++)
+              for (let k = 0; k < 4; k++)
+                r[row * 4 + col] += a[row * 4 + k] * b[k * 4 + col];
+          return r;
+        }
+        function parseMat4(prop: unknown): number[] | null {
+          if (!prop || typeof prop !== 'string') return null;
+          const nums = (prop as string).match(/-?[\d.]+(?:e[+-]?\d+)?/gi);
+          if (!nums || nums.length !== 16) return null;
+          return nums.map(Number);
+        }
+        const ID4 = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+
+        for (const [skin, skeletonData] of skeletonMap) {
+          // Find the root joint of this skeleton in GLTF
+          const joints = skin.listJoints();
+          if (joints.length === 0) continue;
+          const rootJoint = joints[0]; // First joint is typically the root
+
+          // Walk UP the GLTF node tree from the root joint's parent,
+          // collecting all ancestor GLTF nodes until we reach the scene root
+          const ancestorGltfNodes: Node[] = [];
+          let current: Node | null = rootJoint.getParentNode ? rootJoint.getParentNode() : null;
+          while (current) {
+            ancestorGltfNodes.unshift(current); // prepend so list is root-to-joint order
+            current = current.getParentNode ? current.getParentNode() : null;
+          }
+
+          if (ancestorGltfNodes.length > 0) {
+            // Accumulate world transform from USD nodes corresponding to GLTF ancestors
+            let worldMatrix = [...ID4];
+            for (const gltfAncestor of ancestorGltfNodes) {
+              const usdAncestor = hierarchyContext.nodeMap.get(gltfAncestor);
+              if (usdAncestor) {
+                const transformProp = usdAncestor.getProperty('xformOp:transform');
+                if (transformProp) {
+                  const localMatrix = parseMat4(
+                    typeof transformProp === 'string' ? transformProp : String(transformProp)
+                  );
+                  if (localMatrix) {
+                    worldMatrix = mul4x4(localMatrix, worldMatrix);
+                  }
+                }
+              }
+            }
+            const isIdentity = worldMatrix.every((v, i) => Math.abs(v - ID4[i]) < 1e-9);
+            if (!isIdentity) {
+              const m = worldMatrix;
+              skeletonData.ancestorWorldTransform = `( (${m[0]}, ${m[1]}, ${m[2]}, ${m[3]}), (${m[4]}, ${m[5]}, ${m[6]}, ${m[7]}), (${m[8]}, ${m[9]}, ${m[10]}, ${m[11]}), (${m[12]}, ${m[13]}, ${m[14]}, ${m[15]}) )`;
+              logger.info('Pre-computed ancestor world transform for SkelRoot', {
+                skelRootPath: skeletonData.skelRootNode.getPath(),
+                rootJoint: rootJoint.getName(),
+                ancestorCount: ancestorGltfNodes.length,
+              });
+            } else {
+              logger.info('Ancestor world transform is identity for SkelRoot', {
+                skelRootPath: skeletonData.skelRootNode.getPath(),
+                rootJoint: rootJoint.getName(),
+              });
+            }
+          }
+        }
+      }
+
       // Bind each skeleton mesh to its skeleton, using LCA as parent
       // Related meshes (without skeletons) stay in their original hierarchy
       // Only meshes WITH skeletons are moved under SkelRoots
@@ -553,7 +628,7 @@ export async function convertGlbToUsdz(
             });
           }
 
-          const newSkelRootPath = `/${skelRootName}`;
+          const newSkelRootPath = `/Root/${skelRootName}`;
 
           // Update all children paths before updating SkelRoot
           const updateChildPaths = (node: UsdNode, oldParentPath: string, newParentPath: string) => {
@@ -652,7 +727,9 @@ export async function convertGlbToUsdz(
             }
           }
 
-          // Remove SkelRoot from its current parent before moving to top-level
+          // Compute accumulated world transform from all ancestors before moving
+          // to top-level. Without this, the SkelRoot loses its ancestor transforms
+          // (scale, rotation, translation) and renders at wrong size/position.
           function findParent(node: UsdNode, target: UsdNode): UsdNode | null {
             for (const child of node.getChildren()) {
               if (child === target) return node;
@@ -661,6 +738,8 @@ export async function convertGlbToUsdz(
             }
             return null;
           }
+
+          // Remove SkelRoot from its current parent before moving to top-level
           const currentParent = findParent(rootStructure.rootNode, skeletonData.skelRootNode);
           if (currentParent) {
             currentParent.removeChild(skeletonData.skelRootNode);
@@ -670,16 +749,24 @@ export async function convertGlbToUsdz(
             });
           }
 
-          // Store as top-level prim (sibling of Root)
-          // Check if already in topLevelPrims to avoid duplicates
-          if (!rootStructure.topLevelPrims) {
-            rootStructure.topLevelPrims = [];
+          // Apply pre-computed ancestor world transform to the SkelRoot so it renders
+          // at the correct size/position after being moved to the stage root.
+          // This was computed before bindSkeletonToMesh modified the hierarchy.
+          if (skeletonData.ancestorWorldTransform) {
+            skeletonData.skelRootNode.setProperty('xformOp:transform', skeletonData.ancestorWorldTransform, 'matrix4d');
+            skeletonData.skelRootNode.setProperty('xformOpOrder', ['xformOp:transform'], 'token[]');
+            logger.info('Applied ancestor world transform to SkelRoot after move to top-level', {
+              skelRootPath: newSkelRootPath,
+              worldTransform: skeletonData.ancestorWorldTransform
+            });
           }
-          const alreadyInTopLevel = rootStructure.topLevelPrims.includes(skeletonData.skelRootNode);
-          if (!alreadyInTopLevel) {
-            rootStructure.topLevelPrims.push(skeletonData.skelRootNode);
+
+          // Add SkelRoot as child of Root (so it's included in defaultPrim)
+          const alreadyChild = Array.from(rootStructure.rootNode.getChildren()).includes(skeletonData.skelRootNode);
+          if (!alreadyChild) {
+            rootStructure.rootNode.addChild(skeletonData.skelRootNode);
           } else {
-            logger.warn('SkelRoot already in topLevelPrims, skipping duplicate', {
+            logger.warn('SkelRoot already a child of Root, skipping duplicate', {
               skelRootPath: newSkelRootPath
             });
           }
@@ -889,14 +976,12 @@ export async function convertGlbToUsdz(
       rootStructure.rootNode.setMetadata('timeCodesPerSecond', animationTimeCode.timeCodesPerSecond);
       rootStructure.rootNode.setMetadata('framesPerSecond', animationTimeCode.framesPerSecond);
 
-      // Set defaultPrim to SkelRoot for animated models
+      // Set defaultPrim to Root so all content (static meshes + animated skeletons) is visible
       if (skeletonMap && skeletonMap.size > 0 && animationTimeCode) {
-        const firstSkelRoot = Array.from(skeletonMap.values())[0].skelRootNode;
-        const skelRootName = sanitizeName(firstSkelRoot.getName());
-        rootStructure.rootNode.setMetadata('defaultPrim', skelRootName);
-        logger.info('Set defaultPrim to SkelRoot for animated model', {
-          defaultPrim: skelRootName,
-          skelRootPath: firstSkelRoot.getPath()
+        rootStructure.rootNode.setMetadata('defaultPrim', 'Root');
+        logger.info('Set defaultPrim to Root for animated model (SkelRoots are children of Root)', {
+          defaultPrim: 'Root',
+          skelRootCount: skeletonMap.size
         });
       } else {
         // Find blend shape SkelRoots and move to top-level
@@ -952,7 +1037,7 @@ export async function convertGlbToUsdz(
             suffix++;
           }
 
-          const newPath = `/${uniqueName}`;
+          const newPath = `/Root/${uniqueName}`;
 
           // Update all children paths before updating SkelRoot
           const updateChildPaths = (node: UsdNode, oldParentPath: string, newParentPath: string) => {
@@ -1003,23 +1088,81 @@ export async function convertGlbToUsdz(
 
           updateBlendShapePaths(blendSkelRoot, oldPath, newPath);
 
+          // Compute accumulated world transform before removing from hierarchy
+          function findAncestorChainBlend(root: UsdNode, target: UsdNode): UsdNode[] | null {
+            if (root === target) return [];
+            for (const child of root.getChildren()) {
+              if (child === target) return [root];
+              const chain = findAncestorChainBlend(child, target);
+              if (chain !== null) return [root, ...chain];
+            }
+            return null;
+          }
+          function multiplyMatrix4x4Blend(a: number[], b: number[]): number[] {
+            const result = new Array(16).fill(0);
+            for (let row = 0; row < 4; row++) {
+              for (let col = 0; col < 4; col++) {
+                for (let k = 0; k < 4; k++) {
+                  result[row * 4 + col] += a[row * 4 + k] * b[k * 4 + col];
+                }
+              }
+            }
+            return result;
+          }
+          function parseMatrix4dBlend(prop: unknown): number[] | null {
+            if (!prop || typeof prop !== 'string') return null;
+            const nums = (prop as string).match(/-?[\d.]+(?:e[+-]?\d+)?/gi);
+            if (!nums || nums.length !== 16) return null;
+            return nums.map(Number);
+          }
+          const IDENTITY_BLEND = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+          const blendAncestors = findAncestorChainBlend(rootStructure.rootNode, blendSkelRoot);
+          let blendWorldTransform: number[] | null = null;
+          if (blendAncestors && blendAncestors.length > 0) {
+            let worldMatrix = [...IDENTITY_BLEND];
+            for (const ancestor of blendAncestors) {
+              const transformProp = ancestor.getProperty('xformOp:transform');
+              if (transformProp) {
+                const localMatrix = parseMatrix4dBlend(
+                  typeof transformProp === 'string' ? transformProp : String(transformProp)
+                );
+                if (localMatrix) {
+                  worldMatrix = multiplyMatrix4x4Blend(worldMatrix, localMatrix);
+                }
+              }
+            }
+            const isIdentity = worldMatrix.every((v, i) => Math.abs(v - IDENTITY_BLEND[i]) < 1e-9);
+            if (!isIdentity) {
+              blendWorldTransform = worldMatrix;
+            }
+          }
+
           // Remove from current parent
-          const currentParent = Array.from(rootStructure.rootNode.getChildren()).find(
-            child => Array.from(child.getChildren()).includes(blendSkelRoot)
-          ) || rootStructure.sceneNode;
-          if (currentParent) {
-            function findParent(node: UsdNode, target: UsdNode): UsdNode | null {
+          {
+            function findParentBlend(node: UsdNode, target: UsdNode): UsdNode | null {
               for (const child of node.getChildren()) {
                 if (child === target) return node;
-                const found = findParent(child, target);
+                const found = findParentBlend(child, target);
                 if (found) return found;
               }
               return null;
             }
-            const actualParent = findParent(rootStructure.rootNode, blendSkelRoot);
+            const actualParent = findParentBlend(rootStructure.rootNode, blendSkelRoot);
             if (actualParent) {
               actualParent.removeChild(blendSkelRoot);
             }
+          }
+
+          // Apply accumulated world transform
+          if (blendWorldTransform) {
+            const m = blendWorldTransform;
+            const matrixStr = `( (${m[0]}, ${m[1]}, ${m[2]}, ${m[3]}), (${m[4]}, ${m[5]}, ${m[6]}, ${m[7]}), (${m[8]}, ${m[9]}, ${m[10]}, ${m[11]}), (${m[12]}, ${m[13]}, ${m[14]}, ${m[15]}) )`;
+            blendSkelRoot.setProperty('xformOp:transform', matrixStr, 'matrix4d');
+            blendSkelRoot.setProperty('xformOpOrder', ['xformOp:transform'], 'token[]');
+            logger.info('Applied accumulated world transform to blend shape SkelRoot after move to top-level', {
+              skelRootPath: newPath,
+              worldTransform: matrixStr
+            });
           }
 
           blendSkelRoot.updatePath(newPath);
@@ -1033,23 +1176,20 @@ export async function convertGlbToUsdz(
             defaultAnimation: defaultAnimationName
           });
 
-          // Add to top-level prims (check for duplicates)
-          if (!rootStructure.topLevelPrims) {
-            rootStructure.topLevelPrims = [];
-          }
-          const alreadyInTopLevel = rootStructure.topLevelPrims.includes(blendSkelRoot);
-          if (!alreadyInTopLevel) {
-            rootStructure.topLevelPrims.push(blendSkelRoot);
+          // Add to Root as child (so it's included in defaultPrim)
+          const alreadyChild = Array.from(rootStructure.rootNode.getChildren()).includes(blendSkelRoot);
+          if (!alreadyChild) {
+            rootStructure.rootNode.addChild(blendSkelRoot);
           } else {
-            logger.warn('Blend shape SkelRoot already in topLevelPrims, skipping duplicate', {
+            logger.warn('Blend shape SkelRoot already a child of Root, skipping duplicate', {
               skelRootPath: blendSkelRoot.getPath()
             });
           }
 
-          // Set as defaultPrim
-          rootStructure.rootNode.setMetadata('defaultPrim', uniqueName);
-          logger.info('Set defaultPrim to blend shape SkelRoot for morph target animation', {
-            defaultPrim: uniqueName,
+          // Set defaultPrim to Root so all content is visible
+          rootStructure.rootNode.setMetadata('defaultPrim', 'Root');
+          logger.info('Set defaultPrim to Root for morph target animation (SkelRoot is child of Root)', {
+            defaultPrim: 'Root',
             oldPath,
             newPath: blendSkelRoot.getPath(),
             hasCustomData: !!blendSkelRoot.getProperty('customData')
@@ -1093,10 +1233,12 @@ export async function convertGlbToUsdz(
 
       setAnimatedExtentOnAllSkelRoots(rootStructure.rootNode, logger, defaultAnimationName);
 
-      // Set animated extent on top-level SkelRoots
-      if (rootStructure.topLevelPrims) {
-        for (const topLevelPrim of rootStructure.topLevelPrims) {
-          if (topLevelPrim.getTypeName() === 'SkelRoot') {
+      // Set animated extent on SkelRoot children of Root (previously top-level prims)
+      {
+        const skelRootChildren = Array.from(rootStructure.rootNode.getChildren()).filter(
+          child => child.getTypeName() === 'SkelRoot'
+        );
+        for (const skelRootChild of skelRootChildren) {
             // Check if this SkelRoot has blend shapes
             let hasBlendShapes = false;
             function checkForBlendShapes(node: UsdNode): boolean {
@@ -1113,28 +1255,28 @@ export async function convertGlbToUsdz(
               }
               return false;
             }
-            hasBlendShapes = checkForBlendShapes(topLevelPrim);
+            hasBlendShapes = checkForBlendShapes(skelRootChild);
 
             // Set customData.defaultAnimation if not already set
-            const existingCustomData = topLevelPrim.getProperty('customData');
+            const existingCustomData = skelRootChild.getProperty('customData');
             if (hasBlendShapes && defaultAnimationName && !existingCustomData) {
-              topLevelPrim.setProperty('customData', { defaultAnimation: defaultAnimationName });
-              logger.info('Set customData.defaultAnimation on top-level blend shape SkelRoot', {
-                skelRootPath: topLevelPrim.getPath(),
+              skelRootChild.setProperty('customData', { defaultAnimation: defaultAnimationName });
+              logger.info('Set customData.defaultAnimation on SkelRoot child of Root', {
+                skelRootPath: skelRootChild.getPath(),
                 defaultAnimation: defaultAnimationName
               });
             }
 
-            // Set animated extent on top-level SkelRoot
+            // Set animated extent on SkelRoot
             const startTimeCode = rootStructure.rootNode.getMetadata('startTimeCode') as number | undefined;
             const endTimeCode = rootStructure.rootNode.getMetadata('endTimeCode') as number | undefined;
 
             if (startTimeCode !== undefined && endTimeCode !== undefined) {
               // Check if extent is already time-sampled
-              const existingExtent = topLevelPrim.getProperty('float3[] extent');
+              const existingExtent = skelRootChild.getProperty('float3[] extent');
               if (!(existingExtent && typeof existingExtent === 'object' && 'timeSamples' in existingExtent)) {
                 // Calculate extent and set time-sampled extent
-                const staticExtent = calculateSceneExtent(topLevelPrim);
+                const staticExtent = calculateSceneExtent(skelRootChild);
                 if (staticExtent) {
                   const [minX, minY, minZ, maxX, maxY, maxZ] = staticExtent;
                   const extentMinStr = formatUsdTuple3(minX, minY, minZ);
@@ -1146,9 +1288,9 @@ export async function convertGlbToUsdz(
                     finalExtentTimeSamples.set(frame, extentValue);
                   }
 
-                  topLevelPrim.setTimeSampledProperty('float3[] extent', finalExtentTimeSamples, 'float3[]');
-                  logger.info('Set animated extent on top-level blend shape SkelRoot', {
-                    skelRootPath: topLevelPrim.getPath(),
+                  skelRootChild.setTimeSampledProperty('float3[] extent', finalExtentTimeSamples, 'float3[]');
+                  logger.info('Set animated extent on SkelRoot child of Root', {
+                    skelRootPath: skelRootChild.getPath(),
                     extent: `[(${minX}, ${minY}, ${minZ}), (${maxX}, ${maxY}, ${maxZ})]`,
                     timeSampleCount: finalExtentTimeSamples.size,
                     firstTimeCode: startTimeCode,
@@ -1157,7 +1299,6 @@ export async function convertGlbToUsdz(
                 }
               }
             }
-          }
         }
       }
     }

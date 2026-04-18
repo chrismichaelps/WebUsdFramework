@@ -348,7 +348,14 @@ export class UsdNode {
     );
 
     // Identify transform properties
-    const hasAnimatedTransforms = this._timeSamples.size > 0;
+    // Only consider animated individual transform ops (translate/orient/scale/rotate),
+    // NOT other time-sampled properties like extent or blendShapeWeights.
+    const hasAnimatedTransforms = Array.from(this._timeSamples.keys()).some(key =>
+      key.includes('xformOp:translate') ||
+      key.includes('xformOp:orient') ||
+      key.includes('xformOp:scale') ||
+      (key.includes('xformOp:rotate') && !key.includes('xformOp:rotateXYZ'))
+    );
     const transformProperties = this._properties.filter(p => {
       if (p.key === "xformOp:transform" && hasAnimatedTransforms) {
         // Exclude xformOp:transform if we have animated individual ops

@@ -23,6 +23,7 @@ export interface SkeletonData {
   restPoseScales?: string[]; // Store rest pose scales for default animation values
   rootJointOmitted?: boolean; // Whether the root joint was omitted from the skeleton
   gjointToUjointMap?: number[]; // Map GLTF joint index (in skin.listJoints()) to USD skeleton joint index
+  ancestorWorldTransform?: string; // Accumulated world transform from ancestors (for top-level SkelRoot placement)
 }
 
 /**
