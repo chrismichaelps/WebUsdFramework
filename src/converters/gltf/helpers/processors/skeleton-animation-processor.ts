@@ -327,6 +327,10 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
         const values = Array.from(outputArray as Float32Array);
         const targetPath = channel.getTargetPath();
 
+        // Check interpolation mode — CUBICSPLINE stores 3× the data per keyframe
+        // Layout: [inTangent, value, outTangent] per component per keyframe
+        const interpolation = sampler.getInterpolation();
+
         let jointAnim = jointAnimations.get(jointPath);
         if (!jointAnim) {
           jointAnim = { jointPath };
@@ -336,10 +340,12 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
         // Store the animation values for this joint at each time point
         const timeSamples = new Map<number, string>();
         const componentCount = targetPath === 'rotation' ? 4 : 3;
+        // CUBICSPLINE: stride is 3× componentCount (inTangent + value + outTangent)
+        const stride = interpolation === 'CUBICSPLINE' ? componentCount * 3 : componentCount;
 
         for (let i = 0; i < times.length; i++) {
           const time = times[i];
-          const startIdx = i * componentCount;
+          const startIdx = i * stride + (interpolation === 'CUBICSPLINE' ? componentCount : 0);
           const value = values.slice(startIdx, startIdx + componentCount);
 
           let valueString: string;
