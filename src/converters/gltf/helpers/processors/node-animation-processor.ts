@@ -316,6 +316,28 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
       };
     }
 
+    // Compute global minimum time code across ALL nodes so normalization is consistent
+    // This prevents multi-node animations from desyncing when each node's timecodes
+    // are independently shifted to start at 0
+    let globalMinTimeCode = Infinity;
+    for (const [, nodeAnim] of nodeAnimations) {
+      for (const timeSamples of [nodeAnim.translations, nodeAnim.rotations, nodeAnim.scales]) {
+        if (timeSamples && timeSamples.size > 0) {
+          for (const timeSeconds of timeSamples.keys()) {
+            const s = ANIMATION.TIME_CODE_FPS * timeSeconds;
+            const r = Math.round(s);
+            const timeCode = Math.abs(s - r) < ANIMATION.SNAP_TIME_CODE_TOL ? r : s;
+            if (timeCode < globalMinTimeCode) {
+              globalMinTimeCode = timeCode;
+            }
+          }
+        }
+      }
+    }
+    if (!isFinite(globalMinTimeCode)) {
+      globalMinTimeCode = 0;
+    }
+
     for (const [usdNode, nodeAnim] of nodeAnimations) {
       // Remove existing xformOp:transform if present (USD doesn't allow mixing transform types)
       const existingTransform = usdNode.getProperty('xformOp:transform');
@@ -332,6 +354,7 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
 
       // Helper to convert time samples to USD time codes
       // Multiply times by the time code frame rate and round to integers when close
+      // Uses globalMinTimeCode to normalize all nodes consistently
       const convertTimeSamplesToTimeCodes = (timeSamples: Map<number, string>): Map<number, string> => {
         const timeCodes = new Map<number, string>();
 
@@ -342,24 +365,9 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
           const r = Math.round(s);
           // If close to integer, use integer; otherwise use continuous value
           const timeCode = Math.abs(s - r) < ANIMATION.SNAP_TIME_CODE_TOL ? r : s;
-          timeCodes.set(timeCode, value);
-        }
-
-        // Normalize time codes to start at 0
-        if (timeCodes.size > 0) {
-          const sortedTimeCodes = Array.from(timeCodes.keys()).sort((a, b) => a - b);
-          const minTimeCode = sortedTimeCodes[0];
-
-          if (minTimeCode !== 0) {
-            // Shift all time codes so the first one becomes 0
-            const normalizedTimeCodes = new Map<number, string>();
-            for (const [timeCode, value] of timeCodes) {
-              const normalizedTimeCode = timeCode - minTimeCode;
-              normalizedTimeCodes.set(normalizedTimeCode, value);
-            }
-
-            return normalizedTimeCodes;
-          }
+          // Normalize using global minimum so all nodes stay in sync
+          const normalizedTimeCode = timeCode - globalMinTimeCode;
+          timeCodes.set(normalizedTimeCode, value);
         }
 
         return timeCodes;
