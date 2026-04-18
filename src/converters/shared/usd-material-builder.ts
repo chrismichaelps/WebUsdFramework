@@ -308,18 +308,19 @@ export async function buildUsdMaterial(
       'connection'
     );
 
-    // Connect texture alpha channel to opacity if alphaMode is not OPAQUE
-    // This is critical for materials with transparency (BLEND or MASK mode)
-    // The texture alpha channel provides the actual opacity values from the texture
+    // Connect texture alpha channel to opacity for non-OPAQUE materials.
+    // For BLEND mode: connect alpha → inputs:opacity for smooth transparency.
+    // For MASK mode: connect alpha → inputs:opacity AND set inputs:opacityThreshold
+    //   so USD PreviewSurface performs a hard cutoff (supported since USD 21.11).
     if (alphaMode !== Material.AlphaMode.OPAQUE) {
-      // Connect texture alpha channel to opacity
-      // For BLEND mode, this provides smooth transparency
-      // For MASK mode, USD PreviewSurface doesn't support cutoff, so we rely on the texture alpha
       surfaceShader.setProperty(
         'float inputs:opacity.connect',
         `<${materialPath}/${textureNodeName}.outputs:a>`,
         'connection'
       );
+      if (alphaMode === Material.AlphaMode.MASK) {
+        surfaceShader.setProperty('float inputs:opacityThreshold', alphaCutoff.toString(), 'float');
+      }
       console.log(`[buildUsdMaterial] Connected texture alpha channel to opacity for material: ${materialName}`, {
         alphaMode: Material.AlphaMode[alphaMode],
         alphaCutoff
@@ -651,14 +652,13 @@ export async function buildUsdMaterial(
 
   // Handle alphaMode: OPAQUE, MASK, or BLEND
   // For OPAQUE, opacity is always 1.0 (alpha is ignored)
-  // For MASK, opacity is 1.0 if alpha >= alphaCutoff, else 0.0
+  // For MASK, opacity is 1.0 if baseColorFactor alpha >= alphaCutoff, else 0.0
+  //   (when a texture is present, inputs:opacityThreshold handles cutoff per-pixel)
   // For BLEND, opacity is the alpha value directly
   if (alphaMode === Material.AlphaMode.OPAQUE) {
     opacity = 1.0;
   } else if (alphaMode === Material.AlphaMode.MASK) {
-    // MASK mode: fully opaque if alpha >= cutoff, else fully transparent
-    // Note: USD PreviewSurface doesn't support alpha cutoff directly,
-    // so we set opacity to 1.0 or 0.0 based on the cutoff
+    // No texture: bake the constant alpha against the cutoff threshold
     opacity = opacity >= alphaCutoff ? 1.0 : 0.0;
   } else if (alphaMode === Material.AlphaMode.BLEND) {
     // BLEND mode: use alpha value directly for transparency
