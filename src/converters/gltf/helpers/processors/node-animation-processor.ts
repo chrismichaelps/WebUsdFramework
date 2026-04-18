@@ -181,10 +181,15 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
       const times = Array.from(inputArray as Float32Array);
       const values = Array.from(outputArray as Float32Array);
 
+      // Check interpolation mode — CUBICSPLINE stores 3× the data per keyframe
+      // Layout: [inTangent, value, outTangent] per component per keyframe
+      const interpolation = sampler.getInterpolation();
+
       this.logger.info(`Processing animation channel`, {
         animationName,
         targetNode: targetNode.getName(),
         targetPath,
+        interpolation,
         timeSampleCount: times.length,
         valueCount: values.length,
         expectedValueCount: targetPath === 'rotation' ? times.length * 4 : times.length * 3
@@ -199,10 +204,12 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
       // Store animation values for this node at each time point
       const timeSamples = new Map<number, string>();
       const componentCount = targetPath === 'rotation' ? 4 : 3;
+      // CUBICSPLINE: stride is 3× componentCount (inTangent + value + outTangent)
+      const stride = interpolation === 'CUBICSPLINE' ? componentCount * 3 : componentCount;
 
       for (let i = 0; i < times.length; i++) {
         const time = times[i];
-        const startIdx = i * componentCount;
+        const startIdx = i * stride + (interpolation === 'CUBICSPLINE' ? componentCount : 0);
         const value = values.slice(startIdx, startIdx + componentCount);
 
         // Make sure we have enough values
