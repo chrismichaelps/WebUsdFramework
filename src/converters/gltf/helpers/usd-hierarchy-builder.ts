@@ -109,7 +109,20 @@ export async function buildNodeHierarchy(
   parentUsdNode: UsdNode,
   context: HierarchyBuilderContext
 ): Promise<number> {
-  const nodeName = generateNodeName(gltfNode);
+  let nodeName = generateNodeName(gltfNode);
+
+  // Prevent sibling name collisions after sanitization.
+  // E.g. "Cube!" and "Cube?" both sanitize to "Cube" — append a numeric
+  // suffix to make each child name unique under its parent.
+  const siblingNames = new Set(Array.from(parentUsdNode.getChildren()).map(c => c.getName()));
+  if (siblingNames.has(nodeName)) {
+    let suffix = 1;
+    while (siblingNames.has(`${nodeName}_${suffix}`)) {
+      suffix++;
+    }
+    nodeName = `${nodeName}_${suffix}`;
+  }
+
   const nodeType = determineNodeType(gltfNode);
 
   const currentNode = new UsdNode(
