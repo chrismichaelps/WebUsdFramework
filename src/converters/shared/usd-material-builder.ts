@@ -491,7 +491,13 @@ export async function buildUsdMaterial(
     });
 
     // Create optimized texture shader network for emissive
+    // GLTF spec: final emissive = emissiveTexture * emissiveFactor
     const emissiveTextureInfo = material.getEmissiveTextureInfo();
+    const emissiveFactor = material.getEmissiveFactor();
+    const emissiveScale: [number, number, number, number] | undefined =
+      emissiveFactor && (emissiveFactor[0] !== 1 || emissiveFactor[1] !== 1 || emissiveFactor[2] !== 1)
+        ? [emissiveFactor[0], emissiveFactor[1], emissiveFactor[2], 1]
+        : undefined;
     const { textureShader } = createOptimizedTextureShader(
       materialPath,
       textureId,
@@ -502,7 +508,8 @@ export async function buildUsdMaterial(
       emissiveTextureInfo,
       materialNode,
       uvSetReaders,
-      uvSetTransforms
+      uvSetTransforms,
+      emissiveScale
     );
 
     materialNode.addChild(textureShader);
