@@ -96,6 +96,13 @@ export function getTextureExtensionFromData(textureData: ArrayBuffer): string {
     return 'png';
   }
 
+  // Check for WebP header: RIFF .... WEBP
+  if (uint8Array.length >= 12 &&
+    uint8Array[0] === 0x52 && uint8Array[1] === 0x49 && uint8Array[2] === 0x46 && uint8Array[3] === 0x46 && // RIFF
+    uint8Array[8] === 0x57 && uint8Array[9] === 0x45 && uint8Array[10] === 0x42 && uint8Array[11] === 0x50) { // WEBP
+    return 'webp';
+  }
+
   // Default to PNG if format cannot be determined
   return 'png';
 }
