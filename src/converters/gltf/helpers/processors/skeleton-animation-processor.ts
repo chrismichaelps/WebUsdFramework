@@ -762,7 +762,7 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
       // Set default values (the pose before animation starts)
       skelAnimationNode.setProperty('float3[] translations', defaultTranslations, 'raw');
       skelAnimationNode.setProperty('quatf[] rotations', defaultRotations, 'raw');
-      skelAnimationNode.setProperty('float3[] scales', defaultScales, 'raw');
+      skelAnimationNode.setProperty('half3[] scales', defaultScales, 'raw');
 
       // Set the time-sampled animation data
       if (transTimeCodes.size > 0) {
@@ -778,7 +778,7 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
       }
 
       if (scaleTimeCodes.size > 0) {
-        skelAnimationNode.setTimeSampledProperty('float3[] scales', scaleTimeCodes, 'float3[]');
+        skelAnimationNode.setTimeSampledProperty('half3[] scales', scaleTimeCodes, 'half3[]');
       }
 
       // Add SkelAnimation as a child of Skeleton
