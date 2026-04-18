@@ -4,6 +4,7 @@ import { convertGlbToUsdz } from './converters/gltf';
 import { convertObjToUsdz } from './converters/obj';
 import { convertFbxToGltfViaTool } from './converters/fbx';
 import { convertStlToUsdz } from './converters/stl';
+import { convertPlyToUsdz } from './converters/ply';
 import { UsdErrorFactory } from './errors';
 import { WebUsdConfigSchema, type WebUsdConfig } from './schemas';
 import { ZodError } from 'zod';
@@ -130,6 +131,18 @@ export class WebUsdFramework {
           autoComputeNormals: true
         };
         return await convertStlToUsdz(filePath, stlConfig);
+      } else if (fileExtension === '.ply') {
+        // Convert PLY to USDZ
+        const plyConfig = {
+          debug: this.config.debug,
+          debugOutputDir: this.config.debugOutputDir,
+          upAxis: this.config.upAxis,
+          metersPerUnit: this.config.metersPerUnit,
+          defaultColor: [0.7, 0.7, 0.7] as [number, number, number],
+          defaultPointWidth: 0.005,
+          maxPoints: 0,
+        };
+        return await convertPlyToUsdz(filePath, plyConfig);
       } else {
         throw UsdErrorFactory.conversionError(
           `Unsupported file format: ${fileExtension}`,
