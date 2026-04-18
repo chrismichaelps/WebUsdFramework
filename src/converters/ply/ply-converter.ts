@@ -3,6 +3,7 @@
 import { PlyConverterConfig } from '../../schemas';
 import { LoggerFactory } from '../../utils';
 import { parsePly, parsePlyFile, PlyMeshData } from './ply-parser';
+import { decimateMesh } from './mesh-decimator';
 import { createRootStructure } from '../shared/usd-root-builder';
 import {
   createUsdzPackage,
@@ -22,6 +23,7 @@ const DEFAULT_CONFIG: Required<PlyConverterConfig> = {
   defaultColor: [0.7, 0.7, 0.7],
   defaultPointWidth: 0.005,
   maxPoints: 0,
+  decimateTarget: 0,
 };
 
 /**
@@ -270,6 +272,45 @@ export async function convertPlyToUsdz(
 
     // Center geometry
     centerGeometry(meshData);
+
+    // Decimate mesh if requested and applicable
+    if (!meshData.isPointCloud && finalConfig.decimateTarget > 0 && meshData.faceCount > finalConfig.decimateTarget) {
+      const beforeVerts = meshData.vertexCount;
+      const beforeFaces = meshData.faceCount;
+
+      logger.info('Starting mesh decimation', {
+        stage: 'decimation',
+        targetFaces: finalConfig.decimateTarget,
+        inputVertices: beforeVerts,
+        inputFaces: beforeFaces,
+      });
+
+      const decimated = decimateMesh(
+        meshData.positions,
+        meshData.faceIndices!,
+        meshData.colors ?? undefined,
+        finalConfig.decimateTarget,
+        meshData.bounds
+      );
+
+      // Update meshData with decimated result
+      meshData.positions = decimated.positions;
+      meshData.faceIndices = decimated.indices;
+      meshData.faceVertexCounts = decimated.faceVertexCounts;
+      meshData.normals = decimated.normals;
+      meshData.vertexCount = decimated.vertexCount;
+      meshData.faceCount = decimated.faceCount;
+      meshData.bounds = decimated.bounds;
+      if (decimated.colors) meshData.colors = decimated.colors;
+
+      logger.info('Mesh decimation complete', {
+        stage: 'decimation',
+        outputVertices: decimated.vertexCount,
+        outputFaces: decimated.faceCount,
+        vertexReduction: ((1 - decimated.vertexCount / beforeVerts) * 100).toFixed(1) + '%',
+        faceReduction: ((1 - decimated.faceCount / beforeFaces) * 100).toFixed(1) + '%',
+      });
+    }
 
     // Build USD scene
     const rootStructure = createRootStructure('ply_scene');

@@ -21,6 +21,8 @@ export const PlyConverterConfigSchema = z.object({
   defaultPointWidth: z.number().positive().optional().default(0.005),
   // Max points for point cloud downsampling (0 = no limit)
   maxPoints: z.number().int().min(0).optional().default(0),
+  // Target face count for mesh decimation via vertex clustering (0 = no decimation)
+  decimateTarget: z.number().int().min(0).optional().default(0),
 });
 
 export type PlyConverterConfig = z.infer<typeof PlyConverterConfigSchema>;

@@ -141,6 +141,7 @@ export class WebUsdFramework {
           defaultColor: [0.7, 0.7, 0.7] as [number, number, number],
           defaultPointWidth: 0.005,
           maxPoints: 0,
+          decimateTarget: 0,
         };
         return await convertPlyToUsdz(filePath, plyConfig);
       } else {
@@ -238,3 +239,4 @@ export type { WebUsdConfig } from './schemas';
 export { convertGlbToUsdz } from './converters/gltf';
 export { convertObjToUsdz } from './converters/obj';
 export { convertStlToUsdz } from './converters/stl';
+export { convertPlyToUsdz } from './converters/ply';
