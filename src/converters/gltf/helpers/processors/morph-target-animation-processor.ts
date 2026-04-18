@@ -1,6 +1,6 @@
 /**
  * Converts morph target (blend shape) animations from GLTF to USD format.
- * 
+ *
  * Handles animations that change morph target weights over time.
  * Morph targets are used for facial expressions, cloth deformation, and other shape changes.
  */
@@ -243,6 +243,16 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
           morphTargetCount
         };
         meshAnimations.set(geometryMeshNode, meshAnim);
+      } else if (meshAnim.morphTargetCount !== morphTargetCount) {
+        // Multiple channels targeting the same mesh must agree on morph target count.
+        // Mismatched counts would produce wrong-length weight arrays in USD.
+        this.logger.warn(`Skipping morph target channel: morphTargetCount mismatch for mesh`, {
+          animationName,
+          targetNode: targetNode.getName(),
+          existingCount: meshAnim.morphTargetCount,
+          channelCount: morphTargetCount
+        });
+        continue;
       }
 
       for (let i = 0; i < times.length; i++) {
@@ -250,7 +260,7 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
         const startIdx = i * morphTargetCount;
         const weights = weightValues.slice(startIdx, startIdx + morphTargetCount);
 
-        // Store weights for this time (if multiple channels target the same mesh, use the last one)
+        // Store weights for this time (if multiple channels target the same mesh, last one wins)
         meshAnim.weights.set(time, weights);
       }
 
