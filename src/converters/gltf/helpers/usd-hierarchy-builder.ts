@@ -83,7 +83,6 @@ function _transformPoint(m: number[], p: [number, number, number]): [number, num
 
 const _ID4 = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Calculate scene extent from all mesh nodes, transforming each local-space
@@ -959,5 +958,4 @@ function bindMaterial(node: UsdNode, materialInfo: MaterialInfo): void {
     USD_PROPERTY_TYPES.REL
   );
 }
-
 
