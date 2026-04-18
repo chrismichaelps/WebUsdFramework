@@ -411,7 +411,7 @@ function attachGeometryReference(
     extentMax = [maxX, maxY, maxZ];
   }
 
-  // Face vertex counts (how many vertices per face)
+  // Face vertex counts and indices
   if (indices) {
     const faceCounts = new Array(indices.getCount() / 3).fill(3);
     node.setProperty('int[] faceVertexCounts', `[${faceCounts.join(', ')}]`, 'raw');
@@ -422,6 +422,18 @@ function attachGeometryReference(
       const indicesList = formatUsdNumberArray(Array.from(indexArray));
       node.setProperty('int[] faceVertexIndices', indicesList, 'raw');
     }
+  } else if (positionArray) {
+    // Non-indexed geometry (valid per GLTF spec): generate sequential indices
+    const vertexCount = positionArray.length / 3;
+    const faceCount = Math.floor(vertexCount / 3);
+    const faceCounts = new Array(faceCount).fill(3);
+    node.setProperty('int[] faceVertexCounts', `[${faceCounts.join(', ')}]`, 'raw');
+
+    const sequentialIndices: number[] = [];
+    for (let i = 0; i < faceCount * 3; i++) {
+      sequentialIndices.push(i);
+    }
+    node.setProperty('int[] faceVertexIndices', formatUsdNumberArray(sequentialIndices), 'raw');
   }
 
   // Normals (if available) - add with interpolation property
@@ -533,17 +545,7 @@ function attachGeometryReference(
   // Add standard mesh properties
   node.setProperty('token subdivisionScheme', 'none', 'token');
   node.setProperty('token visibility', 'inherited', 'token');
-
-  // Set purpose to "guide" for control bones/helpers (hide from rendering)
-  // These are typically named with "Bone" in the name and are helper geometry
-  const nodePath = node.getPath();
-  const isControlBone = nodePath.includes('Bone') || nodePath.includes('_Bone_') || nodePath.includes('Armature');
-
-  if (isControlBone) {
-    node.setProperty('token purpose', 'guide', 'token');
-  } else {
-    node.setProperty('token purpose', 'default', 'token');
-  }
+  node.setProperty('token purpose', 'default', 'token');
 }
 
 /**
