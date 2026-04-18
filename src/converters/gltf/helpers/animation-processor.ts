@@ -5,7 +5,11 @@ import { Logger } from '../../../utils';
 import { SkeletonData } from './skeleton-processor';
 import { ANIMATION } from '../../../constants';
 import { UsdNode } from '../../../core/usd-node';
-import { AnimationProcessorFactory, AnimationProcessorContext, AnimationProcessorResult } from './animation-processor-factory';
+import {
+  AnimationProcessorFactory,
+  AnimationProcessorContext,
+  AnimationProcessorResult,
+} from './animation-processor-factory';
 import { setSkeletonAnimationSources } from './processors/skeleton-animation-processor';
 import { calculateSceneExtent } from './usd-hierarchy-builder';
 import { formatUsdTuple3 } from '../../../utils/usd-formatter';
@@ -49,7 +53,7 @@ function getAnimationDuration(animation: Animation): number {
 
 /**
  * Processes all animations from a GLTF document and converts them to USD format.
- * 
+ *
  * Routes each animation to the right processor and sets up animation sources
  * so viewers know which animations to play.
  */
@@ -73,11 +77,14 @@ export function processAnimations(
   const context: AnimationProcessorContext = {
     nodeMap,
     logger,
-    skeletonMap
+    skeletonMap,
   };
 
   const defaultFrameRate = ANIMATION.FRAME_RATE;
-  const animationSourcesMap = new Map<Skin, Array<{ path: string; name: string; index: number; duration: number }>>();
+  const animationSourcesMap = new Map<
+    Skin,
+    Array<{ path: string; name: string; index: number; duration: number }>
+  >();
   let firstAnimationDuration = 0;
   let detectedFrameRate: number | undefined = undefined;
   let firstAnimationMaxTimeCode: number | undefined = undefined;
@@ -92,7 +99,9 @@ export function processAnimations(
     const applicableProcessors = factory.getProcessors(animation, context);
 
     if (applicableProcessors.length === 0) {
-      logger.warn(`No processor found for animation: ${animation.getName() || `Animation_${animIdx}`}`);
+      logger.warn(
+        `No processor found for animation: ${animation.getName() || `Animation_${animIdx}`}`
+      );
       continue;
     }
 
@@ -110,17 +119,31 @@ export function processAnimations(
         } else {
           // Merge results: use max duration, max time code, etc.
           animationResult.duration = Math.max(animationResult.duration, result.duration);
-          if (result.detectedFrameRate && (!animationResult.detectedFrameRate || result.detectedFrameRate > animationResult.detectedFrameRate)) {
+          if (
+            result.detectedFrameRate &&
+            (!animationResult.detectedFrameRate ||
+              result.detectedFrameRate > animationResult.detectedFrameRate)
+          ) {
             animationResult.detectedFrameRate = result.detectedFrameRate;
           }
           if (result.maxTimeCode !== undefined) {
-            if (animationResult.maxTimeCode === undefined || result.maxTimeCode > animationResult.maxTimeCode) {
+            if (
+              animationResult.maxTimeCode === undefined ||
+              result.maxTimeCode > animationResult.maxTimeCode
+            ) {
               animationResult.maxTimeCode = result.maxTimeCode;
             }
           }
-          // Merge animation sources (for skeleton animations)
-          if (result.animationSource) {
-            animationResult.animationSource = result.animationSource;
+          // Merge animation sources (for skeleton animations).
+          // Concatenate rather than overwrite — a single animation can drive
+          // multiple skins, and multiple applicable processors can each
+          // contribute sources. Overwriting here dropped 13 of 14 bindings on
+          // multi-skin GLBs.
+          if (result.animationSources && result.animationSources.length > 0) {
+            animationResult.animationSources = [
+              ...(animationResult.animationSources ?? []),
+              ...result.animationSources,
+            ];
           }
         }
       }
@@ -136,28 +159,38 @@ export function processAnimations(
       firstAnimationDuration = animationResult.duration;
     }
 
-    if (animationResult.detectedFrameRate && (!detectedFrameRate || animationResult.detectedFrameRate > detectedFrameRate)) {
+    if (
+      animationResult.detectedFrameRate &&
+      (!detectedFrameRate || animationResult.detectedFrameRate > detectedFrameRate)
+    ) {
       detectedFrameRate = animationResult.detectedFrameRate;
     }
 
     if (animationResult.maxTimeCode !== undefined) {
-      if (firstAnimationMaxTimeCode === undefined || animationResult.maxTimeCode > firstAnimationMaxTimeCode) {
+      if (
+        firstAnimationMaxTimeCode === undefined ||
+        animationResult.maxTimeCode > firstAnimationMaxTimeCode
+      ) {
         firstAnimationMaxTimeCode = animationResult.maxTimeCode;
       }
     }
 
-    // Collect skeleton animation sources so we can link them later
-    if (animationResult.animationSource) {
-      const { targetSkin, path, name, index } = animationResult.animationSource;
-      if (!animationSourcesMap.has(targetSkin)) {
-        animationSourcesMap.set(targetSkin, []);
+    // Collect skeleton animation sources so we can link them later.
+    // Each entry in `animationSources` represents one (skin, SkelAnimation)
+    // binding emitted by the processor — we record all of them, not just the
+    // first, so every SkelRoot gets its own animationSource relationship.
+    if (animationResult.animationSources) {
+      for (const src of animationResult.animationSources) {
+        if (!animationSourcesMap.has(src.targetSkin)) {
+          animationSourcesMap.set(src.targetSkin, []);
+        }
+        animationSourcesMap.get(src.targetSkin)!.push({
+          path: src.path,
+          name: src.name,
+          index: src.index,
+          duration: animationResult.duration,
+        });
       }
-      animationSourcesMap.get(targetSkin)!.push({
-        path,
-        name,
-        index,
-        duration: animationResult.duration
-      });
     }
   }
 
@@ -192,9 +225,10 @@ export function processAnimations(
 
   // Convert duration to time codes by multiplying by the time code frame rate
   // Use the max time code from the animation if available, otherwise calculate from duration
-  const endTimeCode = firstAnimationMaxTimeCode !== undefined
-    ? firstAnimationMaxTimeCode
-    : Math.ceil(duration * ANIMATION.TIME_CODE_FPS);
+  const endTimeCode =
+    firstAnimationMaxTimeCode !== undefined
+      ? firstAnimationMaxTimeCode
+      : Math.ceil(duration * ANIMATION.TIME_CODE_FPS);
 
   // Set time code metadata for USD:
   // - timeCodesPerSecond = 120 (all time codes are scaled by this)
@@ -213,7 +247,7 @@ export function processAnimations(
     timeCodesPerSecond,
     framesPerSecond,
     hasSkeletonAnimations: animationSourcesMap.size > 0,
-    totalAnimations: animations.length
+    totalAnimations: animations.length,
   });
 
   // For skeleton animations: timeCodesPerSecond = 1 (time codes are in seconds)
@@ -222,13 +256,13 @@ export function processAnimations(
     startTimeCode,
     endTimeCode,
     timeCodesPerSecond,
-    framesPerSecond
+    framesPerSecond,
   };
 }
 
 /**
  * Sets the bounding box (extent) on SkelRoot nodes for animated skeletons.
- * 
+ *
  * USDZ files need time-sampled extent so viewers know the model's size at each frame.
  * This helps with culling and camera positioning.
  */
@@ -250,7 +284,7 @@ export function setAnimatedExtentOnSkelRoots(
     const staticExtent = calculateSceneExtent(skelRootNode);
     if (!staticExtent) {
       logger.warn('Could not calculate extent for SkelRoot', {
-        skelRootPath: skelRootNode.getPath()
+        skelRootPath: skelRootNode.getPath(),
       });
       continue;
     }
@@ -264,7 +298,8 @@ export function setAnimatedExtentOnSkelRoots(
     if (startTimeCode === undefined || endTimeCode === undefined) {
       // Fall back to calculated default range if we can't get timing info
       // Get frame rate from metadata or use default, then calculate end time code
-      const frameRate = (rootNode?.getMetadata('timeCodesPerSecond') as number | undefined) ||
+      const frameRate =
+        (rootNode?.getMetadata('timeCodesPerSecond') as number | undefined) ||
         (rootNode?.getMetadata('framesPerSecond') as number | undefined) ||
         ANIMATION.FRAME_RATE;
 
@@ -274,12 +309,15 @@ export function setAnimatedExtentOnSkelRoots(
       const defaultStart = 0;
       const defaultEnd = Math.ceil(defaultDuration * frameRate);
 
-      logger.warn('Could not get time codes from SkelRoot metadata, using calculated default range', {
-        skelRootPath: skelRootNode.getPath(),
-        frameRate,
-        defaultDuration,
-        defaultEnd
-      });
+      logger.warn(
+        'Could not get time codes from SkelRoot metadata, using calculated default range',
+        {
+          skelRootPath: skelRootNode.getPath(),
+          frameRate,
+          defaultDuration,
+          defaultEnd,
+        }
+      );
 
       const finalExtentTimeSamples = new Map<number, string>();
       const extentMinStr = formatUsdTuple3(minX, minY, minZ);
@@ -313,7 +351,7 @@ export function setAnimatedExtentOnSkelRoots(
       extent: `[(${minX}, ${minY}, ${minZ}), (${maxX}, ${maxY}, ${maxZ})]`,
       timeSampleCount: finalExtentTimeSamples.size,
       firstTimeCode: Array.from(finalExtentTimeSamples.keys()).sort((a, b) => a - b)[0],
-      lastTimeCode: Array.from(finalExtentTimeSamples.keys()).sort((a, b) => b - a)[0]
+      lastTimeCode: Array.from(finalExtentTimeSamples.keys()).sort((a, b) => b - a)[0],
     });
   }
 }
@@ -321,7 +359,7 @@ export function setAnimatedExtentOnSkelRoots(
 /**
  * Recursively finds all SkelRoot nodes in the hierarchy and sets animated extent on them.
  * This includes SkelRoots created for blend shape animations (morph targets).
- * 
+ *
  * USDZ files need time-sampled extent on SkelRoots so viewers know the model's size at each frame.
  * Also sets customData.defaultAnimation on blend shape SkelRoots to specify which animation to play.
  */
@@ -355,7 +393,7 @@ export function setAnimatedExtentOnAllSkelRoots(
   if (startTimeCode === undefined || endTimeCode === undefined) {
     logger.warn('Could not get time codes from root metadata for blend shape SkelRoots', {
       hasStartTimeCode: startTimeCode !== undefined,
-      hasEndTimeCode: endTimeCode !== undefined
+      hasEndTimeCode: endTimeCode !== undefined,
     });
     return;
   }
@@ -373,7 +411,7 @@ export function setAnimatedExtentOnAllSkelRoots(
     const staticExtent = calculateSceneExtent(skelRoot);
     if (!staticExtent) {
       logger.warn('Could not calculate extent for blend shape SkelRoot', {
-        skelRootPath: skelRoot.getPath()
+        skelRootPath: skelRoot.getPath(),
       });
       continue;
     }
@@ -419,7 +457,7 @@ export function setAnimatedExtentOnAllSkelRoots(
       skelRoot.setProperty('customData', { defaultAnimation: defaultAnimationName });
       logger.info('Set customData.defaultAnimation on blend shape SkelRoot', {
         skelRootPath: skelRoot.getPath(),
-        defaultAnimation: defaultAnimationName
+        defaultAnimation: defaultAnimationName,
       });
     }
 
@@ -430,8 +468,7 @@ export function setAnimatedExtentOnAllSkelRoots(
       firstTimeCode: startTimeCode,
       lastTimeCode: endTimeCode,
       hasBlendShapes,
-      hasDefaultAnimation: hasBlendShapes && !!defaultAnimationName
+      hasDefaultAnimation: hasBlendShapes && !!defaultAnimationName,
     });
   }
 }
-
