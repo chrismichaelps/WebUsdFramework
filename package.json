@@ -4,6 +4,9 @@
   "description": "Node.js library for converting GLB/GLTF 3D models to USDZ format.",
   "private": false,
   "packageManager": "pnpm@10.18.3",
+  "bin": {
+    "webusd": "build/cli.js"
+  },
   "main": "build/index.js",
   "module": "build/index.esm.js",
   "types": "build/index.d.ts",
@@ -104,11 +107,14 @@
     "url": "git+https://github.com/chrismichaelps/WebUsdFramework.git"
   },
   "dependencies": {
+    "@effect/platform": "^0.96.0",
+    "@effect/platform-node": "^0.106.0",
     "@gltf-transform/core": "^4.2.1",
     "@gltf-transform/extensions": "^4.2.1",
     "@gltf-transform/functions": "^4.2.1",
     "canvas": "^3.2.0",
     "crc-32": "^1.2.2",
+    "effect": "^3.21.1",
     "fbx2gltf": "0.9.7-p1",
     "pngjs": "^7.0.0",
     "sharp": "^0.34.5",
