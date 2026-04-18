@@ -121,3 +121,6 @@ export { ObjConverterConfigSchema, type ObjConverterConfig } from './obj-schemas
 // Re-export STL schemas
 export { StlConverterConfigSchema, type StlConverterConfig } from './stl-schemas';
 
+// Re-export PLY schemas
+export { PlyConverterConfigSchema, type PlyConverterConfig } from './ply-schemas';
+
