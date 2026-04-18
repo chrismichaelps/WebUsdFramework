@@ -988,42 +988,27 @@ export function bindSkeletonToMesh(
     const worldTransform = computeWorldTransform(gltfNode, document, parentCache);
 
     if (worldTransform) {
-      // Extract only translation and rotation from world transform, remove scale
-      // This prevents issues with parent node scales (e.g., 10x) that cause disconnection
+      // Use the full world transform including scale for geomBindTransform
+      // The geomBindTransform must encode the complete world-space position of the mesh at bind time,
+      // including any scale from parent nodes, so that USD skinning math correctly maps vertices
+      // Convert from GLTF column-major to USD row-major format
       // GLTF column-major: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
-      // Extract scale from rotation matrix columns
-      const sx = Math.sqrt(worldTransform[0] * worldTransform[0] + worldTransform[1] * worldTransform[1] + worldTransform[2] * worldTransform[2]);
-      const sy = Math.sqrt(worldTransform[4] * worldTransform[4] + worldTransform[5] * worldTransform[5] + worldTransform[6] * worldTransform[6]);
-      const sz = Math.sqrt(worldTransform[8] * worldTransform[8] + worldTransform[9] * worldTransform[9] + worldTransform[10] * worldTransform[10]);
-
-      // Remove scale from rotation matrix (normalize columns)
-      const invSx = sx > 0.0001 ? 1.0 / sx : 1.0;
-      const invSy = sy > 0.0001 ? 1.0 / sy : 1.0;
-      const invSz = sz > 0.0001 ? 1.0 / sz : 1.0;
-
-      // Create transform with only translation and rotation (no scale)
-      // worldTransform is in GLTF column-major format: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
-      // USD needs row-major format: [m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33]
-      // Translation in GLTF column-major is at indices 12, 13, 14 (m03, m13, m23)
-      // Translation in USD row-major should be at indices 12, 13, 14 (m30, m31, m32)
-      // Convert from column-major to row-major while removing scale
+      // USD row-major:     [m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33]
       const usdMatrix = [
         // Row 0: m00, m01, m02, m03
-        worldTransform[0] * invSx, worldTransform[4] * invSy, worldTransform[8] * invSz, 0,
+        worldTransform[0], worldTransform[4], worldTransform[8], 0,
         // Row 1: m10, m11, m12, m13
-        worldTransform[1] * invSx, worldTransform[5] * invSy, worldTransform[9] * invSz, 0,
+        worldTransform[1], worldTransform[5], worldTransform[9], 0,
         // Row 2: m20, m21, m22, m23
-        worldTransform[2] * invSx, worldTransform[6] * invSy, worldTransform[10] * invSz, 0,
+        worldTransform[2], worldTransform[6], worldTransform[10], 0,
         // Row 3: m30, m31, m32, m33 (translation from GLTF column-major indices 12, 13, 14)
         worldTransform[12], worldTransform[13], worldTransform[14], 1
       ];
       geomBindTransform = formatMatrix(usdMatrix);
-      logger.info('Using GLTF node WORLD transform (translation + rotation only, scale removed) as geomBindTransform', {
+      logger.info('Using GLTF node WORLD transform as geomBindTransform', {
         meshName,
         gltfNodeName: gltfNode.getName(),
-        originalScale: [sx, sy, sz],
-        geomBindTransform: geomBindTransform.substring(0, 80) + '...',
-        note: 'Scale removed from world transform to prevent disconnection issues'
+        geomBindTransform: geomBindTransform.substring(0, 80) + '...'
       });
     } else {
       // Fallback: check if mesh already has a transform in USD
