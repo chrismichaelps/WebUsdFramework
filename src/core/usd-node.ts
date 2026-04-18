@@ -85,6 +85,18 @@ export class UsdNode {
   }
 
   /**
+   * Remove a property by key. Returns true if the property was found and removed.
+   */
+  removeProperty(key: string): boolean {
+    const existingIndex = this._properties.findIndex(p => p.key === key);
+    if (existingIndex !== -1) {
+      this._properties.splice(existingIndex, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Add a reference to this node (for USDZ generation)
    */
   addReference(target: string, primPath?: string): this {
