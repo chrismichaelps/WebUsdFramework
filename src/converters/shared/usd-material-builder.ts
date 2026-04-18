@@ -919,13 +919,38 @@ export async function buildUsdMaterial(
   }
 
   if (allProperties.unlit === true) {
-    // For unlit materials, disable all lighting calculations
-    // Set roughness to 1.0 and metallic to 0.0 to simulate unlit appearance
+    // For unlit materials, route base color through emissive channel (lighting-independent)
+    // UsdPreviewSurface has no native "unlit" mode, so we:
+    // 1. Move base color (texture or factor) from diffuseColor → emissiveColor
+    // 2. Set diffuseColor to black (no lit contribution)
+    // 3. Set roughness=1, metallic=0 (prevent specular highlights)
+    
+    // Check if base color texture was connected to diffuseColor
+    const diffuseConnection = surfaceShader.getProperty('color3f inputs:diffuseColor.connect');
+    if (diffuseConnection && typeof diffuseConnection === 'string') {
+      // Redirect: connect the same texture to emissiveColor instead
+      surfaceShader.setProperty(
+        'color3f inputs:emissiveColor.connect',
+        diffuseConnection,
+        'connection'
+      );
+    } else {
+      // No texture — use the diffuseColor value as emissiveColor
+      const diffuseValue = surfaceShader.getProperty('color3f inputs:diffuseColor');
+      if (diffuseValue && typeof diffuseValue === 'string') {
+        surfaceShader.setProperty('color3f inputs:emissiveColor', diffuseValue);
+      }
+    }
+
+    // Zero out diffuseColor so lighting doesn't contribute
+    surfaceShader.setProperty('color3f inputs:diffuseColor', '(0, 0, 0)');
+    // Remove the diffuse connection if it existed (we moved it to emissive)
+    if (diffuseConnection) {
+      surfaceShader.removeProperty('color3f inputs:diffuseColor.connect');
+    }
     surfaceShader.setProperty('float inputs:roughness', '1.0', 'float');
     surfaceShader.setProperty('float inputs:metallic', '0.0', 'float');
-    // Note: USD PreviewSurface doesn't have a direct "unlit" mode,
-    // but high roughness + no metallic approximates unlit appearance
-    console.log(`[buildUsdMaterial] Material marked as unlit: ${materialName}`);
+    console.log(`[buildUsdMaterial] Material marked as unlit (using emissive channel): ${materialName}`);
   }
 
   // Add shared UV reader and Transform2d nodes to material
