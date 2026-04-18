@@ -19,6 +19,8 @@ export interface SkeletonData {
   jointRelativePaths: string[]; // Relative paths (for USD joints array)
   restTransforms?: string[]; // Store rest transforms for animation comparison
   restPoseTranslations?: string[]; // Store rest pose translations (extracted from rest transforms) for default animation values
+  restPoseRotations?: string[]; // Store rest pose rotations in USD (w,x,y,z) format for default animation values
+  restPoseScales?: string[]; // Store rest pose scales for default animation values
   rootJointOmitted?: boolean; // Whether the root joint was omitted from the skeleton
   gjointToUjointMap?: number[]; // Map GLTF joint index (in skin.listJoints()) to USD skeleton joint index
 }
@@ -441,24 +443,26 @@ function createSkeleton(
     'raw'
   );
 
-  // Extract rest pose translations from rest transforms for use as default animation values
-  // When a joint doesn't have translation animation data, we use its rest pose translation instead of (0, 0, 0)
-  // Extract translations directly from joint transforms before converting to string format
+  // Extract rest pose TRS from joint transforms for use as default animation values
+  // When a joint doesn't have animation data for a channel, we use its rest pose value
+  // instead of identity, preventing joints from snapping to wrong positions
   const restPoseTranslations: string[] = [];
+  const restPoseRotations: string[] = [];
+  const restPoseScales: string[] = [];
   for (let i = 0; i < joints.length; i++) {
     const joint = joints[i];
-    const jointTransform = joint.getMatrix();
-    if (jointTransform) {
-      // GLTF matrices are column-major: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
-      // Translation is at indices 12, 13, 14 (m03, m13, m23)
-      const tx = jointTransform[12];
-      const ty = jointTransform[13];
-      const tz = jointTransform[14];
-      restPoseTranslations.push(`(${tx}, ${ty}, ${tz})`);
-    } else {
-      // If joint has no transform, use (0, 0, 0)
-      restPoseTranslations.push('(0, 0, 0)');
-    }
+    const translation = joint.getTranslation();
+    const rotation = joint.getRotation(); // GLTF: (x, y, z, w)
+    const scale = joint.getScale();
+
+    // Translation
+    restPoseTranslations.push(`(${translation[0]}, ${translation[1]}, ${translation[2]})`);
+
+    // Rotation: convert GLTF (x, y, z, w) → USD (w, x, y, z)
+    restPoseRotations.push(`(${rotation[3]}, ${rotation[0]}, ${rotation[1]}, ${rotation[2]})`);
+
+    // Scale
+    restPoseScales.push(`(${scale[0]}, ${scale[1]}, ${scale[2]})`);
   }
 
   // Create mapping from GLTF joint indices to USD skeleton joint indices
@@ -520,6 +524,8 @@ function createSkeleton(
     jointRelativePaths, // Relative paths (for USD joints array)
     restTransforms, // Store rest transforms for animation comparison
     restPoseTranslations, // Store rest pose translations for default animation values
+    restPoseRotations, // Store rest pose rotations for default animation values
+    restPoseScales, // Store rest pose scales for default animation values
     rootJointOmitted: omitRootJoint, // Track if root joint was omitted
     gjointToUjointMap // Map GLTF joint index to USD skeleton joint index
   };

@@ -528,8 +528,10 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
         const rotArray: string[] = [];
         const scaleArray: string[] = [];
 
-        // Use rest pose translations as defaults for joints without translation animation
+        // Use rest pose TRS as defaults for joints without animation channels
         const restPoseTranslations = targetSkeleton.restPoseTranslations || [];
+        const restPoseRotations = targetSkeleton.restPoseRotations || [];
+        const restPoseScales = targetSkeleton.restPoseScales || [];
 
         if (time === sortedTimes[0] && restPoseTranslations.length > 0) {
           this.logger.debug('Using rest pose translations as defaults', {
@@ -555,19 +557,23 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
             transArray.push(defaultTranslation);
           }
 
-          // Get rotation, using default if this joint doesn't animate
+          // Get rotation, using rest pose if this joint doesn't animate
           // Use SLERP interpolation for rotations (isQuaternion = true)
+          const defaultRotation =
+            i < restPoseRotations.length ? restPoseRotations[i] : '(1, 0, 0, 0)';
           if (jointAnim?.rotations) {
-            rotArray.push(getValueAtTime(jointAnim.rotations, time, '(1, 0, 0, 0)', true));
+            rotArray.push(getValueAtTime(jointAnim.rotations, time, defaultRotation, true));
           } else {
-            rotArray.push('(1, 0, 0, 0)');
+            rotArray.push(defaultRotation);
           }
 
-          // Get scale, using default if this joint doesn't animate
+          // Get scale, using rest pose if this joint doesn't animate
+          const defaultScale =
+            i < restPoseScales.length ? restPoseScales[i] : '(1, 1, 1)';
           if (jointAnim?.scales) {
-            scaleArray.push(getValueAtTime(jointAnim.scales, time, '(1, 1, 1)'));
+            scaleArray.push(getValueAtTime(jointAnim.scales, time, defaultScale));
           } else {
-            scaleArray.push('(1, 1, 1)');
+            scaleArray.push(defaultScale);
           }
         }
 
