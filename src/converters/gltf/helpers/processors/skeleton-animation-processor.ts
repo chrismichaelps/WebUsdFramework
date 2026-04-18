@@ -686,17 +686,10 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
         }
       }
 
-      // Make the animation loop by copying the first frame to the end
-      if (sortedCommonTimes.length > 1) {
-        const firstTime = sortedCommonTimes[0];
-        const lastTime = sortedCommonTimes[sortedCommonTimes.length - 1];
-
-        if (firstTime !== lastTime) {
-          translations.set(lastTime, [...translations.get(firstTime)!]);
-          rotations.set(lastTime, [...rotations.get(firstTime)!]);
-          scales.set(lastTime, [...scales.get(firstTime)!]);
-        }
-      }
+      // Note: Previously forced looping by overwriting the last frame with the first.
+      // This was removed because it silently corrupts non-looping animations
+      // (e.g., death, jump, transitions). Looping should be handled by the
+      // consumer/player, not baked into the conversion.
 
       // Set the joints array using relative paths
       const jointsArray = formatUsdQuotedArray(allSkeletonJointRelativePaths);
