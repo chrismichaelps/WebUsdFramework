@@ -649,6 +649,11 @@ async function processMaterial(
 
   bindMaterial(targetNode, materialInfo);
 
+  // Propagate double-sided flag from GLTF material to USD mesh
+  if (material.getDoubleSided()) {
+    targetNode.setProperty('uniform bool doubleSided', 'true', 'bool');
+  }
+
   return context.materialCounter;
 }
 
