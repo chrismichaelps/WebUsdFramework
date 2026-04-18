@@ -609,6 +609,24 @@ function extractMorphTargets(
     }
 
     blendShapeNode.setProperty('point3f[] offsets', `[${offsets.join(', ')}]`, 'raw');
+
+    // Extract normal deltas if present (GLTF morph target NORMAL is already a delta)
+    const normalAttr = target.getAttribute('NORMAL');
+    if (normalAttr) {
+      const morphNormalArray = normalAttr.getArray();
+      if (morphNormalArray && morphNormalArray.length === basePositionArray.length) {
+        const normalOffsets: string[] = [];
+        for (let i = 0; i < morphNormalArray.length; i += 3) {
+          normalOffsets.push(formatUsdTuple3(
+            morphNormalArray[i],
+            morphNormalArray[i + 1],
+            morphNormalArray[i + 2]
+          ));
+        }
+        blendShapeNode.setProperty('normal3f[] normalOffsets', `[${normalOffsets.join(', ')}]`, 'raw');
+      }
+    }
+
     node.addChild(blendShapeNode);
     blendShapePaths.push(blendShapePath);
   }
