@@ -230,7 +230,9 @@ export class MorphTargetAnimationProcessor implements IAnimationProcessor {
       }
 
       if (times.length > 0) {
-        maxTime = Math.max(maxTime, ...times);
+        for (const t of times) {
+          if (t > maxTime) maxTime = t;
+        }
       }
 
       // Store weights for each time sample

@@ -105,7 +105,9 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
       }
 
       if (times.length > 0) {
-        maxTime = Math.max(maxTime, ...times);
+        for (const t of times) {
+          if (t > maxTime) maxTime = t;
+        }
       }
     }
 
@@ -339,10 +341,22 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
     }
 
     for (const [usdNode, nodeAnim] of nodeAnimations) {
+      // Warn if this node already has decomposed animation ops (from a previous animation clip)
+      // USDZ doesn't support multiple animation clips on the same prim without composition arcs
+      const existingOps = usdNode.getProperty('xformOpOrder');
+      if (existingOps && Array.isArray(existingOps)) {
+        const opsArray = existingOps as string[];
+        if (opsArray.includes('xformOp:translate') || opsArray.includes('xformOp:orient') || opsArray.includes('xformOp:scale')) {
+          console.warn(
+            `[WebUsdFramework] Node "${usdNode.getPath()}" already has animation from a previous clip. ` +
+            `Animation "${animationName}" will overwrite it. USDZ only supports one animation per node.`
+          );
+        }
+      }
+
       // Remove existing xformOp:transform if present (USD doesn't allow mixing transform types)
       const existingTransform = usdNode.getProperty('xformOp:transform');
       if (existingTransform) {
-        const existingOps = usdNode.getProperty('xformOpOrder');
         if (existingOps && Array.isArray(existingOps)) {
           const filteredOps = (existingOps as string[]).filter(op => op !== 'xformOp:transform');
           usdNode.setProperty('xformOpOrder', filteredOps, 'token[]');
