@@ -68,20 +68,40 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
   if (indices) {
     const indexArray = indices.getArray();
     if (indexArray && indexArray.length > 0) {
-      const faceCount = indexArray.length / 3;
+      // Validate that geometry is fully triangulated (indexArray.length must be divisible by 3).
+      // gltf-transform's triangulate() transform should guarantee this; warn if it didn't.
+      if (indexArray.length % 3 !== 0) {
+        console.warn(
+          `[extractPrimitiveData] Index count (${indexArray.length}) is not divisible by 3. ` +
+          `Geometry may not be fully triangulated. Face topology will be incorrect.`
+        );
+      }
+      const faceCount = Math.floor(indexArray.length / 3);
       faceVertexCounts = Array(faceCount).fill(3).join(', ');
       faceVertexIndices = Array.from(indexArray).join(', ');
     } else {
       // Fallback
       const vertexCount = positionArray.length / 3;
-      const faceCount = vertexCount / 3;
+      if (vertexCount % 3 !== 0) {
+        console.warn(
+          `[extractPrimitiveData] Vertex count (${vertexCount}) is not divisible by 3. ` +
+          `Non-indexed geometry may not be fully triangulated.`
+        );
+      }
+      const faceCount = Math.floor(vertexCount / 3);
       faceVertexCounts = Array(faceCount).fill(3).join(', ');
       faceVertexIndices = Array.from({ length: vertexCount }, (_, i) => i).join(', ');
     }
   } else {
     // Non-indexed geometry
     const vertexCount = positionArray.length / 3;
-    const faceCount = vertexCount / 3;
+    if (vertexCount % 3 !== 0) {
+      console.warn(
+        `[extractPrimitiveData] Vertex count (${vertexCount}) is not divisible by 3. ` +
+        `Non-indexed geometry may not be fully triangulated.`
+      );
+    }
+    const faceCount = Math.floor(vertexCount / 3);
     faceVertexCounts = Array(faceCount).fill(3).join(', ');
     faceVertexIndices = Array.from({ length: vertexCount }, (_, i) => i).join(', ');
   }
