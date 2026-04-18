@@ -7,6 +7,7 @@ import {
 } from '../../constants/config';
 import { USD_FILE_NAMES, USD_DEFAULT_NAMES } from '../../constants/usd';
 import { UsdzZipWriter } from './usdz-zip-writer';
+import { getTextureFileBasename } from '../gltf/extensions/processors/texture-utils';
 
 /**
  * Package Configuration
@@ -57,12 +58,18 @@ export async function createUsdzPackage(
     zipWriter.addFile(geometryPath, new Uint8Array(geometryData));
   }
 
-  // Add texture files
+  // Add texture files — dedupe by content-addressed basename. One image
+  // referenced in multiple shader roles (e.g. baseColor + emissive) arrives
+  // here under multiple composite IDs ("<hash>_diffuse", "<hash>_emissive")
+  // but shares the same bytes; write only one archive entry per basename.
+  const writtenTexturePaths = new Set<string>();
   for (const [textureId, textureData] of content.textureFiles) {
-    // Determine the correct file extension based on texture data
     const textureExtension = getTextureExtensionFromData(textureData);
-    const textureName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}.${textureExtension}`;
+    const basename = getTextureFileBasename(textureId);
+    const textureName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${basename}.${textureExtension}`;
     const texturePath = `${DIRECTORY_NAMES.TEXTURES}/${textureName}`;
+    if (writtenTexturePaths.has(texturePath)) continue;
+    writtenTexturePaths.add(texturePath);
     zipWriter.addFile(texturePath, new Uint8Array(textureData));
   }
 
