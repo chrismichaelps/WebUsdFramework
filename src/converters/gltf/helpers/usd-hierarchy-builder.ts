@@ -758,6 +758,26 @@ async function processMaterialVariants(
     bindMaterial(targetNode, defaultMaterialInfo);
   }
 
+  // Propagate double-sided flag: if ANY material (default or variant) is
+  // double-sided, mark the mesh as double-sided.  USD's doubleSided is a
+  // mesh-level attribute and cannot vary per-variant, so the conservative
+  // choice is to enable it when any variant requires it — rendering a
+  // single-sided material on a double-sided mesh is visually harmless,
+  // but the inverse hides geometry.
+  let needsDoubleSided = defaultMaterial?.getDoubleSided() ?? false;
+  if (!needsDoubleSided) {
+    for (const mapping of mappings) {
+      const material = mapping.getMaterial();
+      if (material?.getDoubleSided()) {
+        needsDoubleSided = true;
+        break;
+      }
+    }
+  }
+  if (needsDoubleSided) {
+    targetNode.setProperty('uniform bool doubleSided', 'true', 'bool');
+  }
+
   return context.materialCounter;
 }
 
