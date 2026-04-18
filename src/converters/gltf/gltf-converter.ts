@@ -134,7 +134,13 @@ export async function convertGlbToUsdz(
 
     // Create USD root structure
     const root = document.getRoot();
-    const scene = root.listScenes()[CONVERSION_CONSTANTS.FIRST_SCENE_INDEX];
+    const allScenes = root.listScenes();
+    if (allScenes.length > 1) {
+      console.warn(
+        `[WebUsdFramework] GLB contains ${allScenes.length} scenes — only the first scene ("${allScenes[0].getName() || 'unnamed'}") will be converted. ${allScenes.length - 1} scene(s) will be skipped.`
+      );
+    }
+    const scene = allScenes[CONVERSION_CONSTANTS.FIRST_SCENE_INDEX];
     const sceneName = scene.getName();
     const rootStructure = createRootStructure(sceneName);
 
