@@ -6,6 +6,7 @@ import { Logger, LoggerFactory } from '../../utils';
 import { DIRECTORY_NAMES } from '../../constants/config';
 import { USD_FILE_NAMES, USD_DEFAULT_NAMES } from '../../constants/usd';
 import { getTextureExtensionFromData } from './usd-packaging';
+import { getTextureFileBasename } from '../gltf/extensions/processors/texture-utils';
 
 /**
  * Debug Output Content
@@ -88,11 +89,18 @@ async function writeTextureFiles(
   const texturesDir = path.join(debugDir, DIRECTORY_NAMES.TEXTURES);
   ensureDirectoryExists(texturesDir);
 
+  // Dedupe by content-addressed basename so a single image referenced in
+  // multiple shader roles (e.g. baseColor + emissive) is written once, not
+  // once per role. The composite textureId keeps role context at the shader
+  // graph level; the on-disk name must collapse back to the hash.
+  const writtenPaths = new Set<string>();
   for (const [textureId, textureData] of textureFiles) {
-    // Determine the correct file extension based on texture data
     const textureExtension = getTextureExtensionFromData(textureData);
-    const fileName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${textureId}.${textureExtension}`;
+    const basename = getTextureFileBasename(textureId);
+    const fileName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${basename}.${textureExtension}`;
     const texturePath = path.join(texturesDir, fileName);
+    if (writtenPaths.has(texturePath)) continue;
+    writtenPaths.add(texturePath);
     fs.writeFileSync(texturePath, Buffer.from(textureData));
     logger.info(`Written ${texturePath}`, { fileSize: textureData.byteLength });
   }

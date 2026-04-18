@@ -19,6 +19,7 @@ import { ExtensionFactory } from '../gltf/extensions/extension-factory';
 import {
   generateTextureId,
   extractTextureTransform,
+  getTextureFileBasename,
   getCleanTextureImage,
   getTextureExtension
 } from '../gltf/extensions/processors/texture-utils';
@@ -339,7 +340,10 @@ export async function buildUsdMaterial(
     // Create texture shader for baked vertex color texture
     const textureShader = new UsdNode(`${materialPath}/${textureNodeName}`, 'Shader');
     textureShader.setProperty('uniform token info:id', 'UsdUVTexture');
-    textureShader.setProperty('asset inputs:file', `@textures/Texture_${textureId}.png@`, 'asset');
+    // Asset paths are content-addressed (hash only) so one image referenced
+    // in multiple roles resolves to a single file; the role suffix lives on
+    // the shader node name, not on disk.
+    textureShader.setProperty('asset inputs:file', `@textures/Texture_${getTextureFileBasename(textureId)}.png@`, 'asset');
     textureShader.setProperty('token inputs:sourceColorSpace', 'sRGB', 'token');
     textureShader.setProperty('token inputs:wrapS', 'repeat', 'token');
     textureShader.setProperty('token inputs:wrapT', 'repeat', 'token');
@@ -1248,7 +1252,8 @@ function createOptimizedTextureShader(
 
   // Detect the correct file extension based on texture data
   const textureExtension = getTextureExtension(texture);
-  textureShader.setProperty('asset inputs:file', `@textures/Texture_${textureId}.${textureExtension}@`, 'asset');
+  // Content-addressed asset path (see note in the companion .png site above).
+  textureShader.setProperty('asset inputs:file', `@textures/Texture_${getTextureFileBasename(textureId)}.${textureExtension}@`, 'asset');
 
   // Set color space based on texture type
   // Non-color data (normal maps, metallic-roughness, occlusion) must use raw/linear

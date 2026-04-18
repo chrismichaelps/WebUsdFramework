@@ -31,6 +31,31 @@ export async function generateTextureId(texture: Texture, type: string): Promise
 }
 
 /**
+ * Strips the role suffix from a texture ID to produce a content-addressed
+ * basename suitable for file storage.
+ *
+ * `generateTextureId()` returns `<hash>_<role>` (e.g. `3ef307c5_diffuse`) so
+ * that shader node names stay unique within a material when one image is
+ * referenced in multiple slots. That composite ID must NOT be reused as the
+ * on-disk filename: the same bytes would then be written once per role,
+ * bloating the USDZ archive. This helper returns just the content-addressed
+ * portion.
+ *
+ * Uses `lastIndexOf('_')` rather than `indexOf('_')` so identifiers that
+ * intentionally carry a prefix (e.g. `vc_<hash>_baked` for vertex-color
+ * baked textures) keep their prefix and only lose the trailing role.
+ *
+ *   "3ef307c5_diffuse"   -> "3ef307c5"
+ *   "3ef307c5_emissive"  -> "3ef307c5"
+ *   "vc_a1b2c3d4_baked"  -> "vc_a1b2c3d4"
+ *   "noSuffix"           -> "noSuffix"
+ */
+export function getTextureFileBasename(textureId: string): string {
+  const sep = textureId.lastIndexOf('_');
+  return sep > 0 ? textureId.substring(0, sep) : textureId;
+}
+
+/**
  * Extract texture transform from TextureInfo using KHR_texture_transform extension
  * Returns transform data (offset, scale, rotation) if present, undefined otherwise
  */
