@@ -267,6 +267,43 @@ function findSkelJointMismatches(text) {
   return mismatches;
 }
 
+/**
+ * Finds `asset inputs:file = @path@` references whose target doesn't exist
+ * on disk relative to the USDA's own directory.
+ *
+ * The USDA stage can look valid to `usdcat --loadOnly` even when a texture
+ * asset path is dangling — USD resolves asset paths lazily and a missing
+ * file surfaces only when the material is actually sampled at render time.
+ * RealityKit quietly falls back to the diffuse-default (pink/white) in that
+ * case, which is the same visual symptom as a broken material graph.
+ *
+ * Paths starting with `./` are resolved against the USDA's directory.
+ * Absolute paths, URI schemes (http://, file://), and embedded-layer
+ * references (starting with `.` but containing `:`, like `.:/…`) are
+ * intentionally ignored — those are outside the scope of a disk-resolution
+ * check.
+ */
+function findMissingTextureAssets(text, usdaPath) {
+  const missing = [];
+  const seen = new Set();
+  const usdaDir = path.dirname(usdaPath);
+  const re = /asset\s+inputs:file\s*=\s*@([^@]+)@/g;
+  for (const m of text.matchAll(re)) {
+    const assetPath = m[1].trim();
+    if (!assetPath || seen.has(assetPath)) continue;
+    seen.add(assetPath);
+    // Skip URI-scheme paths and absolute paths — out of scope for disk check.
+    if (/^[a-z]+:\/\//i.test(assetPath)) continue;
+    if (path.isAbsolute(assetPath)) {
+      if (!fs.existsSync(assetPath)) missing.push(assetPath);
+      continue;
+    }
+    const resolved = path.resolve(usdaDir, assetPath);
+    if (!fs.existsSync(resolved)) missing.push(assetPath);
+  }
+  return missing;
+}
+
 function inspectUsda(p) {
   const text = fs.readFileSync(p, 'utf8');
   const o = {
@@ -290,6 +327,7 @@ function inspectUsda(p) {
                         (text.match(/asset\s+inputs:file\s*=\s*@([^@]+)@/g) || [])
                           .map(m => m.match(/@([^@]+)@/)[1])
                       ).size,
+    missingTextureAssets: findMissingTextureAssets(text, p),
     pointsAttribute:  (text.match(/\bpoint3f\[\]\s+points\b/g) || []).length,
     hasUpAxis:        /upAxis\s*=\s*"[YZ]"/.test(text),
     hasMetersPerUnit: /metersPerUnit\s*=\s*/.test(text),
@@ -369,6 +407,15 @@ function compare(src, out) {
     note('fail', 'tex', `source has ${src.textures} texture(s) but output references zero texture assets`);
   } else if (src.textures > out.textureAssets) {
     note('warn', 'tex', `source has ${src.textures} unique texture(s), output references ${out.textureAssets}`);
+  }
+
+  // Texture asset paths must resolve on disk. A dangling @./…@ reference
+  // loads cleanly in usdcat but renders as the default diffuse fallback —
+  // indistinguishable from a broken material graph at asset-review time.
+  if (out.missingTextureAssets && out.missingTextureAssets.length > 0) {
+    for (const ap of out.missingTextureAssets) {
+      note('fail', 'tex', `texture asset does not exist on disk: @${ap}@`);
+    }
   }
 
   // Source-side warnings surfaced by inspector
