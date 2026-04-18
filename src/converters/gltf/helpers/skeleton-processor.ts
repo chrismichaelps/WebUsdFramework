@@ -116,22 +116,55 @@ export function processSkeletons(
   });
 
   for (const skin of skins) {
-    // Check if root joint should be omitted
-    // Only omit if it has no animation AND is not used by any meshes for skinning
+    // Find the actual root joint — don't assume joints[0] is the root
+    // Per GLTF spec, skin.joints is unordered. Use skin.getSkeleton() first,
+    // then fall back to finding the joint with no parent among the other joints.
     const joints = skin.listJoints();
     let shouldOmitRootJoint = false;
 
     if (joints.length > 0) {
-      const rootJoint = joints[0];
-      const hasAnimation = hasJointAnimation(rootJoint, document);
-      const isUsedByMeshes = isJointUsedByMeshes(0, skin, document); // Root joint is always index 0
+      const jointSet = new Set(joints);
+      let rootJoint: Node | null = skin.getSkeleton() || null;
+
+      // If getSkeleton() didn't return a joint in our set, find the parentless joint
+      if (!rootJoint || !jointSet.has(rootJoint)) {
+        rootJoint = null;
+        for (const joint of joints) {
+          const parent = joint.getParentNode();
+          // Root joint is one whose parent is either null or not in the joint set
+          if (!parent || !jointSet.has(parent)) {
+            rootJoint = joint;
+            break;
+          }
+        }
+      }
+
+      // If we found a root joint that isn't joints[0], reorder so root is first
+      // This preserves compatibility with downstream code that expects root at index 0
+      if (rootJoint && rootJoint !== joints[0]) {
+        const rootIndex = joints.indexOf(rootJoint);
+        if (rootIndex > 0) {
+          logger.info('Reordering joints: actual root joint is not at index 0', {
+            rootJointName: rootJoint.getName(),
+            originalIndex: rootIndex,
+            assumedRootName: joints[0].getName()
+          });
+          // Move root to front
+          joints.splice(rootIndex, 1);
+          joints.unshift(rootJoint);
+        }
+      }
+
+      const actualRoot = rootJoint || joints[0];
+      const hasAnimation = hasJointAnimation(actualRoot, document);
+      const isUsedByMeshes = isJointUsedByMeshes(joints.indexOf(actualRoot), skin, document);
 
       // Only omit root joint if it has no animation AND is not used by any meshes
       shouldOmitRootJoint = !hasAnimation && !isUsedByMeshes;
 
       if (shouldOmitRootJoint) {
         logger.info('Root joint omitted from skeleton (no animation and not used by meshes)', {
-          rootJointName: rootJoint.getName(),
+          rootJointName: actualRoot.getName(),
           totalJoints: joints.length,
           skeletonJoints: joints.length - 1,
           hasAnimation: false,
@@ -140,7 +173,7 @@ export function processSkeletons(
       } else {
         const reason = hasAnimation ? 'has animation' : 'is used by meshes for skinning';
         logger.info(`Root joint included in skeleton (${reason})`, {
-          rootJointName: rootJoint.getName(),
+          rootJointName: actualRoot.getName(),
           totalJoints: joints.length,
           hasAnimation,
           isUsedByMeshes
