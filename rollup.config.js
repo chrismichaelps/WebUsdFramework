@@ -4,6 +4,7 @@ const commonjs = require('@rollup/plugin-commonjs');
 const { dts } = require('rollup-plugin-dts');
 
 // External dependencies that should not be bundled
+// External dependencies that should not be bundled
 const external = [
   // Node.js built-ins
   'fs',
@@ -24,6 +25,17 @@ const external = [
   '@gltf-transform/extensions',
   '@gltf-transform/functions',
   'zod',
+];
+
+const cliExternal = [
+  ...external,
+  'effect',
+  'effect/Context',
+  'effect/Layer',
+  'effect/Effect',
+  'effect/Data',
+  '@effect/platform',
+  '@effect/platform-node',
 ];
 
 const config = [
@@ -125,6 +137,30 @@ const config = [
       'https',
       'zlib',
     ],
+    plugins: [
+      resolve({
+        preferBuiltins: true,
+        browser: false,
+      }),
+      commonjs(),
+      typescript({
+        tsconfig: './tsconfig.json',
+        declaration: false,
+        declarationMap: false,
+        sourceMap: true,
+      }),
+    ],
+  },
+  // CLI bundle
+  {
+    input: 'src/cli/main.ts',
+    output: {
+      file: 'build/cli.js',
+      format: 'cjs',
+      sourcemap: true,
+      banner: '#!/usr/bin/env node',
+    },
+    external: cliExternal,
     plugins: [
       resolve({
         preferBuiltins: true,
