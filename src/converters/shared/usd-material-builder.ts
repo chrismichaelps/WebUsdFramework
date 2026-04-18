@@ -288,6 +288,7 @@ export async function buildUsdMaterial(
       textureId,
       textureNodeName,
       false,
+      false,
       baseColorTexture,
       baseColorTextureInfo,
       materialNode,
@@ -455,6 +456,7 @@ export async function buildUsdMaterial(
       textureId,
       textureNodeName,
       true,
+      true,
       normalTexture,
       normalTextureInfo,
       materialNode,
@@ -493,6 +495,7 @@ export async function buildUsdMaterial(
       materialPath,
       textureId,
       textureNodeName,
+      false,
       false,
       emissiveTexture,
       emissiveTextureInfo,
@@ -549,6 +552,7 @@ export async function buildUsdMaterial(
       materialPath,
       textureId,
       textureNodeName,
+      true,
       false,
       occlusionTexture,
       occlusionTextureInfo,
@@ -592,6 +596,7 @@ export async function buildUsdMaterial(
         materialPath,
         textureId,
         textureNodeName,
+        true,
         false,
         metallicRoughnessTexture,
         metallicRoughnessTextureInfo,
@@ -754,6 +759,7 @@ export async function buildUsdMaterial(
         materialPath,
         texRef.id,
         textureNodeName,
+        isNormalMap,
         isNormalMap,
         texRef.texture,
         extensionTextureInfo,
@@ -1136,6 +1142,7 @@ function createOptimizedTextureShader(
   materialPath: string,
   textureId: string,
   textureNodeName: string,
+  isLinearData: boolean,
   isNormalMap: boolean,
   texture: Texture,
   textureInfo: TextureInfo | null,
@@ -1185,7 +1192,8 @@ function createOptimizedTextureShader(
   textureShader.setProperty('asset inputs:file', `@textures/Texture_${textureId}.${textureExtension}@`, 'asset');
 
   // Set color space based on texture type
-  if (isNormalMap) {
+  // Non-color data (normal maps, metallic-roughness, occlusion) must use raw/linear
+  if (isLinearData) {
     textureShader.setProperty('token inputs:sourceColorSpace', 'raw', 'token');
   } else {
     textureShader.setProperty('token inputs:sourceColorSpace', 'sRGB', 'token');
