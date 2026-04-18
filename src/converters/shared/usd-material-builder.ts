@@ -884,11 +884,21 @@ export async function buildUsdMaterial(
   if (allProperties.emissiveStrength !== undefined) {
     const strength = allProperties.emissiveStrength as number;
     if (emissiveTextureShaderNode) {
-      // Emissive is texture-connected: apply strength as scale on the texture shader.
-      // This multiplies the texture output by the strength value.
+      // Emissive is texture-connected: multiply existing scale (emissiveFactor) by strength.
+      // The existing scale was set from emissiveFactor — we must preserve that color tint.
+      const currentScale = emissiveTextureShaderNode.getProperty('float4 inputs:scale');
+      let sr = strength, sg = strength, sb = strength;
+      if (currentScale && typeof currentScale === 'string') {
+        const match = currentScale.match(/\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+        if (match) {
+          sr = parseFloat(match[1]) * strength;
+          sg = parseFloat(match[2]) * strength;
+          sb = parseFloat(match[3]) * strength;
+        }
+      }
       emissiveTextureShaderNode.setProperty(
         'float4 inputs:scale',
-        `(${strength}, ${strength}, ${strength}, 1)`,
+        `(${sr}, ${sg}, ${sb}, 1)`,
         'float4'
       );
     } else {
