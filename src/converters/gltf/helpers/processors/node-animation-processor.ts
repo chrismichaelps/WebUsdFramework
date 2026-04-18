@@ -276,6 +276,20 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
         timeSamples.set(time, valueString);
       }
 
+      // STEP interpolation: USD has no native step mode — simulate by inserting a
+      // duplicate sample at nextKeyframe - 1 frame so the linear interpolator holds
+      // the value until the very last moment before the next keyframe changes.
+      if (interpolation === 'STEP' && timeSamples.size > 1) {
+        const sortedTimes = Array.from(timeSamples.keys()).sort((a, b) => a - b);
+        const frameEpsilon = 1 / 120; // one frame at 120 timeCodesPerSecond (sub-frame hold)
+        for (let i = 0; i < sortedTimes.length - 1; i++) {
+          const holdTime = sortedTimes[i + 1] - frameEpsilon;
+          if (holdTime > sortedTimes[i]) {
+            timeSamples.set(holdTime, timeSamples.get(sortedTimes[i])!);
+          }
+        }
+      }
+
       if (targetPath === 'translation') {
         nodeAnim.translations = timeSamples;
         this.logger.info(`Added translation animation`, {
@@ -420,7 +434,7 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
         const scaleTimeCodes = convertTimeSamplesToTimeCodes(nodeAnim.scales);
 
         if (scaleTimeCodes.size > 1) {
-          usdNode.setTimeSampledProperty('xformOp:scale', scaleTimeCodes, 'half3');
+          usdNode.setTimeSampledProperty('xformOp:scale', scaleTimeCodes, 'float3');
           xformOps.push('xformOp:scale');
         } else if (scaleTimeCodes.size === 1) {
           const singleValue = Array.from(scaleTimeCodes.values())[0];

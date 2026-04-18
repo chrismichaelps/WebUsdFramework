@@ -354,7 +354,7 @@ export async function buildUsdMaterial(
     // Use 'connection' type for proper shader connection
     textureShader.setProperty(
       'float2 inputs:st.connect',
-      `<${materialPath}/PrimvarReader_diffuse.outputs:result>`,
+      `<${materialPath}/PrimvarReader_st.outputs:result>`,
       'connection'
     );
 

@@ -44,61 +44,111 @@ export interface HierarchyBuilderContext {
   skeletonMap?: Map<Skin, SkeletonData>;
 }
 
+// ─── Matrix helpers (kept local to avoid circular imports) ───────────────────
+
+/** Multiply two column-major 4×4 matrices (stored row-major as flat 16-element arrays). */
+function _mul4x4(a: number[], b: number[]): number[] {
+  const out = new Array(16).fill(0);
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      let sum = 0;
+      for (let k = 0; k < 4; k++) {
+        sum += a[row * 4 + k] * b[k * 4 + col];
+      }
+      out[row * 4 + col] = sum;
+    }
+  }
+  return out;
+}
+
 /**
- * Calculate scene extent from all mesh nodes
- * Returns [minX, minY, minZ, maxX, maxY, maxZ] or null if no extents found
+ * Parse a USD matrix4d string such as
+ *   "( (r0c0, r0c1, r0c2, r0c3), ..., (tx, ty, tz, 1) )"
+ * into a flat 16-element row-major array, or null on failure.
+ */
+function _parseMat4(prop: unknown): number[] | null {
+  const s = typeof prop === 'string' ? prop : String(prop);
+  const nums = s.match(/([-\d.eE+]+)/g);
+  if (!nums || nums.length !== 16) return null;
+  return nums.map(Number);
+}
+
+/** Transform a point [x, y, z] by a 4×4 row-major matrix (w=1 assumed). */
+function _transformPoint(m: number[], p: [number, number, number]): [number, number, number] {
+  const x = m[0] * p[0] + m[4] * p[1] + m[8]  * p[2] + m[12];
+  const y = m[1] * p[0] + m[5] * p[1] + m[9]  * p[2] + m[13];
+  const z = m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14];
+  return [x, y, z];
+}
+
+const _ID4 = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Calculate scene extent from all mesh nodes, transforming each local-space
+ * extent box into world space before combining.
+ * Returns [minX, minY, minZ, maxX, maxY, maxZ] or null if no extents found.
  */
 export function calculateSceneExtent(sceneNode: UsdNode): [number, number, number, number, number, number] | null {
-  const extents: Array<{ min: [number, number, number]; max: [number, number, number] }> = [];
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let found = false;
 
-  // Recursively collect extents from all mesh nodes
-  function collectExtents(node: UsdNode): void {
-    // Get extent property if present
+  /**
+   * Walk the hierarchy.  `worldMatrix` is the accumulated transform from the
+   * scene root down to (but not including) `node`.
+   */
+  function collectExtents(node: UsdNode, parentWorld: number[]): void {
+    // Accumulate this node's own transform (if any)
+    const transformProp = node.getProperty('xformOp:transform');
+    const localMatrix = transformProp ? _parseMat4(transformProp) : null;
+    const worldMatrix = localMatrix ? _mul4x4(localMatrix, parentWorld) : parentWorld;
+
+    // Check for a local-space extent on this node
     const extentProp = node.getProperty('float3[] extent');
     if (extentProp && typeof extentProp === 'string') {
-      // Parse extent string: [(minX, minY, minZ), (maxX, maxY, maxZ)]
-      const extentMatch = extentProp.match(/\[\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\),\s*\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)\]/);
-      if (extentMatch) {
-        const min: [number, number, number] = [
-          parseFloat(extentMatch[1]),
-          parseFloat(extentMatch[2]),
-          parseFloat(extentMatch[3])
-        ];
-        const max: [number, number, number] = [
-          parseFloat(extentMatch[4]),
-          parseFloat(extentMatch[5]),
-          parseFloat(extentMatch[6])
-        ];
-        extents.push({ min, max });
+      const m = extentProp.match(/\[([-\d.eE+\s,()]+)\]/);
+      if (m) {
+        const nums = m[1].match(/([-\d.eE+]+)/g);
+        if (nums && nums.length === 6) {
+          const lMin: [number, number, number] = [parseFloat(nums[0]), parseFloat(nums[1]), parseFloat(nums[2])];
+          const lMax: [number, number, number] = [parseFloat(nums[3]), parseFloat(nums[4]), parseFloat(nums[5])];
+
+          // Transform all 8 corners of the AABB into world space
+          const corners: Array<[number, number, number]> = [
+            [lMin[0], lMin[1], lMin[2]],
+            [lMax[0], lMin[1], lMin[2]],
+            [lMin[0], lMax[1], lMin[2]],
+            [lMax[0], lMax[1], lMin[2]],
+            [lMin[0], lMin[1], lMax[2]],
+            [lMax[0], lMin[1], lMax[2]],
+            [lMin[0], lMax[1], lMax[2]],
+            [lMax[0], lMax[1], lMax[2]],
+          ];
+
+          for (const corner of corners) {
+            const [wx, wy, wz] = _transformPoint(worldMatrix, corner);
+            if (wx < minX) minX = wx;
+            if (wy < minY) minY = wy;
+            if (wz < minZ) minZ = wz;
+            if (wx > maxX) maxX = wx;
+            if (wy > maxY) maxY = wy;
+            if (wz > maxZ) maxZ = wz;
+          }
+          found = true;
+        }
       }
     }
 
-    // Recursively process children
     for (const child of node.getChildren()) {
-      collectExtents(child);
+      collectExtents(child, worldMatrix);
     }
   }
 
-  collectExtents(sceneNode);
+  collectExtents(sceneNode, [..._ID4]);
 
-  if (extents.length === 0) {
-    return null;
-  }
-
-  // Calculate combined extent
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
-  for (const extent of extents) {
-    minX = Math.min(minX, extent.min[0]);
-    minY = Math.min(minY, extent.min[1]);
-    minZ = Math.min(minZ, extent.min[2]);
-    maxX = Math.max(maxX, extent.max[0]);
-    maxY = Math.max(maxY, extent.max[1]);
-    maxZ = Math.max(maxZ, extent.max[2]);
-  }
-
-  return [minX, minY, minZ, maxX, maxY, maxZ];
+  return found ? [minX, minY, minZ, maxX, maxY, maxZ] : null;
 }
 
 /**
