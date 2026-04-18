@@ -35,31 +35,36 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
    */
   canProcess(animation: Animation, context: AnimationProcessorContext): boolean {
     const channels = animation.listChannels();
-    let hasTransformChannels = false;
+    let hasNonSkeletonTransformChannels = false;
 
-    // Check if this animation has any transform channels (translation, rotation, scale)
+    // Check if this animation has any transform channels targeting non-skeleton nodes.
+    // An animation may mix skeleton joint channels with regular node channels —
+    // we return true if there is at least one non-skeleton transform channel.
     for (const channel of channels) {
       const targetPath = channel.getTargetPath();
       if (targetPath === 'translation' || targetPath === 'rotation' || targetPath === 'scale') {
-        hasTransformChannels = true;
+        const targetNode = channel.getTargetNode();
+        if (!targetNode) continue;
 
         // Check if this channel targets a skeleton joint
+        let isSkeletonJoint = false;
         if (context.skeletonMap && context.skeletonMap.size > 0) {
-          const targetNode = channel.getTargetNode();
-          if (targetNode) {
-            for (const [, skeletonData] of context.skeletonMap) {
-              if (skeletonData.jointNodes.has(targetNode)) {
-                // This moves skeleton bones, so we can't handle it
-                return false;
-              }
+          for (const [, skeletonData] of context.skeletonMap) {
+            if (skeletonData.jointNodes.has(targetNode)) {
+              isSkeletonJoint = true;
+              break;
             }
           }
+        }
+
+        if (!isSkeletonJoint) {
+          hasNonSkeletonTransformChannels = true;
         }
       }
     }
 
-    // Only return true if we found transform channels (not morph targets or other types)
-    return hasTransformChannels;
+    // Only return true if we found transform channels targeting non-skeleton nodes
+    return hasNonSkeletonTransformChannels;
   }
 
   /**
@@ -134,6 +139,20 @@ export class NodeAnimationProcessor implements IAnimationProcessor {
       if (!targetNode) {
         this.logger.warn(`Channel has no target node`, { animationName });
         continue;
+      }
+
+      // Skip channels that target skeleton joints — those are handled by SkeletonAnimationProcessor
+      if (context.skeletonMap && context.skeletonMap.size > 0) {
+        let isSkeletonJoint = false;
+        for (const [, skeletonData] of context.skeletonMap) {
+          if (skeletonData.jointNodes.has(targetNode)) {
+            isSkeletonJoint = true;
+            break;
+          }
+        }
+        if (isSkeletonJoint) {
+          continue;
+        }
       }
 
       const usdNode = context.nodeMap.get(targetNode);
