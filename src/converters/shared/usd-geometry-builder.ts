@@ -102,9 +102,23 @@ export function extractRawGeometryData(primitive: Primitive): RawGeometryData {
     const normalArray = normals.getArray();
     if (normalArray && normalArray.length > 0) {
       const normalTuples: string[] = [];
+      let nonUnitCount = 0;
       for (let i = 0; i < normalArray.length; i += 3) {
-        // Use formatUsdTuple3 for consistent 7 decimal place precision
-        normalTuples.push(formatUsdTuple3(normalArray[i], normalArray[i + 1], normalArray[i + 2]));
+        let nx = normalArray[i];
+        let ny = normalArray[i + 1];
+        let nz = normalArray[i + 2];
+        const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        // Normalize if magnitude deviates from 1.0 by more than epsilon
+        if (mag > 0 && Math.abs(mag - 1.0) > 1e-4) {
+          nx /= mag;
+          ny /= mag;
+          nz /= mag;
+          nonUnitCount++;
+        }
+        normalTuples.push(formatUsdTuple3(nx, ny, nz));
+      }
+      if (nonUnitCount > 0) {
+        console.warn(`[extractPrimitiveData] Normalized ${nonUnitCount} non-unit normal vector(s) in mesh`);
       }
       result.normals = `[${normalTuples.join(', ')}]`;
     }
