@@ -999,6 +999,12 @@ function getTextureWrapModes(textureInfo: TextureInfo | null): { wrapS: 'repeat'
   let wrapS: 'repeat' | 'clamp' | 'mirror' = 'repeat';
   let wrapT: 'repeat' | 'clamp' | 'mirror' = 'repeat';
 
+  if (!textureInfo) {
+    // textureInfo is null — no sampler data available; falling back to GLTF defaults (repeat/repeat)
+    console.warn('[getTextureWrapModes] TextureInfo is null; defaulting to wrapS=repeat, wrapT=repeat');
+    return { wrapS, wrapT };
+  }
+
   if (textureInfo) {
     // Get wrap modes from TextureInfo (which includes sampler properties)
     const wrapSMode = textureInfo.getWrapS();
