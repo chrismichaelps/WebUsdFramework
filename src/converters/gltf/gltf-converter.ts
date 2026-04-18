@@ -323,210 +323,173 @@ export async function convertGlbToUsdz(
             if (mesh) {
               const primitives = mesh.listPrimitives();
               if (primitives.length > 0) {
-                const primitive = primitives[0];
-                const jointIndices = primitive.getAttribute('JOINTS_0')?.getArray();
-                const jointWeights = primitive.getAttribute('WEIGHTS_0')?.getArray();
-
-                logger.info('Extracting joint data from mesh primitive', {
-                  nodeName: node.getName(),
-                  meshName: mesh.getName(),
-                  primitiveCount: primitives.length,
-                  hasJOINTS_0: !!jointIndices,
-                  hasWEIGHTS_0: !!jointWeights,
-                  jointIndicesType: jointIndices?.constructor?.name,
-                  jointWeightsType: jointWeights?.constructor?.name
-                });
-
-                let indicesArray: number[] = [];
-                let weightsArray: number[] = [];
-
-                if (jointIndices) {
-                  if (jointIndices instanceof Uint8Array || jointIndices instanceof Uint16Array) {
-                    indicesArray = Array.from(jointIndices);
-                    logger.info('Converted joint indices from typed array', {
-                      originalType: jointIndices.constructor.name,
-                      length: indicesArray.length,
-                      sampleIndices: indicesArray.slice(0, 20)
-                    });
-                  } else if (Array.isArray(jointIndices)) {
-                    indicesArray = jointIndices;
-                    logger.info('Using joint indices as array', {
-                      length: indicesArray.length,
-                      sampleIndices: indicesArray.slice(0, 20)
-                    });
-                  }
-                } else {
-                  logger.warn('No JOINTS_0 attribute found on primitive', {
-                    nodeName: node.getName(),
-                    meshName: mesh.getName()
-                  });
-                }
-
-                if (jointWeights) {
-                  if (jointWeights instanceof Float32Array) {
-                    weightsArray = Array.from(jointWeights);
-                    logger.info('Converted joint weights from Float32Array', {
-                      length: weightsArray.length,
-                      sampleWeights: weightsArray.slice(0, 20).map(w => w.toFixed(4))
-                    });
-                  } else if (Array.isArray(jointWeights)) {
-                    weightsArray = jointWeights;
-                    logger.info('Using joint weights as array', {
-                      length: weightsArray.length,
-                      sampleWeights: weightsArray.slice(0, 20).map(w => w.toFixed(4))
-                    });
-                  }
-                } else {
-                  logger.warn('No WEIGHTS_0 attribute found on primitive', {
-                    nodeName: node.getName(),
-                    meshName: mesh.getName()
-                  });
-                }
-
-                // Verify indices match weights (should be same length)
-                if (indicesArray.length !== weightsArray.length) {
-                  logger.warn('Joint indices and weights length mismatch', {
-                    indicesLength: indicesArray.length,
-                    weightsLength: weightsArray.length,
-                    nodeName: node.getName()
-                  });
-                }
-
-                // In GLTF, JOINTS_0 contains indices into skin.joints array (GLTF joint indices)
-                // We need to map these to USD skeleton joint indices using gjointToUjointMap
-                // This is critical because USD skeleton may have different order or omit joints
-                const skeletonJointCount = skeletonData.jointPaths.length; // Use actual USD skeleton joint count
+                const skeletonJointCount = skeletonData.jointPaths.length;
                 const gjointToUjointMap = skeletonData.gjointToUjointMap || [];
 
-                // Log mapping details for debugging
-                logger.info('Using joint index mapping', {
-                  nodeName: node.getName(),
-                  meshName: mesh.getName(),
-                  mappingLength: gjointToUjointMap.length,
-                  mappingSample: gjointToUjointMap.slice(0, 10),
-                  skeletonJointCount,
-                  originalIndicesMin: indicesArray.reduce((a: number, b: number) => a < b ? a : b, Infinity),
-                  originalIndicesMax: indicesArray.reduce((a: number, b: number) => a > b ? a : b, -Infinity),
-                  originalIndicesUnique: new Set(indicesArray).size,
-                  originalIndicesSample: indicesArray.slice(0, 20)
-                });
-
-                // Map GLTF joint indices to USD skeleton joint indices
-                let unmappedIndices = 0;
-                const remappedIndices = indicesArray.map((gltfJointIndex: number) => {
-                  // Check if we have a mapping for this GLTF joint index
-                  if (gltfJointIndex >= 0 && gltfJointIndex < gjointToUjointMap.length) {
-                    const usdJointIndex = gjointToUjointMap[gltfJointIndex];
-
-                    // If mapping is -1, joint was omitted from USD skeleton
-                    if (usdJointIndex === -1) {
-                      unmappedIndices++;
-                      // Clamp to 0 (first joint) as fallback
-                      return 0;
-                    }
-
-                    // Validate USD joint index is within skeleton bounds
-                    if (usdJointIndex >= 0 && usdJointIndex < skeletonJointCount) {
-                      return usdJointIndex;
-                    } else {
-                      logger.warn('USD joint index out of range', {
-                        gltfJointIndex,
-                        usdJointIndex,
-                        skeletonJointCount
-                      });
-                      return Math.max(0, Math.min(usdJointIndex, skeletonJointCount - 1));
-                    }
-                  } else {
-                    // GLTF joint index out of range - this shouldn't happen
-                    unmappedIndices++;
-                    logger.warn('GLTF joint index out of range', {
-                      gltfJointIndex,
-                      mappingLength: gjointToUjointMap.length
-                    });
-                    return 0; // Fallback to first joint
-                  }
-                });
-
-                if (unmappedIndices > 0) {
-                  logger.warn('Some joint indices could not be mapped', {
-                    nodeName: node.getName(),
-                    meshName: mesh.getName(),
-                    unmappedCount: unmappedIndices,
-                    totalIndices: indicesArray.length
-                  });
-                }
-
-                // Find indices that changed after mapping for debugging
-                const changedIndices: Array<{ original: number; mapped: number; index: number }> = [];
-                for (let i = 0; i < Math.min(20, indicesArray.length); i++) {
-                  if (indicesArray[i] !== remappedIndices[i]) {
-                    changedIndices.push({ original: indicesArray[i], mapped: remappedIndices[i], index: i });
-                  }
-                }
-
-                logger.info('Validated joint indices for USD skeleton', {
-                  originalIndicesSample: indicesArray.slice(0, 20),
-                  validatedIndicesSample: remappedIndices.slice(0, 20),
-                  minOriginal: indicesArray.reduce((a: number, b: number) => a < b ? a : b, Infinity),
-                  maxOriginal: indicesArray.reduce((a: number, b: number) => a > b ? a : b, -Infinity),
-                  minValidated: remappedIndices.reduce((a: number, b: number) => a < b ? a : b, Infinity),
-                  maxValidated: remappedIndices.reduce((a: number, b: number) => a > b ? a : b, -Infinity),
-                  uniqueOriginal: new Set(indicesArray).size,
-                  uniqueValidated: new Set(remappedIndices).size,
-                  changedIndicesCount: changedIndices.length,
-                  changedIndicesSample: changedIndices.slice(0, 5),
-                  skeletonJointCount
-                });
-
-                // Get the mesh node - find Mesh prim child, or use the node itself if it's a Mesh
-                let meshNode: UsdNode | null = null;
+                // Collect all Mesh children of this node for matching to primitives
+                const meshChildren: UsdNode[] = [];
                 if (usdNode.getTypeName() === 'Mesh') {
-                  meshNode = usdNode;
+                  meshChildren.push(usdNode);
                 } else {
-                  // Search for Mesh prim in children
                   for (const child of usdNode.getChildren()) {
                     if (child.getTypeName() === 'Mesh') {
-                      meshNode = child;
-                      break;
+                      meshChildren.push(child);
                     }
                   }
                 }
 
-                if (!meshNode) {
-                  logger.warn('No Mesh prim found for skeleton binding', {
+                // Process each primitive's skinning data independently
+                for (let primIdx = 0; primIdx < primitives.length; primIdx++) {
+                  const primitive = primitives[primIdx];
+                  const jointIndices = primitive.getAttribute('JOINTS_0')?.getArray();
+                  const jointWeights = primitive.getAttribute('WEIGHTS_0')?.getArray();
+
+                  logger.info('Extracting joint data from mesh primitive', {
                     nodeName: node.getName(),
-                    usdNodeType: usdNode.getTypeName(),
-                    usdNodePath: usdNode.getPath()
+                    meshName: mesh.getName(),
+                    primitiveIndex: primIdx,
+                    primitiveCount: primitives.length,
+                    hasJOINTS_0: !!jointIndices,
+                    hasWEIGHTS_0: !!jointWeights,
+                    jointIndicesType: jointIndices?.constructor?.name,
+                    jointWeightsType: jointWeights?.constructor?.name
                   });
-                  continue;
+
+                  let indicesArray: number[] = [];
+                  let weightsArray: number[] = [];
+
+                  if (jointIndices) {
+                    if (jointIndices instanceof Uint8Array || jointIndices instanceof Uint16Array) {
+                      indicesArray = Array.from(jointIndices);
+                    } else if (Array.isArray(jointIndices)) {
+                      indicesArray = jointIndices;
+                    }
+                  } else {
+                    logger.warn('No JOINTS_0 attribute found on primitive', {
+                      nodeName: node.getName(),
+                      meshName: mesh.getName(),
+                      primitiveIndex: primIdx
+                    });
+                    continue;
+                  }
+
+                  if (jointWeights) {
+                    if (jointWeights instanceof Float32Array) {
+                      weightsArray = Array.from(jointWeights);
+                    } else if (Array.isArray(jointWeights)) {
+                      weightsArray = jointWeights;
+                    }
+                  } else {
+                    logger.warn('No WEIGHTS_0 attribute found on primitive', {
+                      nodeName: node.getName(),
+                      meshName: mesh.getName(),
+                      primitiveIndex: primIdx
+                    });
+                    continue;
+                  }
+
+                  // Verify indices match weights (should be same length)
+                  if (indicesArray.length !== weightsArray.length) {
+                    logger.warn('Joint indices and weights length mismatch', {
+                      indicesLength: indicesArray.length,
+                      weightsLength: weightsArray.length,
+                      nodeName: node.getName(),
+                      primitiveIndex: primIdx
+                    });
+                  }
+
+                  // Map GLTF joint indices to USD skeleton joint indices
+                  let unmappedIndices = 0;
+                  const remappedIndices = indicesArray.map((gltfJointIndex: number) => {
+                    if (gltfJointIndex >= 0 && gltfJointIndex < gjointToUjointMap.length) {
+                      const usdJointIndex = gjointToUjointMap[gltfJointIndex];
+
+                      if (usdJointIndex === -1) {
+                        unmappedIndices++;
+                        return 0;
+                      }
+
+                      if (usdJointIndex >= 0 && usdJointIndex < skeletonJointCount) {
+                        return usdJointIndex;
+                      } else {
+                        logger.warn('USD joint index out of range', {
+                          gltfJointIndex,
+                          usdJointIndex,
+                          skeletonJointCount,
+                          primitiveIndex: primIdx
+                        });
+                        return Math.max(0, Math.min(usdJointIndex, skeletonJointCount - 1));
+                      }
+                    } else {
+                      unmappedIndices++;
+                      logger.warn('GLTF joint index out of range', {
+                        gltfJointIndex,
+                        mappingLength: gjointToUjointMap.length,
+                        primitiveIndex: primIdx
+                      });
+                      return 0;
+                    }
+                  });
+
+                  if (unmappedIndices > 0) {
+                    logger.warn('Some joint indices could not be mapped', {
+                      nodeName: node.getName(),
+                      meshName: mesh.getName(),
+                      primitiveIndex: primIdx,
+                      unmappedCount: unmappedIndices,
+                      totalIndices: indicesArray.length
+                    });
+                  }
+
+                  logger.info('Validated joint indices for USD skeleton', {
+                    primitiveIndex: primIdx,
+                    indicesCount: remappedIndices.length,
+                    weightsCount: weightsArray.length,
+                    skeletonJointCount
+                  });
+
+                  // Find the corresponding USD Mesh node for this primitive
+                  const meshNode = primIdx < meshChildren.length ? meshChildren[primIdx] : null;
+
+                  if (!meshNode) {
+                    logger.warn('No Mesh prim found for skeleton binding', {
+                      nodeName: node.getName(),
+                      primitiveIndex: primIdx,
+                      usdNodeType: usdNode.getTypeName(),
+                      usdNodePath: usdNode.getPath(),
+                      meshChildrenCount: meshChildren.length
+                    });
+                    continue;
+                  }
+
+                  const originalParent = meshNode !== usdNode ? usdNode : undefined;
+
+                  logger.info('Binding mesh to skeleton', {
+                    meshNodeName: meshNode.getName(),
+                    meshNodePath: meshNode.getPath(),
+                    primitiveIndex: primIdx,
+                    originalParent: originalParent?.getName(),
+                    skeletonPath: skeletonData.skelRootNode.getPath(),
+                    indicesCount: remappedIndices.length,
+                    weightsCount: weightsArray.length
+                  });
+
+                  bindSkeletonToMesh(
+                    meshNode,
+                    skeletonData.skelRootNode.getPath(),
+                    remappedIndices,
+                    weightsArray,
+                    skeletonData.skelRootNode,
+                    skeletonData.skeletonPrimNode,
+                    logger,
+                    originalParent,
+                    rootStructure.sceneNode,
+                    skeletonData.jointPaths.length,
+                    node,
+                    group.lcaUsdNode || undefined,
+                    document
+                  );
                 }
-
-                const originalParent = meshNode !== usdNode ? usdNode : undefined;
-
-                logger.info('Binding mesh to skeleton', {
-                  meshNodeName: meshNode.getName(),
-                  meshNodePath: meshNode.getPath(),
-                  originalParent: originalParent?.getName(),
-                  skeletonPath: skeletonData.skelRootNode.getPath(),
-                  indicesCount: remappedIndices.length,
-                  weightsCount: weightsArray.length
-                });
-
-                bindSkeletonToMesh(
-                  meshNode,
-                  skeletonData.skelRootNode.getPath(),
-                  remappedIndices,
-                  weightsArray,
-                  skeletonData.skelRootNode,
-                  skeletonData.skeletonPrimNode,
-                  logger,
-                  originalParent,
-                  rootStructure.sceneNode,
-                  skeletonData.jointPaths.length, // Pass joint count for validation
-                  node, // Pass GLTF node for world transform calculation
-                  group.lcaUsdNode || undefined, // Pass LCA USD node as common ancestor
-                  document // Pass document for world transform calculation
-                );
               } else {
                 logger.warn('Mesh has no primitives', {
                   nodeName: node.getName(),
