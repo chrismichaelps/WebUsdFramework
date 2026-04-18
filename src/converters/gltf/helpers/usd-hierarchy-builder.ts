@@ -490,6 +490,34 @@ function attachGeometryReference(
     }
   }
 
+  // Expand bounding box extent to account for morph target position deltas
+  // Since we don't know blend weights at export time, expand by the max delta per target
+  // (assumes each target can independently reach weight 1.0)
+  if (extentMin && extentMax) {
+    const targets = primitive.listTargets();
+    for (const target of targets) {
+      const deltaPosition = target.getAttribute('POSITION');
+      if (!deltaPosition) continue;
+      const deltaArray = deltaPosition.getArray();
+      if (!deltaArray) continue;
+
+      // Find per-target min/max deltas
+      let dMinX = 0, dMaxX = 0, dMinY = 0, dMaxY = 0, dMinZ = 0, dMaxZ = 0;
+      for (let i = 0; i < deltaArray.length; i += 3) {
+        const dx = deltaArray[i];
+        const dy = deltaArray[i + 1];
+        const dz = deltaArray[i + 2];
+        dMinX = Math.min(dMinX, dx); dMaxX = Math.max(dMaxX, dx);
+        dMinY = Math.min(dMinY, dy); dMaxY = Math.max(dMaxY, dy);
+        dMinZ = Math.min(dMinZ, dz); dMaxZ = Math.max(dMaxZ, dz);
+      }
+
+      // Expand extent by this target's worst-case deltas
+      extentMin[0] += dMinX; extentMin[1] += dMinY; extentMin[2] += dMinZ;
+      extentMax[0] += dMaxX; extentMax[1] += dMaxY; extentMax[2] += dMaxZ;
+    }
+  }
+
   // Set bounding box extent
   if (extentMin && extentMax) {
     const extentMinStr = formatUsdTuple3(extentMin[0], extentMin[1], extentMin[2]);
