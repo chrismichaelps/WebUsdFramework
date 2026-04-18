@@ -52,14 +52,14 @@ section "WebUsdFramework Conversion Harness"
 info "Input  : $INPUT ($(du -h "$INPUT" | awk '{print $1}'))"
 info "Output : $OUT_DIR/"
 
-# --- Build --
+# Build verification
 if [ "${SKIP_BUILD:-0}" != "1" ] && [ ! -f "build/index.js" ]; then
   section "Build"
   if ! pnpm run build; then fail "build failed"; exit 1; fi
   pass "build complete"
 fi
 
-# --- Convert 
+# Conversion pipeline execution
 section "Convert (source -> USDZ)"
 CONVERT_LOG="$(mktemp)"
 if ! node scripts/convert.cjs "$INPUT" "$OUT_DIR" | tee "$CONVERT_LOG"; then
@@ -76,7 +76,7 @@ INTERMEDIATE_USDA="$OUT_DIR/model.usda"
   exit 2
 }
 
-# --- Content-preservation diff (the oracle) 
+# Oracle-based content preservation verification
 section "Content preservation (source vs output USDA)"
 INSPECT_RC=0
 node scripts/inspect.cjs "$INPUT" "$INTERMEDIATE_USDA" || INSPECT_RC=$?
@@ -90,7 +90,7 @@ else
   CONTENT_OK=0
 fi
 
-# --- Diagnostics (non-gating) 
+# Informational diagnostics (non-gating)
 if [ -x "$USD_BIN/usdcat" ]; then
   section "Diagnostic: usdcat --loadOnly (does stage load?)"
   if "$USD_BIN/usdcat" --loadOnly "$OUTPUT_USDZ" 2>&1; then
@@ -110,7 +110,7 @@ if [ -x "$USD_BIN/usdzip" ]; then
   "$USD_BIN/usdzip" --list "$OUTPUT_USDZ" 2>&1 | head -40 || warn "usdzip failed"
 fi
 
-# --- Summary 
+# Final summary and exit status
 section "Summary"
 info "Output : $OUTPUT_USDZ"
 info "USDA   : $INTERMEDIATE_USDA"

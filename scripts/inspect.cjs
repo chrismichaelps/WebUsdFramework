@@ -15,9 +15,9 @@ const [srcPath, outPath] = args;
 if (!fs.existsSync(srcPath)) { console.error(`source not found: ${srcPath}`); process.exit(1); }
 if (!fs.existsSync(outPath)) { console.error(`output usda not found: ${outPath}`); process.exit(1); }
 
-// ---------------------------------------------------------------------------
-// Source inventory
-// ---------------------------------------------------------------------------
+/**
+ * Normalizes input source metadata (nodes, geometry, skins) for comparison against output data.
+ */
 
 /** Base shape returned by every front-end. */
 function emptySrc() {
@@ -169,9 +169,9 @@ async function inspectSource(p) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Output USDA inventory (text parse — framework emits text USDA in debug mode)
-// ---------------------------------------------------------------------------
+/**
+ * Textually parses the intermediate USDA file to extract prim counts and API schema applications.
+ */
 
 function inspectUsda(p) {
   const text = fs.readFileSync(p, 'utf8');
@@ -205,9 +205,9 @@ function inspectUsda(p) {
   return o;
 }
 
-// ---------------------------------------------------------------------------
-// Diff / findings
-// ---------------------------------------------------------------------------
+/**
+ * Executes a semantic comparison between source intent and USDA output, flagging drops or regressions.
+ */
 
 function compare(src, out) {
   const findings = [];
@@ -271,9 +271,9 @@ function compare(src, out) {
   return findings;
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+/**
+ * Orchestrates the full inspection lifecycle and exits with failure if regressions are detected.
+ */
 
 (async () => {
   const src = await inspectSource(srcPath);
