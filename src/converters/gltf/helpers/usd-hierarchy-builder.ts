@@ -136,6 +136,14 @@ export async function buildNodeHierarchy(
   // Add to node map for animation processing
   context.nodeMap.set(gltfNode, currentNode);
 
+  // Warn if this node has a camera (not yet supported in USDZ export)
+  const camera = gltfNode.getCamera();
+  if (camera) {
+    console.warn(
+      `[WebUsdFramework] Node "${nodeName}" has a camera ("${camera.getName() || 'unnamed'}") attached — cameras are not supported in USDZ and will be skipped.`
+    );
+  }
+
   const mesh = gltfNode.getMesh();
   if (mesh) {
     context.materialCounter = await processMesh(
