@@ -41,7 +41,7 @@ const usd = defineConfig({
     logBounds: true,
     center: 'center',
     resample: true,
-    unlit: true,
+    unlit: false,
     flatten: false,
     metalRough: true,
     vertexColorSpace: 'srgb',
