@@ -361,6 +361,19 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
           timeSamples.set(time, valueString);
         }
 
+        // STEP interpolation: simulate by inserting a hold sample one frame before
+        // each keyframe transition so USD's linear interpolator holds the value.
+        if (interpolation === 'STEP' && timeSamples.size > 1) {
+          const frameEpsilon = 1 / 120; // one frame at 120 timeCodesPerSecond
+          const sortedTimes = Array.from(timeSamples.keys()).sort((a, b) => a - b);
+          for (let si = 0; si < sortedTimes.length - 1; si++) {
+            const holdTime = sortedTimes[si + 1] - frameEpsilon;
+            if (holdTime > sortedTimes[si]) {
+              timeSamples.set(holdTime, timeSamples.get(sortedTimes[si])!);
+            }
+          }
+        }
+
         if (targetPath === 'translation') {
           jointAnim.translations = timeSamples;
         } else if (targetPath === 'rotation') {
@@ -749,7 +762,7 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
       // Set default values (the pose before animation starts)
       skelAnimationNode.setProperty('float3[] translations', defaultTranslations, 'raw');
       skelAnimationNode.setProperty('quatf[] rotations', defaultRotations, 'raw');
-      skelAnimationNode.setProperty('half3[] scales', defaultScales, 'raw');
+      skelAnimationNode.setProperty('float3[] scales', defaultScales, 'raw');
 
       // Set the time-sampled animation data
       if (transTimeCodes.size > 0) {
@@ -765,7 +778,7 @@ export class SkeletonAnimationProcessor implements IAnimationProcessor {
       }
 
       if (scaleTimeCodes.size > 0) {
-        skelAnimationNode.setTimeSampledProperty('half3[] scales', scaleTimeCodes, 'half3[]');
+        skelAnimationNode.setTimeSampledProperty('float3[] scales', scaleTimeCodes, 'float3[]');
       }
 
       // Add SkelAnimation as a child of Skeleton
