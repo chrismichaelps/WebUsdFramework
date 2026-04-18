@@ -173,6 +173,100 @@ async function inspectSource(p) {
  * Textually parses the intermediate USDA file to extract prim counts and API schema applications.
  */
 
+/**
+ * Finds Skeleton/SkelAnimation pairs where the `joints` arrays disagree.
+ *
+ * USD binds SkelAnimation outputs to skeleton joints positionally by the
+ * `joints` token array. If the Skeleton's joints and the child
+ * SkelAnimation's joints differ in length or order, the animation silently
+ * refuses to bind at runtime — the stage still loads but the skeleton
+ * renders frozen in its rest pose. `usdcat --loadOnly` does not catch this.
+ *
+ * The parser is intentionally lightweight: we locate each `def Skeleton`
+ * block via brace-depth walking, grab its first `joints` array (the
+ * Skeleton's own), then grab the first `joints` array that appears after
+ * the child `def SkelAnimation` marker (the animation's). Multi-line joint
+ * arrays are tolerated.
+ */
+
+function parseJointsArray(inner) {
+  return (inner.match(/"([^"]+)"/g) || []).map(s => s.slice(1, -1));
+}
+
+function findClosingBrace(text, openBraceIdx) {
+  // Given text[openBraceIdx] === '{', returns the index of the matching '}'.
+  // Returns text.length if no match (defensive — shouldn't happen on valid USDA).
+  let depth = 1;
+  let i = openBraceIdx + 1;
+  while (i < text.length && depth > 0) {
+    const c = text[i];
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+    i++;
+  }
+  return i - 1;
+}
+
+function findSkelJointMismatches(text) {
+  const mismatches = [];
+  // Match `def Skeleton "NAME" (...)? { ...` with an optional metadata
+  // paren-block between the name and the body open-brace.
+  const skeletonHeader = /def\s+Skeleton\s+"([^"]+)"\s*(?:\([^)]*\)\s*)?\{/g;
+  const skelJointsRe = /uniform\s+token\[\]\s+joints\s*=\s*\[([\s\S]*?)\]/;
+
+  for (const m of text.matchAll(skeletonHeader)) {
+    const skeletonName = m[1];
+    const braceOpenIdx = m.index + m[0].length - 1;
+    const endIdx = findClosingBrace(text, braceOpenIdx);
+    const body = text.substring(braceOpenIdx + 1, endIdx);
+
+    const skelJointsMatch = body.match(skelJointsRe);
+    if (!skelJointsMatch) continue; // Skeleton with no joints — separate concern
+    const skeletonJoints = parseJointsArray(skelJointsMatch[1]);
+
+    // Each child SkelAnimation must use the same joints array (same length
+    // and order). USD binds positionally.
+    const animHeader = /def\s+SkelAnimation\s+"([^"]+)"\s*(?:\([^)]*\)\s*)?\{/g;
+    for (const a of body.matchAll(animHeader)) {
+      const animName = a[1];
+      const animBraceIdx = a.index + a[0].length - 1;
+      const animEndIdx = findClosingBrace(body, animBraceIdx);
+      const animBody = body.substring(animBraceIdx + 1, animEndIdx);
+
+      const animJointsMatch = animBody.match(skelJointsRe);
+      if (!animJointsMatch) {
+        mismatches.push({
+          skeleton: skeletonName,
+          animation: animName,
+          reason: 'SkelAnimation has no joints array',
+        });
+        continue;
+      }
+      const animJoints = parseJointsArray(animJointsMatch[1]);
+
+      if (animJoints.length !== skeletonJoints.length) {
+        mismatches.push({
+          skeleton: skeletonName,
+          animation: animName,
+          reason: `joints length mismatch (Skeleton ${skeletonJoints.length}, SkelAnimation ${animJoints.length})`,
+        });
+        continue;
+      }
+      for (let j = 0; j < skeletonJoints.length; j++) {
+        if (skeletonJoints[j] !== animJoints[j]) {
+          mismatches.push({
+            skeleton: skeletonName,
+            animation: animName,
+            reason: `joint[${j}] differs (Skeleton "${skeletonJoints[j]}" vs SkelAnimation "${animJoints[j]}")`,
+          });
+          break;
+        }
+      }
+    }
+  }
+  return mismatches;
+}
+
 function inspectUsda(p) {
   const text = fs.readFileSync(p, 'utf8');
   const o = {
@@ -201,6 +295,7 @@ function inspectUsda(p) {
     hasMetersPerUnit: /metersPerUnit\s*=\s*/.test(text),
     hasDefaultPrim:   /defaultPrim\s*=\s*"/.test(text),
     hasTimeCodes:     /startTimeCode\s*=/.test(text) && /endTimeCode\s*=/.test(text),
+    skelJointMismatches: findSkelJointMismatches(text),
   };
   return o;
 }
@@ -248,6 +343,17 @@ function compare(src, out) {
     }
     if (src.animationChannels > 0 && !out.hasTimeCodes) {
       note('warn', 'anim', 'source has animation channels but stage lacks startTimeCode/endTimeCode');
+    }
+  }
+
+  // SkelAnimation joints must align with their parent Skeleton's joints.
+  // USD binds positionally by the `joints` token array; any divergence
+  // silently drops the animation binding at runtime even though the stage
+  // still loads cleanly in usdcat.
+  if (out.skelJointMismatches && out.skelJointMismatches.length > 0) {
+    for (const mm of out.skelJointMismatches) {
+      note('fail', 'anim',
+        `Skeleton "${mm.skeleton}" <> SkelAnimation "${mm.animation}": ${mm.reason}`);
     }
   }
 
@@ -303,7 +409,10 @@ function compare(src, out) {
     console.log('');
     console.log('# output inventory');
     for (const [k, v] of Object.entries(out)) {
-      console.log(line(`${k.padEnd(20)}: ${v}`));
+      // Arrays/objects are printed as their count to keep the report scannable;
+      // the underlying details are surfaced via the findings section below.
+      const display = Array.isArray(v) ? `${v.length} item(s)` : v;
+      console.log(line(`${k.padEnd(20)}: ${display}`));
     }
     console.log('');
     console.log('# findings');
