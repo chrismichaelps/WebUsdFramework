@@ -1,11 +1,6 @@
-/**
- * CliConfig Service
- *
- * Parses CLI arguments into a typed configuration.
- * No dependencies (Layer<CliConfig, never, never>).
- */
-
-import { Effect, Context, Layer, Data } from "effect"
+import { Effect, Context, Layer } from "effect"
+import { CliConfigError } from "../errors"
+import { CLI_VERSION, SUPPORTED_EXTENSIONS, HELP_TEXT } from "../constants"
 
 export interface CliConfigShape {
   readonly inputPath: string
@@ -22,40 +17,6 @@ export class CliConfig extends Context.Tag("CliConfig")<
   CliConfigShape
 >() {}
 
-export class CliConfigError extends Data.TaggedError("CliConfigError")<{
-  readonly message: string
-}> {}
-
-const SUPPORTED_EXTENSIONS = [".glb", ".gltf", ".obj", ".fbx", ".stl", ".ply"]
-
-const HELP_TEXT = `
-webusd - Convert 3D models to USDZ format
-
-Usage:
-  webusd <input> [options]
-
-Arguments:
-  input                    Path to the input file (.glb, .gltf, .obj, .fbx, .stl, .ply)
-
-Options:
-  -o, --output <path>      Output file path (default: <input>.usdz)
-  -d, --debug              Enable debug mode with intermediate files
-  --decimate <n>           Target face count for mesh decimation (PLY only, 0 = off)
-  --up-axis <Y|Z>          Up axis (default: Y)
-  --meters-per-unit <n>    Scene scale (default: 1)
-  -h, --help               Show this help message
-  -v, --version            Show version
-
-Supported Formats:
-  GLB, GLTF, OBJ, FBX, STL, PLY
-
-Examples:
-  webusd model.glb
-  webusd model.glb -o output.usdz -d
-  webusd scan.ply --decimate 500000
-  webusd ./stl-folder/
-`.trim()
-
 function parseArgs(argv: ReadonlyArray<string>): Effect.Effect<CliConfigShape, CliConfigError> {
   return Effect.gen(function* () {
     const args = argv.slice(2)
@@ -65,7 +26,7 @@ function parseArgs(argv: ReadonlyArray<string>): Effect.Effect<CliConfigShape, C
     }
 
     if (args.includes("-v") || args.includes("--version")) {
-      return yield* Effect.fail(new CliConfigError({ message: "webusd v1.0.0" }))
+      return yield* Effect.fail(new CliConfigError({ message: `webusd ${CLI_VERSION}` }))
     }
 
     let inputPath = ""
@@ -128,10 +89,10 @@ function parseArgs(argv: ReadonlyArray<string>): Effect.Effect<CliConfigShape, C
     }
 
     const ext = inputPath.toLowerCase().slice(inputPath.lastIndexOf("."))
-    const isDirectory = !ext || !SUPPORTED_EXTENSIONS.includes(ext)
+    const validExts = SUPPORTED_EXTENSIONS as readonly string[]
+    const isDirectory = !ext || !validExts.includes(ext)
 
-    // For directories (STL batch mode) or files, validate extension
-    if (!isDirectory && !SUPPORTED_EXTENSIONS.includes(ext)) {
+    if (!isDirectory && !validExts.includes(ext)) {
       return yield* Effect.fail(new CliConfigError({
         message: `Unsupported format: ${ext}\nSupported: ${SUPPORTED_EXTENSIONS.join(", ")}`
       }))
