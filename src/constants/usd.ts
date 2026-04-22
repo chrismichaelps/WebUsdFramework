@@ -9,6 +9,7 @@ export const USD_NODE_TYPES = {
   MESH: 'Mesh',
   MATERIAL: 'Material',
   SHADER: 'Shader',
+  CAMERA: 'Camera',
 } as const;
 
 /**

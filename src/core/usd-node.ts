@@ -454,8 +454,12 @@ export class UsdNode {
       // Yield properties (excluding token attributes)
       for (const prop of otherProperties) {
         // Handle xformOp properties
-        if (prop.key.startsWith('xformOp:translate') || prop.key.startsWith('xformOp:orient') || prop.key.startsWith('xformOp:scale')) {
-          yield `${space}    ${prop.key} = ${prop.value}\n`;
+        if (prop.key.startsWith('xformOp:translate') || prop.key.startsWith('xformOp:scale')) {
+          yield `${space}    float3 ${prop.key} = ${prop.value}\n`;
+          continue;
+        }
+        if (prop.key.startsWith('xformOp:orient')) {
+          yield `${space}    quatf ${prop.key} = ${prop.value}\n`;
           continue;
         }
 
@@ -530,7 +534,7 @@ export class UsdNode {
     }
 
     // Determine if we need braces for the node body
-    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || inputProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || xformOpProperties.length > 0 || this._timeSamples.size > 0;
+    const needsBraces = this._typeName === 'Scope' || this._typeName === 'Xform' || this._typeName === 'Material' || this._typeName === 'Camera' || this._children.size > 0 || tokenAttributes.length > 0 || tokenConnections.length > 0 || transformProperties.length > 0 || relProperties.length > 0 || shaderProperties.length > 0 || inputProperties.length > 0 || arrayProperties.length > 0 || simpleTokenProperties.length > 0 || tokenArrayProperties.length > 0 || xformOpProperties.length > 0 || this._timeSamples.size > 0;
 
     if (needsBraces) {
       yield `${space}{\n`;
@@ -745,7 +749,15 @@ export class UsdNode {
 
       // Add xformOp properties
       for (const prop of xformOpProperties) {
-        yield `${space}    ${prop.key} = ${prop.value}\n`;
+        if (prop.key.startsWith('xformOp:translate') || prop.key.startsWith('xformOp:scale')) {
+          yield `${space}    float3 ${prop.key} = ${prop.value}\n`;
+        } else if (prop.key.startsWith('xformOp:orient')) {
+          yield `${space}    quatf ${prop.key} = ${prop.value}\n`;
+        } else if (prop.key.startsWith('xformOp:rotate')) {
+          yield `${space}    float3 ${prop.key} = ${prop.value}\n`;
+        } else {
+          yield `${space}    ${prop.key} = ${prop.value}\n`;
+        }
       }
 
       // Add transform properties

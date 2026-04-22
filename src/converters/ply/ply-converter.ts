@@ -14,7 +14,7 @@ import {
   DebugOutputContent
 } from '../shared/debug-writer';
 import { UsdNode } from '../../core/usd-node';
-import { USD_PROPERTIES, USD_PROPERTY_TYPES } from '../../constants/usd';
+import { USD_NODE_TYPES, USD_PROPERTIES, USD_PROPERTY_TYPES } from '../../constants/usd';
 const DEFAULT_CONFIG: Required<PlyConverterConfig> = {
   debug: false,
   debugOutputDir: './debug-output',
@@ -332,6 +332,43 @@ export async function convertPlyToUsdz(
     }
 
     sceneNode.addChild(geomNode);
+
+    // Create default camera positioned to view the geometry
+    const bounds = meshData.bounds;
+    const centerX = (bounds.min.x + bounds.max.x) / 2;
+    const centerY = (bounds.min.y + bounds.max.y) / 2;
+    const centerZ = (bounds.min.z + bounds.max.z) / 2;
+    const sizeX = bounds.max.x - bounds.min.x;
+    const sizeY = bounds.max.y - bounds.min.y;
+    const sizeZ = bounds.max.z - bounds.min.z;
+    const maxDim = Math.max(sizeX, sizeY, sizeZ);
+    const cameraDistance = maxDim * 2;
+
+    const cameraPath = `${sceneNode.getPath()}/MainCamera`;
+    const cameraNode = new UsdNode(cameraPath, USD_NODE_TYPES.CAMERA);
+    cameraNode.setProperty('horizontalAperture', 24.89, USD_PROPERTY_TYPES.FLOAT);
+    cameraNode.setProperty('verticalAperture', 18.67, USD_PROPERTY_TYPES.FLOAT);
+    cameraNode.setProperty('horizontalApertureOffset', 0, USD_PROPERTY_TYPES.FLOAT);
+    cameraNode.setProperty('verticalApertureOffset', 0, USD_PROPERTY_TYPES.FLOAT);
+    cameraNode.setProperty('focalLength', 50, USD_PROPERTY_TYPES.FLOAT);
+    cameraNode.setProperty('focusDistance', cameraDistance * 1000, USD_PROPERTY_TYPES.FLOAT);
+    cameraNode.setProperty('fStop', 5.6, USD_PROPERTY_TYPES.FLOAT);
+
+    const cameraXformPath = `${sceneNode.getPath()}/MainCamera_Xform`;
+    const cameraXformNode = new UsdNode(cameraXformPath, USD_NODE_TYPES.XFORM);
+    cameraXformNode.setProperty(
+      'xformOp:translate',
+      `(${fmtFloat(centerX)}, ${fmtFloat(centerY + cameraDistance)}, ${fmtFloat(centerZ)})`,
+      'float3'
+    );
+    cameraXformNode.setProperty(
+      'xformOp:scale',
+      '(1, 1, 1)',
+      'float3'
+    );
+    cameraXformNode.setProperty(USD_PROPERTIES.XFORM_OP_ORDER, ['xformOp:translate', 'xformOp:scale'], USD_PROPERTY_TYPES.TOKEN_ARRAY);
+    cameraXformNode.addChild(cameraNode);
+    sceneNode.addChild(cameraXformNode);
 
     // Create and bind material
     const materialPath = `${materialsNode.getPath()}/PlyMaterial`;
