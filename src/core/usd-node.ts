@@ -36,6 +36,7 @@ export class UsdNode {
   private _children: Map<string, UsdNode>;
   private _properties: USDProperty[] = [];
   private _timeSamples: Map<string, TimeSampleData> = new Map();
+  private _currentPropKey: string = '';
 
   constructor(
     path: UsdPath,
@@ -601,6 +602,7 @@ export class UsdNode {
 
           if (interpolationProp || elementSizeProp) {
             yield `${space}    ${typeDeclaration} ${propertyName} = `;
+            this._currentPropKey = typeDeclaration;
             yield* this.yieldArrayValue(prop.value);
             yield ` (\n`;
             if (interpolationProp) {
@@ -615,11 +617,13 @@ export class UsdNode {
             yield `${space}    )\n`;
           } else {
             yield `${space}    ${typeDeclaration} ${propertyName} = `;
+            this._currentPropKey = typeDeclaration;
             yield* this.yieldArrayValue(prop.value);
             yield `\n`;
           }
         } else {
           yield `${space}    ${propertyName} = `;
+          this._currentPropKey = prop.key;
           yield* this.yieldArrayValue(prop.value);
           yield `\n`;
         }
@@ -837,9 +841,14 @@ export class UsdNode {
 
       // Determine if this is a 3-component array (points, normals, colors)
       // These need to be formatted as tuples: (x, y, z)
-      const isVec3Array = length % 3 === 0 && (
-        typedArray instanceof Float32Array ||
-        typedArray instanceof Float64Array
+      // Use property key to determine - vec3 types have '3f' or '3d' in the type name
+      const propKey = this._currentPropKey || '';
+      const isVec3Type = /^(point|normal|double|color|float|int)3[fd]/.test(propKey);
+      const isVec3Array = isVec3Type || (
+        length % 3 === 0 && (
+          typedArray instanceof Float32Array ||
+          typedArray instanceof Float64Array
+        ) && !/^float\[\]/.test(propKey) // Skip if explicitly float[] (scalar array like widths)
       );
 
       if (isVec3Array) {
