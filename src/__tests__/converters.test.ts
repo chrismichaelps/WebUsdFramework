@@ -204,5 +204,25 @@ describe.skipIf(!hasButterfly)('GLB → USDZ Converter', () => {
         expect(upToNextDef).toContain('doubleSided');
       }
     });
+
+    it('normals use normal3f[] (not float3[]) for Pixar USD validation', () => {
+      // Pixar USD 26.05 usdchecker rejects float3[] normals.
+      // This regression test ensures normals are typed correctly.
+      const normalsFloat3 = usda.match(/float3\[\] normals/g);
+      const normalsNormal3f = usda.match(/normal3f\[\] normals/g);
+
+      if (normalsFloat3 && normalsFloat3.length > 0) {
+        throw new Error(
+          `Normals must use normal3f[], not float3[]. ` +
+          `float3[] causes Pixar usdchecker to fail with AttributeTypeMismatch.\n` +
+          `  Found ${normalsFloat3.length} instances of float3[] normals`
+        );
+      }
+
+      // If model has normals, they should be normal3f
+      if (usda.includes('normals')) {
+        expect(normalsNormal3f).not.toBeNull();
+      }
+    });
   });
 });

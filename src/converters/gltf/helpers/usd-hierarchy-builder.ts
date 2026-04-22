@@ -492,7 +492,7 @@ function attachGeometryReference(
       for (let i = 0; i < normalArray.length; i += 3) {
         normals.push(formatUsdTuple3(normalArray[i], normalArray[i + 1], normalArray[i + 2]));
       }
-      node.setProperty('float3[] normals', `[${normals.join(', ')}]`, 'raw');
+      node.setProperty('normal3f[] normals', `[${normals.join(', ')}]`, 'raw');
       node.setProperty('token normals:interpolation', 'vertex', 'interpolation');
     }
   }

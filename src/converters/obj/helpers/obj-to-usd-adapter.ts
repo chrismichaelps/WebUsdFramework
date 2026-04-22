@@ -76,7 +76,7 @@ function addObjGeometryToMesh(mesh: ParsedGeometry, meshNode: UsdNode): void {
       // Use formatUsdTuple3 for consistent 7 decimal place precision
       normals.push(formatUsdTuple3(normalArray[i], normalArray[i + 1], normalArray[i + 2]));
     }
-    meshNode.setProperty('float3[] normals', `[${normals.join(', ')}]`, 'raw');
+    meshNode.setProperty('normal3f[] normals', `[${normals.join(', ')}]`, 'raw');
   }
 
   if (uvArray && uvArray.length > 0) {
