@@ -86,73 +86,93 @@ export class UsdzZipWriter {
   }
 
   /**
-   * Generate the final ZIP file buffer
+   * Generate the final ZIP file buffer.
+   *
+   * Two-pass strategy keeps peak memory bounded to a single output buffer:
+   *   Pass 1 — compute total byte size and per-file local header offsets via sizing math
+   *            (no allocations beyond small offset/length arrays).
+   *   Pass 2 — preallocate the final Uint8Array once and write headers, file data, padding,
+   *            central directory and EOCD record directly into it.
+   *
+   * Output bytes are byte-for-byte identical to the previous chunk-accumulator implementation.
    */
   generate(): Uint8Array {
     // Validate file count
     FileCountSchema.parse(this.files.length);
 
-    const chunks: Uint8Array[] = [];
+    // Pass 1: size everything.
+    const fileOffsets: number[] = new Array(this.files.length);
+    const nameByteLengths: number[] = new Array(this.files.length);
     let totalSize = 0;
-    const fileOffsets: number[] = [];
 
-    // 1. Write local file headers and data
     for (let i = 0; i < this.files.length; i++) {
       const file = this.files[i];
+      fileOffsets[i] = totalSize;
 
-      // Update file offset to current position
-      file.offset = totalSize;
-      fileOffsets.push(totalSize);
+      const nameByteLength = this.encoder.encode(file.name).length;
+      nameByteLengths[i] = nameByteLength;
 
-      const header = this.createLocalFileHeader(file, totalSize);
-
-      chunks.push(header);
-      totalSize += header.length;
-
-      // Write file data (handle chunks)
-      if (Array.isArray(file.data)) {
-        for (const chunk of file.data) {
-          chunks.push(chunk);
-          totalSize += chunk.length;
-        }
-      } else {
-        chunks.push(file.data);
-        totalSize += file.data.length;
+      const baseHeaderSize = ZIP_CONSTANTS.LOCAL_FILE_HEADER_SIZE + nameByteLength;
+      let extraFieldLength = 0;
+      if (this.alignTo64Bytes) {
+        const dataStart = totalSize + baseHeaderSize;
+        const aligned = Math.ceil(dataStart / ZIP_CONSTANTS.ALIGNMENT_BYTES) * ZIP_CONSTANTS.ALIGNMENT_BYTES;
+        extraFieldLength = aligned - dataStart;
       }
+
+      totalSize += baseHeaderSize + extraFieldLength + file.size;
     }
 
-    // 2. Add padding before central directory
+    // Padding before central directory.
+    let centralDirPadding = 0;
     if (this.alignTo64Bytes) {
-      const requiredOffset = Math.ceil(totalSize / ZIP_CONSTANTS.ALIGNMENT_BYTES) * ZIP_CONSTANTS.ALIGNMENT_BYTES;
-      const paddingNeeded = requiredOffset - totalSize;
-      if (paddingNeeded > 0) {
-        const padding = new Uint8Array(paddingNeeded);
-        chunks.push(padding);
-        totalSize += paddingNeeded;
-      }
+      const aligned = Math.ceil(totalSize / ZIP_CONSTANTS.ALIGNMENT_BYTES) * ZIP_CONSTANTS.ALIGNMENT_BYTES;
+      centralDirPadding = aligned - totalSize;
+      totalSize += centralDirPadding;
     }
-
-    // 3. Write central directory
     const centralDirStart = totalSize;
+
+    // Central directory size.
+    let centralDirSize = 0;
     for (let i = 0; i < this.files.length; i++) {
-      const file = this.files[i];
-      const centralHeader = this.createCentralDirectoryHeader(file, fileOffsets[i]);
-      chunks.push(centralHeader);
-      totalSize += centralHeader.length;
+      centralDirSize += ZIP_CONSTANTS.CENTRAL_DIRECTORY_HEADER_SIZE + nameByteLengths[i];
     }
+    totalSize += centralDirSize + ZIP_CONSTANTS.END_OF_CENTRAL_DIRECTORY_SIZE;
 
-    // 4. Write end of central directory record
-    const endRecord = this.createEndOfCentralDirectoryRecord(centralDirStart, totalSize - centralDirStart);
-    chunks.push(endRecord);
-    totalSize += endRecord.length;
-
-    // Combine all chunks
+    // Pass 2: write directly into the preallocated output.
     const result = new Uint8Array(totalSize);
     let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
+
+    for (let i = 0; i < this.files.length; i++) {
+      const file = this.files[i];
+      file.offset = fileOffsets[i];
+
+      const header = this.createLocalFileHeader(file, fileOffsets[i]);
+      result.set(header, offset);
+      offset += header.length;
+
+      if (Array.isArray(file.data)) {
+        for (const chunk of file.data) {
+          result.set(chunk, offset);
+          offset += chunk.length;
+        }
+      } else {
+        result.set(file.data, offset);
+        offset += file.data.length;
+      }
     }
+
+    // Padding bytes are already zero-initialized in result.
+    offset += centralDirPadding;
+
+    for (let i = 0; i < this.files.length; i++) {
+      const centralHeader = this.createCentralDirectoryHeader(this.files[i], fileOffsets[i]);
+      result.set(centralHeader, offset);
+      offset += centralHeader.length;
+    }
+
+    const endRecord = this.createEndOfCentralDirectoryRecord(centralDirStart, centralDirSize);
+    result.set(endRecord, offset);
 
     return result;
   }
