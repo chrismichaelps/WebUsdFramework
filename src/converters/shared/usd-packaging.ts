@@ -1,5 +1,6 @@
 /** WebUsdFramework.Converters.Shared.UsdPackaging - Orchestrates USDA and payloads into final USDZ archive */
 
+import { Writable } from 'node:stream';
 import {
   DEFAULT_CONFIG,
   DIRECTORY_NAMES,
@@ -7,6 +8,11 @@ import {
 } from '../../constants/config';
 import { USD_FILE_NAMES, USD_DEFAULT_NAMES } from '../../constants/usd';
 import { UsdzZipWriter } from './usdz-zip-writer';
+import {
+  writeUsdzToFile,
+  writeUsdzToStream,
+  type StreamingUsdzFile,
+} from './usdz-stream-writer';
 import { getTextureFileBasename } from '../gltf/extensions/processors/texture-utils';
 
 /**
@@ -27,38 +33,39 @@ export interface PackageContent {
 }
 
 /**
- * Creates a USDZ package using custom ZIP writer for proper file alignment
+ * Build the ordered list of files (USD root layer first, then geometry layers,
+ * then deduped textures) that make up a USDZ archive for the given content.
+ *
+ * Used by both the buffered (`createUsdzPackage`) and streaming
+ * (`createUsdzPackageToStream` / `createUsdzPackageToFile`) packagers so the
+ * file ordering and dedup rules cannot drift between the two paths.
+ *
+ * NOTE: if `content.usdContent` is a `Generator<string>` it will be exhausted
+ * in this call. Generators are single-use; callers that need to re-package the
+ * same content should pass a string or a fresh generator on each call.
  */
-export async function createUsdzPackage(
-  content: PackageContent,
-  config?: PackageConfig
-): Promise<Blob> {
+function buildPackageFiles(content: PackageContent): StreamingUsdzFile[] {
+  const files: StreamingUsdzFile[] = [];
 
-  // Create ZIP writer with proper alignment for optimal performance
-  const zipWriter = new UsdzZipWriter({
-    alignTo64Bytes: true,
-    compressionLevel: 0 // Store files without compression
-  });
-
-  // Add main USD file
-  let usdContentChunks: Uint8Array[] = [];
+  // Main USD file
+  let usdContentChunks: Uint8Array[];
   if (typeof content.usdContent === 'string') {
     usdContentChunks = [new TextEncoder().encode(content.usdContent)];
   } else {
-    // Generator - encode chunks
+    usdContentChunks = [];
     const encoder = new TextEncoder();
     for (const chunk of content.usdContent) {
       usdContentChunks.push(encoder.encode(chunk));
     }
   }
-  zipWriter.addFile(USD_FILE_NAMES.MODEL, usdContentChunks);
+  files.push({ name: USD_FILE_NAMES.MODEL, data: usdContentChunks });
 
-  // Add geometry files
+  // Geometry layer files
   for (const [geometryPath, geometryData] of content.geometryFiles) {
-    zipWriter.addFile(geometryPath, new Uint8Array(geometryData));
+    files.push({ name: geometryPath, data: new Uint8Array(geometryData) });
   }
 
-  // Add texture files — dedupe by content-addressed basename. One image
+  // Texture files — dedupe by content-addressed basename. One image
   // referenced in multiple shader roles (e.g. baseColor + emissive) arrives
   // here under multiple composite IDs ("<hash>_diffuse", "<hash>_emissive")
   // but shares the same bytes; write only one archive entry per basename.
@@ -70,7 +77,33 @@ export async function createUsdzPackage(
     const texturePath = `${DIRECTORY_NAMES.TEXTURES}/${textureName}`;
     if (writtenTexturePaths.has(texturePath)) continue;
     writtenTexturePaths.add(texturePath);
-    zipWriter.addFile(texturePath, new Uint8Array(textureData));
+    files.push({ name: texturePath, data: new Uint8Array(textureData) });
+  }
+
+  return files;
+}
+
+/**
+ * Creates a USDZ package using custom ZIP writer for proper file alignment.
+ *
+ * Buffered path: holds the complete archive bytes in memory and returns a
+ * `Blob`. Use `createUsdzPackageToStream` / `createUsdzPackageToFile` for
+ * memory-bounded streaming output.
+ */
+export async function createUsdzPackage(
+  content: PackageContent,
+  config?: PackageConfig
+): Promise<Blob> {
+  const files = buildPackageFiles(content);
+
+  // Create ZIP writer with proper alignment for optimal performance
+  const zipWriter = new UsdzZipWriter({
+    alignTo64Bytes: true,
+    compressionLevel: 0 // Store files without compression
+  });
+
+  for (const file of files) {
+    zipWriter.addFile(file.name, file.data);
   }
 
   // Generate the USDZ package
@@ -78,6 +111,64 @@ export async function createUsdzPackage(
 
   // Create and return USDZ blob
   return createUsdzBlob(usdzBuffer, config?.mimeType);
+}
+
+/**
+ * Result of a streaming USDZ package operation.
+ */
+export interface UsdzStreamResult {
+  /** Total bytes written to the output. */
+  totalBytes: number;
+  /** Number of files included in the archive (root USD + geometry + dedup'd textures). */
+  fileCount: number;
+}
+
+export interface UsdzStreamOptions {
+  /**
+   * 64-byte-align file data inside the archive, matching Apple's USDZ profile
+   * requirement. Defaults to `true`. Disable only for diagnostic purposes.
+   */
+  alignTo64Bytes?: boolean;
+}
+
+/**
+ * Stream a USDZ package to any Node `Writable`.
+ *
+ * Memory peak is bounded by the largest single file in the archive, not the
+ * total archive size. Output bytes are byte-for-byte identical to
+ * `createUsdzPackage` for the same input.
+ *
+ * The function does NOT call `end()` on the stream; the caller owns its
+ * lifecycle. Use `createUsdzPackageToFile` for the common write-to-disk case.
+ */
+export async function createUsdzPackageToStream(
+  content: PackageContent,
+  output: Writable,
+  options: UsdzStreamOptions = {}
+): Promise<UsdzStreamResult> {
+  const files = buildPackageFiles(content);
+  return writeUsdzToStream(files, output, {
+    alignTo64Bytes: options.alignTo64Bytes ?? true,
+  });
+}
+
+/**
+ * Stream a USDZ package to disk at `filePath`.
+ *
+ * Convenience wrapper around `createUsdzPackageToStream` that opens an
+ * `fs.createWriteStream`, pipes the archive into it, and closes the stream
+ * cleanly on success. On error the stream is destroyed and the partial file
+ * is left for the caller to inspect or remove.
+ */
+export async function createUsdzPackageToFile(
+  content: PackageContent,
+  filePath: string,
+  options: UsdzStreamOptions = {}
+): Promise<UsdzStreamResult> {
+  const files = buildPackageFiles(content);
+  return writeUsdzToFile(files, filePath, {
+    alignTo64Bytes: options.alignTo64Bytes ?? true,
+  });
 }
 
 /**
