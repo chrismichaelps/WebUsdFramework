@@ -151,15 +151,24 @@ export class UsdzZipWriter {
       result.set(header, offset);
       offset += header.length;
 
-      if (Array.isArray(file.data)) {
-        for (const chunk of file.data) {
+      const data = file.data;
+      if (Array.isArray(data)) {
+        for (const chunk of data) {
           result.set(chunk, offset);
           offset += chunk.length;
         }
-      } else {
-        result.set(file.data, offset);
-        offset += file.data.length;
+      } else if (data) {
+        result.set(data, offset);
+        offset += data.length;
       }
+
+      // Release the input chunk references now that the bytes live in
+      // `result`. The remaining work in this method (alignment padding,
+      // central directory, EOCD record) only needs the small metadata
+      // fields on `file`. Dropping `data` lets the runtime reclaim the
+      // source buffers progressively rather than holding them all live
+      // until generate() returns.
+      file.data = undefined;
     }
 
     // Padding bytes are already zero-initialized in result.

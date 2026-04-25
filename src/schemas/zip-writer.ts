@@ -123,7 +123,12 @@ export const ZipHeaderSchema = z.object({
 export type ZipWriterOptions = z.infer<typeof ZipWriterOptionsSchema>;
 export interface ZipFileInfo {
   name: string;
-  data: Uint8Array | Uint8Array[];
+  /**
+   * The file's bytes. May be cleared to undefined by the writer after the
+   * data has been copied into the final output buffer, so the runtime can
+   * reclaim the input chunks before generate() returns.
+   */
+  data: Uint8Array | Uint8Array[] | undefined;
   offset: number;
   size: number;
   uncompressedSize: number;
