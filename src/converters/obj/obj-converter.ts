@@ -8,8 +8,11 @@ import { createRootStructure } from '../shared/usd-root-builder';
 import { adaptObjMeshesToUsd, createUsdMeshFromObj } from './helpers/obj-to-usd-adapter';
 import {
   createUsdzPackage,
+  createUsdzPackageToFile,
   PackageContent,
-  getTextureExtensionFromData
+  getTextureExtensionFromData,
+  ConvertOptions,
+  UsdzStreamResult
 } from '../shared/usd-packaging';
 import {
   writeDebugOutput,
@@ -113,10 +116,20 @@ function resolveTexturePath(mtlDir: string, rel: string, extraRoots: string[] = 
   return undefined;
 }
 
-export async function convertObjToUsdz(
+export function convertObjToUsdz(
   input: ArrayBuffer | string,
   config?: ObjConverterConfig
-): Promise<Blob> {
+): Promise<Blob>;
+export function convertObjToUsdz(
+  input: ArrayBuffer | string,
+  config: ObjConverterConfig | undefined,
+  options: ConvertOptions & { outputPath: string }
+): Promise<UsdzStreamResult>;
+export async function convertObjToUsdz(
+  input: ArrayBuffer | string,
+  config?: ObjConverterConfig,
+  options?: ConvertOptions
+): Promise<Blob | UsdzStreamResult> {
   const logger = LoggerFactory.forConversion();
 
   try {
@@ -269,6 +282,17 @@ export async function convertObjToUsdz(
       geometryFiles: new Map(), // No separate geometry files - embedded in main USD
       textureFiles
     };
+
+    if (options?.outputPath) {
+      const result = await createUsdzPackageToFile(packageContent, options.outputPath);
+      logger.info('USDZ conversion completed', {
+        stage: 'conversion_complete',
+        usdzSize: result.totalBytes,
+        mode: 'streaming',
+        outputPath: options.outputPath
+      });
+      return result;
+    }
 
     const usdzBlob = await createUsdzPackage(packageContent);
 

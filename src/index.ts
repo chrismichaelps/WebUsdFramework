@@ -5,6 +5,7 @@ import { convertObjToUsdz } from './converters/obj';
 import { convertFbxToGltfViaTool } from './converters/fbx';
 import { convertStlToUsdz } from './converters/stl';
 import { convertPlyToUsdz } from './converters/ply';
+import type { UsdzStreamResult } from './converters/shared/usd-packaging';
 import { UsdErrorFactory } from './errors';
 import { WebUsdConfigSchema, type WebUsdConfig } from './schemas';
 import { ZodError } from 'zod';
@@ -50,7 +51,56 @@ export class WebUsdFramework {
    * const usdzBlob = await usd.convert(buffer);
    * ```
    */
-  async convert(input: string | ArrayBuffer, options?: { mtlPath?: string; mtlSearchPaths?: string[]; textureSearchPaths?: string[]; allowAutoTextureFallback?: boolean }): Promise<Blob> {
+  /**
+   * Convert a 3D model to USDZ.
+   *
+   * Returns a `Blob` by default. If `options.outputPath` is provided the
+   * archive is streamed to that file path and the function returns a
+   * `UsdzStreamResult` (`{ totalBytes, fileCount }`) — memory peak in that
+   * mode is bounded by the largest single file in the archive instead of
+   * the total archive size.
+   */
+  async convert(
+    input: string | ArrayBuffer,
+    options?: {
+      mtlPath?: string;
+      mtlSearchPaths?: string[];
+      textureSearchPaths?: string[];
+      allowAutoTextureFallback?: boolean;
+    }
+  ): Promise<Blob>;
+  async convert(
+    input: string | ArrayBuffer,
+    options: {
+      mtlPath?: string;
+      mtlSearchPaths?: string[];
+      textureSearchPaths?: string[];
+      allowAutoTextureFallback?: boolean;
+      /**
+       * Stream the USDZ archive directly to this file path instead of
+       * returning a Blob. Memory peak is bounded by the largest single
+       * file in the archive — order-of-magnitude reduction for large
+       * point-cloud and multi-mesh inputs.
+       */
+      outputPath: string;
+    }
+  ): Promise<UsdzStreamResult>;
+  async convert(
+    input: string | ArrayBuffer,
+    options?: {
+      mtlPath?: string;
+      mtlSearchPaths?: string[];
+      textureSearchPaths?: string[];
+      allowAutoTextureFallback?: boolean;
+      outputPath?: string;
+    }
+  ): Promise<Blob | UsdzStreamResult> {
+    // Resolve streaming options once so each per-format dispatch can forward
+    // them uniformly. Treated as `undefined` when no outputPath was given so
+    // existing buffered behaviour (returning a Blob) is preserved bit-for-bit.
+    const streamOpts: { outputPath: string } | undefined = options?.outputPath
+      ? { outputPath: options.outputPath }
+      : undefined;
     if (this.config.debug) {
       console.log('Debug mode enabled');
       console.log(`Debug output: ${this.config.debugOutputDir}`);
@@ -84,7 +134,9 @@ export class WebUsdFramework {
 
       // Handle different file types
       if (fileExtension === '.gltf') {
-        return await convertGlbToUsdz(filePath, this.config);
+        return streamOpts
+          ? await convertGlbToUsdz(filePath, this.config, streamOpts)
+          : await convertGlbToUsdz(filePath, this.config);
       } else if (fileExtension === '.obj' || fileExtension === '.OBJ') {
         // Convert WebUsdConfig to ObjConverterConfig
         const objConfig = {
@@ -101,7 +153,9 @@ export class WebUsdFramework {
           useIndices: true,
           disregardNormals: false
         };
-        return await convertObjToUsdz(filePath, objConfig);
+        return streamOpts
+          ? await convertObjToUsdz(filePath, objConfig, streamOpts)
+          : await convertObjToUsdz(filePath, objConfig);
       } else if (fileExtension === '.glb') {
         // For GLB files, read as buffer
         const fileBuffer = fs.readFileSync(filePath);
@@ -109,7 +163,9 @@ export class WebUsdFramework {
           fileBuffer.byteOffset,
           fileBuffer.byteOffset + fileBuffer.byteLength
         );
-        return await convertGlbToUsdz(glbBuffer, this.config);
+        return streamOpts
+          ? await convertGlbToUsdz(glbBuffer, this.config, streamOpts)
+          : await convertGlbToUsdz(glbBuffer, this.config);
       } else if (fileExtension === '.fbx') {
         // Use FBX2glTF tool to convert FBX to GLB first
         const glbBuffer = await convertFbxToGltfViaTool(filePath, {
@@ -118,7 +174,9 @@ export class WebUsdFramework {
         });
 
         // Then convert GLB to USDZ
-        return await convertGlbToUsdz(glbBuffer, this.config);
+        return streamOpts
+          ? await convertGlbToUsdz(glbBuffer, this.config, streamOpts)
+          : await convertGlbToUsdz(glbBuffer, this.config);
       } else if (fileExtension === '.stl') {
         // Convert STL to USDZ
         const stlConfig = {
@@ -130,7 +188,9 @@ export class WebUsdFramework {
           defaultColor: [0.7, 0.7, 0.7] as [number, number, number],
           autoComputeNormals: true
         };
-        return await convertStlToUsdz(filePath, stlConfig);
+        return streamOpts
+          ? await convertStlToUsdz(filePath, stlConfig, streamOpts)
+          : await convertStlToUsdz(filePath, stlConfig);
       } else if (fileExtension === '.ply') {
         // Convert PLY to USDZ
         const plyConfig = {
@@ -143,7 +203,9 @@ export class WebUsdFramework {
           maxPoints: 0,
           decimateTarget: 0,
         };
-        return await convertPlyToUsdz(filePath, plyConfig);
+        return streamOpts
+          ? await convertPlyToUsdz(filePath, plyConfig, streamOpts)
+          : await convertPlyToUsdz(filePath, plyConfig);
       } else {
         throw UsdErrorFactory.conversionError(
           `Unsupported file format: ${fileExtension}`,
@@ -153,7 +215,9 @@ export class WebUsdFramework {
     }
 
     // Handle ArrayBuffer input (GLB only)
-    return await convertGlbToUsdz(input, this.config);
+    return streamOpts
+      ? await convertGlbToUsdz(input, this.config, streamOpts)
+      : await convertGlbToUsdz(input, this.config);
   }
 
   // Extract ZIP file and find FBX inside
@@ -240,3 +304,19 @@ export { convertGlbToUsdz } from './converters/gltf';
 export { convertObjToUsdz } from './converters/obj';
 export { convertStlToUsdz } from './converters/stl';
 export { convertPlyToUsdz } from './converters/ply';
+
+/**
+ * Streaming USDZ packaging — for callers that already hold a `PackageContent`
+ * and want to stream the resulting archive to disk or a Writable instead of
+ * materializing a Blob.
+ */
+export {
+  createUsdzPackage,
+  createUsdzPackageToStream,
+  createUsdzPackageToFile,
+  type ConvertOptions,
+  type UsdzStreamOptions,
+  type UsdzStreamResult,
+  type PackageContent,
+  type PackageConfig,
+} from './converters/shared/usd-packaging';

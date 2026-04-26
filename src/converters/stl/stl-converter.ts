@@ -6,7 +6,10 @@ import { parseStl, parseStlFile, StlMeshData } from './stl-parser';
 import { createRootStructure } from '../shared/usd-root-builder';
 import {
   createUsdzPackage,
-  PackageContent
+  createUsdzPackageToFile,
+  PackageContent,
+  ConvertOptions,
+  UsdzStreamResult
 } from '../shared/usd-packaging';
 import {
   writeDebugOutput,
@@ -231,10 +234,20 @@ function createBasicMaterial(
 /**
  * Main STL to USDZ conversion function
  */
-export async function convertStlToUsdz(
+export function convertStlToUsdz(
   input: ArrayBuffer | string,
   config?: Partial<StlConverterConfig>
-): Promise<Blob> {
+): Promise<Blob>;
+export function convertStlToUsdz(
+  input: ArrayBuffer | string,
+  config: Partial<StlConverterConfig> | undefined,
+  options: ConvertOptions & { outputPath: string }
+): Promise<UsdzStreamResult>;
+export async function convertStlToUsdz(
+  input: ArrayBuffer | string,
+  config?: Partial<StlConverterConfig>,
+  options?: ConvertOptions
+): Promise<Blob | UsdzStreamResult> {
   const logger = LoggerFactory.forConversion();
 
   try {
@@ -613,6 +626,17 @@ export async function convertStlToUsdz(
       geometryFiles: new Map(), // Embedded geometry
       textureFiles: new Map() // No textures for STL
     };
+
+    if (options?.outputPath) {
+      const result = await createUsdzPackageToFile(packageContent, options.outputPath);
+      logger.info('USDZ conversion completed', {
+        stage: 'conversion_complete',
+        usdzSize: result.totalBytes,
+        mode: 'streaming',
+        outputPath: options.outputPath
+      });
+      return result;
+    }
 
     const usdzBlob = await createUsdzPackage(packageContent);
 

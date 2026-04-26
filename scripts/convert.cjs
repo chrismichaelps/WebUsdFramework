@@ -4,8 +4,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { performance } = require('node:perf_hooks');
-const { Readable } = require('node:stream');
-const { pipeline } = require('node:stream/promises');
 
 const projectRoot = path.resolve(__dirname, '..');
 
@@ -57,21 +55,20 @@ const usd = defineConfig({
 (async () => {
   const t0 = performance.now();
   console.log(`[convert] converting ${input}`);
-  const blob = await usd.convert(path.resolve(input));
 
   const baseName = path.basename(input, path.extname(input));
   const outPath = path.join(outDir, `${baseName}.usdz`);
 
-  // Stream the Blob directly to disk so its underlying buffer can be released
-  // by the runtime as bytes are flushed, instead of materializing a full
-  // ArrayBuffer + Node Buffer copy in process memory before the write.
-  await pipeline(Readable.fromWeb(blob.stream()), fs.createWriteStream(outPath));
+  // Use the framework's streaming output path. The archive is streamed
+  // directly to disk inside the converter — peak memory is bounded by the
+  // largest single file in the archive instead of the total archive size,
+  // and the script never materializes a full Blob.
+  const result = await usd.convert(path.resolve(input), { outputPath: outPath });
 
-  const { size } = fs.statSync(outPath);
-  const mb = (size / 1024 / 1024).toFixed(2);
+  const mb = (result.totalBytes / 1024 / 1024).toFixed(2);
   const secs = ((performance.now() - t0) / 1000).toFixed(1);
   console.log(`[convert] wrote ${outPath}`);
-  console.log(`[convert] size=${mb} MB time=${secs}s`);
+  console.log(`[convert] size=${mb} MB time=${secs}s files=${result.fileCount}`);
 
   // Final line: absolute path, consumed by validate-usdz.sh
   console.log(outPath);
