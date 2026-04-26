@@ -7,7 +7,10 @@ import { decimateMesh } from './mesh-decimator';
 import { createRootStructure } from '../shared/usd-root-builder';
 import {
   createUsdzPackage,
-  PackageContent
+  createUsdzPackageToFile,
+  PackageContent,
+  ConvertOptions,
+  UsdzStreamResult
 } from '../shared/usd-packaging';
 import {
   writeDebugOutput,
@@ -223,10 +226,20 @@ function createBasicMaterial(
 /**
  * Main PLY to USDZ conversion function.
  */
-export async function convertPlyToUsdz(
+export function convertPlyToUsdz(
   input: ArrayBuffer | string,
   config?: Partial<PlyConverterConfig>
-): Promise<Blob> {
+): Promise<Blob>;
+export function convertPlyToUsdz(
+  input: ArrayBuffer | string,
+  config: Partial<PlyConverterConfig> | undefined,
+  options: ConvertOptions & { outputPath: string }
+): Promise<UsdzStreamResult>;
+export async function convertPlyToUsdz(
+  input: ArrayBuffer | string,
+  config?: Partial<PlyConverterConfig>,
+  options?: ConvertOptions
+): Promise<Blob | UsdzStreamResult> {
   const logger = LoggerFactory.forConversion();
 
   try {
@@ -366,6 +379,17 @@ export async function convertPlyToUsdz(
       geometryFiles: new Map(),
       textureFiles: new Map(),
     };
+
+    if (options?.outputPath) {
+      const result = await createUsdzPackageToFile(packageContent, options.outputPath);
+      logger.info('USDZ conversion completed', {
+        stage: 'conversion_complete',
+        usdzSize: result.totalBytes,
+        mode: 'streaming',
+        outputPath: options.outputPath,
+      });
+      return result;
+    }
 
     const usdzBlob = await createUsdzPackage(packageContent);
 

@@ -13,7 +13,10 @@ import {
 } from './helpers/usd-hierarchy-builder';
 import {
   createUsdzPackage,
-  PackageContent
+  createUsdzPackageToFile,
+  PackageContent,
+  ConvertOptions,
+  UsdzStreamResult
 } from '../shared/usd-packaging';
 import { processAnimations, setAnimatedExtentOnSkelRoots, setAnimatedExtentOnAllSkelRoots } from './helpers/animation-processor';
 import {
@@ -82,10 +85,20 @@ const STRING_CONSTANTS = {
 /**
  * Convert GLB buffer or GLTF file to USDZ blob
  */
-export async function convertGlbToUsdz(
+export function convertGlbToUsdz(
   input: ArrayBuffer | string,
   config?: GltfTransformConfig
-): Promise<Blob> {
+): Promise<Blob>;
+export function convertGlbToUsdz(
+  input: ArrayBuffer | string,
+  config: GltfTransformConfig | undefined,
+  options: ConvertOptions & { outputPath: string }
+): Promise<UsdzStreamResult>;
+export async function convertGlbToUsdz(
+  input: ArrayBuffer | string,
+  config?: GltfTransformConfig,
+  options?: ConvertOptions
+): Promise<Blob | UsdzStreamResult> {
   const logger = LoggerFactory.forConversion();
 
   try {
@@ -1336,6 +1349,17 @@ export async function convertGlbToUsdz(
       stage: CONVERSION_STAGES.PACKAGING,
       fileCount: CONVERSION_CONSTANTS.MAIN_USD_FILE_COUNT + packageContent.geometryFiles.size + packageContent.textureFiles.size
     });
+
+    if (options?.outputPath) {
+      const result = await createUsdzPackageToFile(packageContent, options.outputPath);
+      logger.info('USDZ conversion completed', {
+        stage: CONVERSION_STAGES.COMPLETE,
+        usdzSize: result.totalBytes,
+        mode: 'streaming',
+        outputPath: options.outputPath
+      });
+      return result;
+    }
 
     const usdzBlob = await createUsdzPackage(packageContent);
 

@@ -132,6 +132,30 @@ export interface UsdzStreamOptions {
 }
 
 /**
+ * Options for opting a per-format converter (`convertGlbToUsdz`,
+ * `convertPlyToUsdz`, `convertObjToUsdz`, `convertStlToUsdz`) and
+ * `WebUsdFramework.convert` into the streaming output path.
+ */
+export interface ConvertOptions {
+  /**
+   * When set, stream the USDZ archive directly to this file path via
+   * `createUsdzPackageToFile`. The converter returns `UsdzStreamResult`
+   * (`{ totalBytes, fileCount }`) instead of a `Blob`.
+   *
+   * Memory peak is bounded by the largest single file inside the archive
+   * (the buffered path peaks at the full archive size). For dense point-
+   * cloud archives this is an order-of-magnitude reduction.
+   *
+   * NOTE: when this option is used together with `debug: true`, the
+   * debug-blob portion of the debug output (the full `.usdz` written
+   * alongside the unpacked artifacts) is skipped. The other debug
+   * artifacts (USDA, geometry, textures) still emit. To get the full
+   * debug bundle including the archive blob, omit `outputPath`.
+   */
+  outputPath?: string;
+}
+
+/**
  * Stream a USDZ package to any Node `Writable`.
  *
  * Memory peak is bounded by the largest single file in the archive, not the
