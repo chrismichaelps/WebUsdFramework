@@ -34,8 +34,6 @@ const CODE_INT64_QWORD = 3;
 const INT32_PAYLOAD_WIDTHS = [1, 2, 4];
 const INT64_PAYLOAD_WIDTHS = [1, 2, 4, 8];
 
-// ─── int32 ────────────────────────────────────────────────────────────────────
-
 /**
  * Compute the minimum encoding code for a 32-bit signed delta.
  * Returns CODE_INT32_BYTE / WORD / DWORD.
@@ -163,8 +161,6 @@ export function decompressInt32(src: Uint8Array, n: number): Int32Array {
   }
   return out;
 }
-
-// ─── int64 ────────────────────────────────────────────────────────────────────
 
 /** Classify a bigint delta into one of the four int64 code widths. */
 function classifyInt64(delta: bigint): number {
