@@ -16,11 +16,34 @@ import {
 import { getTextureFileBasename } from '../gltf/extensions/processors/texture-utils';
 
 /**
+ * Selects the on-disk format for the per-layer files inside the USDZ
+ * archive. The outer file is always `.usdz` regardless of this setting.
+ *
+ *   - `'usda'`: ASCII text layers (`model.usda`, `Geometries/geom_N.usda`).
+ *               This is the historical and current default — output is
+ *               byte-stable and validated end-to-end against Apple's
+ *               QuickLook / `usdview` / `usdcat`.
+ *   - `'usdc'`: Pixar Crate binary layers. Smaller on-disk size, especially
+ *               for geometry-heavy point clouds. **Experimental** — the
+ *               encoder primitives (#122) are structurally complete and
+ *               tested in isolation, but the full UsdNode→USDC adapter and
+ *               byte-for-byte validation against `usdcat` fixtures has not
+ *               yet landed. Until that work ships, this option falls back
+ *               to `'usda'`.
+ */
+export type LayerFormat = 'usda' | 'usdc';
+
+/**
  * Package Configuration
  */
 export interface PackageConfig {
   compression?: 'STORE' | 'DEFLATE';
   mimeType?: string;
+  /**
+   * On-disk format for the per-layer files. Defaults to `'usda'`. See
+   * {@link LayerFormat} for the trade-offs.
+   */
+  layerFormat?: LayerFormat;
 }
 
 /**
