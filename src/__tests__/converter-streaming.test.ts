@@ -23,12 +23,8 @@ import { convertPlyToUsdz } from '../converters/ply/ply-converter';
 import { convertObjToUsdz } from '../converters/obj/obj-converter';
 import { convertStlToUsdz } from '../converters/stl/stl-converter';
 
-// ─── Fixture paths ────────────────────────────────────────────────────────────
-
 const BUTTERFLY_GLB = path.resolve(__dirname, '../../models/glb/12_animated_butterflies.glb');
 const hasButterfly = fs.existsSync(BUTTERFLY_GLB);
-
-// ─── Synthetic minimal inputs ─────────────────────────────────────────────────
 
 /** ASCII PLY point cloud — 3 vertices, no faces. */
 function makeMinimalPly(): ArrayBuffer {
@@ -77,8 +73,6 @@ function makeMinimalStl(): ArrayBuffer {
   v.setUint16(132, 0, true);       // attribute byte count
   return buf;
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function blobToBytes(blob: Blob): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());

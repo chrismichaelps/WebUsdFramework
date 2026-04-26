@@ -319,4 +319,16 @@ export {
   type UsdzStreamResult,
   type PackageContent,
   type PackageConfig,
+  type LayerFormat,
 } from './converters/shared/usd-packaging';
+
+/**
+ * USDC (Pixar Crate) binary layer encoder — re-export of the section
+ * encoders, ValueRep helpers, and `UsdcLayerBuilder` orchestrator.
+ *
+ * Surface is currently advanced/experimental: pipeline integration through
+ * `PackageConfig.layerFormat = 'usdc'` is staged behind a follow-up task
+ * (see issue #122). Most consumers should not need these directly until
+ * that integration ships.
+ */
+export * as usdc from './converters/shared/usdc';
