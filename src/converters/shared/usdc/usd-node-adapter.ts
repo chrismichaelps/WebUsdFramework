@@ -16,7 +16,11 @@
 
 import { UsdNode } from '../../../core/usd-node';
 import { UsdcLayerBuilder, type PrimHandle } from './layer-builder';
-import { parsePropertyKey, type ParsedProperty } from './property-parser';
+import {
+  parsePropertyKey,
+  type ParsedProperty,
+  type ListOpOpcode,
+} from './property-parser';
 import { CrateDataType } from './value-rep';
 import { parseVec3fScalar, parseVec3fArray } from './usda-value-parser';
 
@@ -86,6 +90,9 @@ export function applyProperty(
   const parsed = parsePropertyKey(key);
   if (parsed.kind === 'unsupported') {
     return { rawKey: key, emitted: false, reason: parsed.reason };
+  }
+  if (parsed.kind === 'list-op') {
+    return applyListOp(builder, prim, parsed.name, parsed.opcode, value, key);
   }
   return applyTypedAttribute(builder, prim, parsed, value, key);
 }
@@ -259,6 +266,44 @@ function coerceStringArray(value: unknown): string[] | null {
 
 function skipped(rawKey: string, reason: string): AdaptedProperty {
   return { rawKey, emitted: false, reason };
+}
+
+/**
+ * The set of list-op field names whose elements are tokens (TokenListOp).
+ * Other element types (PathListOp for `references`, ReferenceListOp, etc.)
+ * are not yet wired up — those are routed to `unsupported` until their
+ * value encoders land.
+ */
+const TOKEN_LIST_OP_NAMES = new Set([
+  'apiSchemas',
+]);
+
+/**
+ * Dispatch a list-op key (`prepend apiSchemas`, `append xxx`, ...) to the
+ * appropriate layer-builder method.
+ *
+ * The element type is inferred from the field name. We currently only emit
+ * TokenListOp values (the only list-op shape our converters produce). Other
+ * shapes (PathListOp / ReferenceListOp / etc.) fall into the unsupported
+ * bucket so the packager can fall back to USDA cleanly.
+ */
+function applyListOp(
+  builder: UsdcLayerBuilder,
+  prim: PrimHandle,
+  name: string,
+  opcode: ListOpOpcode,
+  value: unknown,
+  rawKey: string
+): AdaptedProperty {
+  if (!TOKEN_LIST_OP_NAMES.has(name)) {
+    return skipped(rawKey, `list-op for "${name}" is not yet a TokenListOp shape`);
+  }
+  const tokens = coerceStringArray(value);
+  if (!tokens) {
+    return skipped(rawKey, `${opcode} ${name}: expected an array of token strings`);
+  }
+  builder.addTokenListOpAttribute(prim, name, { [opcode]: tokens });
+  return { rawKey, emitted: true };
 }
 
 /** Find the CrateDataType name corresponding to a numeric value, for error messages. */

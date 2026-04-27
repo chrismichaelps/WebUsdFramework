@@ -25,6 +25,9 @@
 
 import { CrateDataType } from './value-rep';
 
+/** Sub-list opcode parsed from a USDA `prepend|append|add|delete|reorder` key. */
+export type ListOpOpcode = 'prepended' | 'appended' | 'added' | 'deleted' | 'ordered';
+
 /** Type-tagged result — what the encoder needs to do with this property. */
 export type ParsedProperty =
   | {
@@ -35,11 +38,27 @@ export type ParsedProperty =
     isUniform: boolean;
   }
   | {
+    /** A `prepend|append|...` list-op metadata key. The element type is
+     * implied by `name` — the adapter dispatches per-name (e.g. `apiSchemas`
+     * is a TokenListOp). */
+    kind: 'list-op';
+    name: string;
+    opcode: ListOpOpcode;
+  }
+  | {
     kind: 'unsupported';
     /** The original key, kept verbatim so the caller can log / route it. */
     raw: string;
     reason: string;
   };
+
+const LIST_OP_PREFIXES: Record<string, ListOpOpcode> = {
+  prepend: 'prepended',
+  append: 'appended',
+  add: 'added',
+  delete: 'deleted',
+  reorder: 'ordered',
+};
 
 /** Map from a single USD type token to the corresponding CrateDataType. */
 const TYPE_MAP: Record<string, { type: CrateDataType; isArray: boolean }> = {
@@ -92,13 +111,19 @@ export function parsePropertyKey(rawKey: string): ParsedProperty {
     return { kind: 'unsupported', raw: rawKey, reason: 'empty key' };
   }
 
-  // Reject metadata-style keys outright — these don't fit the attribute grammar.
-  if (key.startsWith('prepend ') || key.startsWith('append ')) {
-    return {
-      kind: 'unsupported',
-      raw: rawKey,
-      reason: `list-op metadata (\"${key.split(' ')[0]}\") is not yet supported`,
-    };
+  // List-op metadata keys (`prepend xxx`, `append xxx`, ...).
+  for (const [prefix, opcode] of Object.entries(LIST_OP_PREFIXES)) {
+    if (key.startsWith(prefix + ' ')) {
+      const name = key.slice(prefix.length + 1).trim();
+      if (name.length === 0) {
+        return {
+          kind: 'unsupported',
+          raw: rawKey,
+          reason: `list-op key \"${prefix}\" missing field name`,
+        };
+      }
+      return { kind: 'list-op', name, opcode };
+    }
   }
   if (key.endsWith('.connect')) {
     return { kind: 'unsupported', raw: rawKey, reason: 'attribute connection' };
