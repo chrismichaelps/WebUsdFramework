@@ -167,6 +167,20 @@ export class UsdNode {
   }
 
   /**
+   * Iterate every property attached to this node, in insertion order.
+   *
+   * Yields a stable read-only view of each `{ key, value, type }` triple so
+   * callers (e.g. the USDC adapter) can switch on the key shape without
+   * reaching into internal state. The yielded objects are detached copies —
+   * mutating them does not affect the node.
+   */
+  *getProperties(): IterableIterator<Readonly<USDProperty>> {
+    for (const p of this._properties) {
+      yield { key: p.key, value: p.value, type: p.type };
+    }
+  }
+
+  /**
    * Set a time-sampled property for animation
    */
   setTimeSampledProperty(key: string, timeSamples: Map<number, string>, type: string): this {
