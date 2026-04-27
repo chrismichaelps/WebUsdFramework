@@ -18,6 +18,7 @@ import { UsdNode } from '../../../core/usd-node';
 import { UsdcLayerBuilder, type PrimHandle } from './layer-builder';
 import { parsePropertyKey, type ParsedProperty } from './property-parser';
 import { CrateDataType } from './value-rep';
+import { parseVec3fScalar, parseVec3fArray } from './usda-value-parser';
 
 /** What happened to one property as the adapter walked it. */
 export interface AdaptedProperty {
@@ -131,6 +132,22 @@ function applyScalarAttribute(
       builder.addTokenAttribute(prim, name, s);
       return { rawKey, emitted: true };
     }
+    case CrateDataType.Vec3f: {
+      // Two input shapes:
+      //   - USDA-formatted string `"(x, y, z)"` (color3f inputs:diffuseColor)
+      //   - typed Float32Array of length 3 (rare but cheap to support)
+      let triple: Float32Array | null = null;
+      if (typeof value === 'string') {
+        triple = parseVec3fScalar(value);
+      } else if (value instanceof Float32Array && value.length === 3) {
+        triple = value;
+      } else if (Array.isArray(value) && value.length === 3) {
+        triple = coerceFloat32Array(value);
+      }
+      if (!triple) return skipped(rawKey, 'Vec3f scalar expected (x,y,z) tuple');
+      builder.addVec3fAttribute(prim, name, triple[0], triple[1], triple[2]);
+      return { rawKey, emitted: true };
+    }
     default:
       return skipped(rawKey, `scalar type ${describeType(type)} not yet supported`);
   }
@@ -152,8 +169,17 @@ function applyArrayAttribute(
       return { rawKey, emitted: true };
     }
     case CrateDataType.Vec3f: {
-      const arr = coerceFloat32Array(value);
-      if (!arr) return skipped(rawKey, 'Vec3f[] expected Float32Array or numeric array');
+      // Three input shapes for Vec3f[]:
+      //   - typed Float32Array (point3f[] points, color3f[] primvars:displayColor)
+      //   - plain number[] (typed-array refusing callers)
+      //   - USDA-formatted string `"[(...), (...)]"` (float3[] extent)
+      let arr: Float32Array | null = null;
+      if (typeof value === 'string') {
+        arr = parseVec3fArray(value);
+      } else {
+        arr = coerceFloat32Array(value);
+      }
+      if (!arr) return skipped(rawKey, 'Vec3f[] expected Float32Array, numeric array, or USDA literal');
       if (arr.length % 3 !== 0) {
         return skipped(rawKey, `Vec3f[] length ${arr.length} not a multiple of 3`);
       }

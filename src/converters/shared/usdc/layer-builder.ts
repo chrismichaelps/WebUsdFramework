@@ -48,6 +48,7 @@ import {
   type EncodedArrayValue,
   encodeFloatArray,
   encodeVec3fArray,
+  encodeVec3fScalar,
   encodeInt32Array,
   encodeTokenArray,
   arrayValueRep,
@@ -243,6 +244,27 @@ export class UsdcLayerBuilder {
     flat: Float32Array | ReadonlyArray<number>
   ): void {
     const enc = encodeVec3fArray(flat);
+    const arrayId = this.pendingArrays.length;
+    this.pendingArrays.push({ encoded: enc });
+    const fieldTok = this.tokens.intern(name);
+    this.specBuilders[prim.pathIndex].fields.push({
+      tokenIndex: fieldTok,
+      rep: { kind: 'array', arrayId },
+    });
+  }
+
+  /**
+   * Add a Vec3f scalar attribute (color3f, normal3f, point3f single value).
+   * Stored externally — Vec3f doesn't fit in a 48-bit inlined ValueRep.
+   */
+  addVec3fAttribute(
+    prim: PrimHandle,
+    name: string,
+    x: number,
+    y: number,
+    z: number
+  ): void {
+    const enc = encodeVec3fScalar(x, y, z);
     const arrayId = this.pendingArrays.length;
     this.pendingArrays.push({ encoded: enc });
     const fieldTok = this.tokens.intern(name);

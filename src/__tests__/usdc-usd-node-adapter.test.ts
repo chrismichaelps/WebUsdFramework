@@ -91,12 +91,26 @@ describe('applyProperty — scalar dispatch', () => {
     expect(applyProperty(b, root, 'token outputs:surface', '').emitted).toBe(true);
   });
 
-  it('skips unsupported scalar Vec3f literals (would need USDA-string parsing)', () => {
+  it('parses USDA-formatted scalar Vec3f literals (color3f inputs:diffuseColor)', () => {
     const b = new UsdcLayerBuilder();
     const root = b.declarePrim('/Root', 'Material');
     const r = applyProperty(b, root, 'color3f inputs:diffuseColor', '(0.7, 0.7, 0.7)');
+    expect(r.emitted).toBe(true);
+  });
+
+  it('skips malformed Vec3f scalar literals', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Material');
+    const r = applyProperty(b, root, 'color3f inputs:diffuseColor', '(not, a, tuple)');
     expect(r.emitted).toBe(false);
-    expect(r.reason).toBeDefined();
+  });
+
+  it('parses USDA-formatted Vec3f[] literals (float3[] extent)', () => {
+    const b = new UsdcLayerBuilder();
+    b.declarePrim('/Root', 'Xform');
+    const root = b.declarePrim('/Root/Mesh', 'Mesh');
+    const r = applyProperty(b, root, 'float3[] extent', '[(-1, -1, -1), (1, 1, 1)]');
+    expect(r.emitted).toBe(true);
   });
 
   it('skips connection / relationship / list-op keys', () => {

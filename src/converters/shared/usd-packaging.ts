@@ -242,6 +242,14 @@ export interface ConvertOptions {
    * debug bundle including the archive blob, omit `outputPath`.
    */
   outputPath?: string;
+  /**
+   * On-disk format for the per-layer files inside the USDZ archive. The
+   * outer file is always `.usdz` regardless of this setting. Defaults to
+   * `'usda'`. See {@link LayerFormat} for the trade-offs and the safety
+   * net (the packager falls back to `'usda'` if any property in the source
+   * tree cannot be encoded).
+   */
+  layerFormat?: LayerFormat;
 }
 
 /**
