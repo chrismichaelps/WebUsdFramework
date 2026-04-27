@@ -14,6 +14,7 @@ import {
   type StreamingUsdzFile,
 } from './usdz-stream-writer';
 import { getTextureFileBasename } from '../gltf/extensions/processors/texture-utils';
+import { encodeUsdNodeTreeToUsdc } from './usdc/usd-node-adapter';
 
 /**
  * Selects the on-disk format for the per-layer files inside the USDZ
@@ -53,6 +54,34 @@ export interface PackageContent {
   usdContent: string | Generator<string>;
   geometryFiles: Map<string, ArrayBuffer>;
   textureFiles: Map<string, ArrayBuffer>;
+  /**
+   * Optional source `UsdNode` for the root layer. Required to opt into
+   * `layerFormat: 'usdc'` — the binary encoder needs the structured tree,
+   * not the serialized USDA text. When omitted (or when the encoder reports
+   * unsupported properties), the packager falls back to writing the
+   * `usdContent` string as `model.usda`.
+   */
+  usdContentNode?: import('../../core/usd-node').UsdNode;
+}
+
+/**
+ * Try to build a binary USDC root layer from `content.usdContentNode`.
+ *
+ * Returns the encoded bytes when the adapter handled every property in the
+ * tree, or `null` when:
+ *   - `usdContentNode` was not supplied (caller didn't opt in), or
+ *   - the adapter encountered a property it doesn't yet support (in which
+ *     case the bytes would silently differ from the USDA source).
+ *
+ * In either case the packager falls back to writing USDA text. The fallback
+ * is intentional and safe — it's how `layerFormat: 'usdc'` ships before the
+ * adapter learns every USDA shape.
+ */
+function tryBuildUsdcRootLayer(content: PackageContent): Uint8Array | null {
+  if (!content.usdContentNode) return null;
+  const result = encodeUsdNodeTreeToUsdc(content.usdContentNode);
+  if (result.report.skipped > 0) return null;
+  return result.bytes;
 }
 
 /**
@@ -63,14 +92,46 @@ export interface PackageContent {
  * (`createUsdzPackageToStream` / `createUsdzPackageToFile`) packagers so the
  * file ordering and dedup rules cannot drift between the two paths.
  *
+ * `config?.layerFormat`:
+ *   - `'usda'` (default): write `model.usda` as text.
+ *   - `'usdc'`: try `tryBuildUsdcRootLayer`; if it succeeds, write
+ *     `model.usdc`. Otherwise fall back to USDA.
+ *
  * NOTE: if `content.usdContent` is a `Generator<string>` it will be exhausted
  * in this call. Generators are single-use; callers that need to re-package the
  * same content should pass a string or a fresh generator on each call.
  */
-function buildPackageFiles(content: PackageContent): StreamingUsdzFile[] {
+function buildPackageFiles(
+  content: PackageContent,
+  config?: PackageConfig
+): StreamingUsdzFile[] {
   const files: StreamingUsdzFile[] = [];
 
-  // Main USD file
+  // Main USD file — try binary first when requested, fall back to text.
+  if (config?.layerFormat === 'usdc') {
+    const usdcBytes = tryBuildUsdcRootLayer(content);
+    if (usdcBytes) {
+      const usdcName = USD_FILE_NAMES.MODEL.replace(/\.usda$/, '.usdc');
+      files.push({ name: usdcName, data: usdcBytes });
+      // Fall through into the geometry/texture loop below.
+      for (const [geometryPath, geometryData] of content.geometryFiles) {
+        files.push({ name: geometryPath, data: new Uint8Array(geometryData) });
+      }
+      const writtenTexturePaths = new Set<string>();
+      for (const [textureId, textureData] of content.textureFiles) {
+        const textureExtension = getTextureExtensionFromData(textureData);
+        const basename = getTextureFileBasename(textureId);
+        const textureName = `${USD_DEFAULT_NAMES.TEXTURE_PREFIX}${basename}.${textureExtension}`;
+        const texturePath = `${DIRECTORY_NAMES.TEXTURES}/${textureName}`;
+        if (writtenTexturePaths.has(texturePath)) continue;
+        writtenTexturePaths.add(texturePath);
+        files.push({ name: texturePath, data: new Uint8Array(textureData) });
+      }
+      return files;
+    }
+    // Fell through — emit USDA below.
+  }
+
   let usdContentChunks: Uint8Array[];
   if (typeof content.usdContent === 'string') {
     usdContentChunks = [new TextEncoder().encode(content.usdContent)];
@@ -117,7 +178,7 @@ export async function createUsdzPackage(
   content: PackageContent,
   config?: PackageConfig
 ): Promise<Blob> {
-  const files = buildPackageFiles(content);
+  const files = buildPackageFiles(content, config);
 
   // Create ZIP writer with proper alignment for optimal performance
   const zipWriter = new UsdzZipWriter({
@@ -152,6 +213,11 @@ export interface UsdzStreamOptions {
    * requirement. Defaults to `true`. Disable only for diagnostic purposes.
    */
   alignTo64Bytes?: boolean;
+  /**
+   * On-disk format for the per-layer files. Same semantics as
+   * `PackageConfig.layerFormat` — defaults to `'usda'`.
+   */
+  layerFormat?: LayerFormat;
 }
 
 /**
@@ -193,7 +259,10 @@ export async function createUsdzPackageToStream(
   output: Writable,
   options: UsdzStreamOptions = {}
 ): Promise<UsdzStreamResult> {
-  const files = buildPackageFiles(content);
+  const files = buildPackageFiles(
+    content,
+    options.layerFormat ? { layerFormat: options.layerFormat } : undefined
+  );
   return writeUsdzToStream(files, output, {
     alignTo64Bytes: options.alignTo64Bytes ?? true,
   });
@@ -212,7 +281,10 @@ export async function createUsdzPackageToFile(
   filePath: string,
   options: UsdzStreamOptions = {}
 ): Promise<UsdzStreamResult> {
-  const files = buildPackageFiles(content);
+  const files = buildPackageFiles(
+    content,
+    options.layerFormat ? { layerFormat: options.layerFormat } : undefined
+  );
   return writeUsdzToFile(files, filePath, {
     alignTo64Bytes: options.alignTo64Bytes ?? true,
   });

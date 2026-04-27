@@ -54,11 +54,8 @@ export function adaptUsdNodeTree(root: UsdNode, builder: UsdcLayerBuilder): Adap
     skipped: 0,
   };
 
-  function visit(node: UsdNode, parentPath: string | null): void {
-    // The builder owns the pseudo-root, so we anchor every top-level node
-    // either under '/' or under its parent's path.
-    const nodePath = node.getPath();
-    const handle = builder.declarePrim(nodePath, node.getTypeName());
+  function visit(node: UsdNode): void {
+    const handle = builder.declarePrim(node.getPath(), node.getTypeName());
     report.primCount++;
 
     for (const prop of node.getProperties()) {
@@ -67,10 +64,10 @@ export function adaptUsdNodeTree(root: UsdNode, builder: UsdcLayerBuilder): Adap
       report.properties.push(result);
     }
 
-    for (const child of node.getChildren()) visit(child, nodePath);
+    for (const child of node.getChildren()) visit(child);
   }
 
-  visit(root, null);
+  visit(root);
   return report;
 }
 
@@ -135,7 +132,7 @@ function applyScalarAttribute(
       return { rawKey, emitted: true };
     }
     default:
-      return skipped(rawKey, `scalar type ${CrateDataType[type as unknown as number] ?? type} not yet supported`);
+      return skipped(rawKey, `scalar type ${describeType(type)} not yet supported`);
   }
 }
 
@@ -176,10 +173,7 @@ function applyArrayAttribute(
       return { rawKey, emitted: true };
     }
     default:
-      return skipped(
-        rawKey,
-        `array type ${CrateDataType[type as unknown as number] ?? type} not yet supported`
-      );
+      return skipped(rawKey, `array type ${describeType(type)} not yet supported`);
   }
 }
 
@@ -239,6 +233,14 @@ function coerceStringArray(value: unknown): string[] | null {
 
 function skipped(rawKey: string, reason: string): AdaptedProperty {
   return { rawKey, emitted: false, reason };
+}
+
+/** Find the CrateDataType name corresponding to a numeric value, for error messages. */
+function describeType(type: CrateDataType): string {
+  for (const [name, v] of Object.entries(CrateDataType)) {
+    if (v === type) return name;
+  }
+  return String(type);
 }
 
 /**
