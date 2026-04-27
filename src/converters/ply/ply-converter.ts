@@ -373,15 +373,21 @@ export async function convertPlyToUsdz(
       primType: meshData.isPointCloud ? 'Points' : 'Mesh',
     });
 
-    // Package
+    // Package — pass both the serialized USDA text and the source UsdNode
+    // tree so the packager can opt into USDC root layers when the caller
+    // asks for it. With layerFormat undefined or 'usda' (the default), the
+    // tree is ignored and the text path runs unchanged.
     const packageContent: PackageContent = {
       usdContent: rootNode.serializeToUsda(),
+      usdContentNode: rootNode,
       geometryFiles: new Map(),
       textureFiles: new Map(),
     };
 
     if (options?.outputPath) {
-      const result = await createUsdzPackageToFile(packageContent, options.outputPath);
+      const result = await createUsdzPackageToFile(packageContent, options.outputPath, {
+        ...(options.layerFormat ? { layerFormat: options.layerFormat } : {}),
+      });
       logger.info('USDZ conversion completed', {
         stage: 'conversion_complete',
         usdzSize: result.totalBytes,
@@ -391,7 +397,10 @@ export async function convertPlyToUsdz(
       return result;
     }
 
-    const usdzBlob = await createUsdzPackage(packageContent);
+    const usdzBlob = await createUsdzPackage(
+      packageContent,
+      options?.layerFormat ? { layerFormat: options.layerFormat } : undefined
+    );
 
     logger.info('USDZ conversion completed', {
       stage: 'conversion_complete',
