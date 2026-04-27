@@ -46,6 +46,13 @@ export type ParsedProperty =
     opcode: ListOpOpcode;
   }
   | {
+    /** A relationship spec: either a built-in name like `material:binding`
+     * or an explicit `rel xxx` declaration. The value is the target path
+     * (or array of target paths). */
+    kind: 'relationship';
+    name: string;
+  }
+  | {
     kind: 'unsupported';
     /** The original key, kept verbatim so the caller can log / route it. */
     raw: string;
@@ -128,8 +135,17 @@ export function parsePropertyKey(rawKey: string): ParsedProperty {
   if (key.endsWith('.connect')) {
     return { kind: 'unsupported', raw: rawKey, reason: 'attribute connection' };
   }
-  if (key.startsWith('material:binding') || key.startsWith('rel ')) {
-    return { kind: 'unsupported', raw: rawKey, reason: 'relationship' };
+  // Built-in relationship name (USD's material-binding API).
+  if (key === 'material:binding' || key.startsWith('material:binding:')) {
+    return { kind: 'relationship', name: key };
+  }
+  // Explicit `rel <name>` form.
+  if (key.startsWith('rel ')) {
+    const name = key.slice(4).trim();
+    if (name.length === 0) {
+      return { kind: 'unsupported', raw: rawKey, reason: 'rel key missing name' };
+    }
+    return { kind: 'relationship', name };
   }
 
   // Tokenize on whitespace and pull qualifiers from the front.

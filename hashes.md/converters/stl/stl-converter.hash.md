@@ -12,6 +12,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `class StlConverter implements IConverter`
 - `convert(input: string, options: IConverterOptions): Promise<IConversionResult>`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/stl/.contract.json"
+- logic: "@root/hashes.md/converters/stl/.logic.md"
+- chronos: "@root/hashes.md/converters/stl/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/converters/shared/usd-geometry-builder.hash.md"

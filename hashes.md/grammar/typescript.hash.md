@@ -7,7 +7,14 @@ LSP_Discovery_Root: "@root/node_modules/typescript/package.json"
 Grammar_Lock: "@root/hashes/grammar/typescript.hash.md"
 ---
 
+## @WebUsdFramework.Grammar.TypeScript
+
 /** WebUsdFramework.Grammar.TypeScript - Linguistic DNA anchor for TypeScript 5.9.x */
+
+### [Forensic Metadata]
+- contract: "@root/hashes.md/grammar/.contract.json"
+- logic: "@root/hashes.md/grammar/.logic.md"
+- chronos: "@root/hashes.md/grammar/.chronos.json"
 
 ## [SDK_Discovery_Map]
 /** === Core Lib Files (70+ declarations) === */

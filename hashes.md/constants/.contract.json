@@ -1,0 +1,39 @@
+{
+  "ForensicShard": "WebUsdFramework.Constants",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "USD_NODE_TYPES": {
+      "type": "const object",
+      "values": ["Xform", "Scope", "Mesh", "Material", "Shader", "Camera"],
+      "immutable": true
+    },
+    "USD_ROOT_PATHS": {
+      "type": "const object", 
+      "values": ["/Root", "/Root/Scenes", "/Root/Materials"],
+      "immutable": true
+    },
+    "USD_PROPERTIES": {
+      "type": "const object",
+      "values": ["ANCHORING_TYPE", "XFORM_OP_TRANSFORM", "MATERIAL_BINDING"],
+      "immutable": true
+    },
+    "USD_PROPERTY_TYPES": {
+      "type": "const object",
+      "values": ["TOKEN", "STRING_ARRAY", "REL", "FLOAT"],
+      "immutable": true
+    },
+    "ZIP_VERSION": {
+      "type": "const object",
+      "values": ["MAJOR", "MINOR"],
+      "immutable": true
+    }
+  },
+  "Invariants": [
+    "All constants are readonly/immutable",
+    "No runtime mutations permitted",
+    "Type-safe token strings for USD schema"
+  ],
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

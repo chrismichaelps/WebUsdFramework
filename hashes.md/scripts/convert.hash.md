@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/javascript.hash.md"
 ### [Signatures]
 - `$ node scripts/convert.cjs <input> [out-dir]`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/scripts/.contract.json"
+- logic: "@root/hashes.md/scripts/.logic.md"
+- chronos: "@root/hashes.md/scripts/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/javascript.hash.md"
 - downstream: "@root/hashes.md/scripts/validate-usdz.hash.md"

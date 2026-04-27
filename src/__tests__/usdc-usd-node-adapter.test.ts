@@ -113,11 +113,46 @@ describe('applyProperty — scalar dispatch', () => {
     expect(r.emitted).toBe(true);
   });
 
-  it('skips connection and relationship keys', () => {
+  it('skips connection keys (.connect suffix)', () => {
     const b = new UsdcLayerBuilder();
     const root = b.declarePrim('/Root', 'Material');
     expect(applyProperty(b, root, 'token outputs:surface.connect', '<x>').emitted).toBe(false);
-    expect(applyProperty(b, root, 'material:binding', '<x>').emitted).toBe(false);
+  });
+
+  it('emits a Relationship for material:binding (target as USDA-style <path>)', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Xform');
+    const mat = b.declarePrim('/Root/PlyMaterial', 'Material');
+    const r = applyProperty(b, root, 'material:binding', '</Root/PlyMaterial>');
+    expect(r.emitted).toBe(true);
+    void mat; // declared so the target resolves at serialize time
+  });
+
+  it('emits a Relationship for material:binding (target as bare path)', () => {
+    const b = new UsdcLayerBuilder();
+    b.declarePrim('/Root', 'Xform');
+    b.declarePrim('/Root/PlyMaterial', 'Material');
+    const root = b.declarePrim('/Root/Mesh', 'Mesh');
+    const r = applyProperty(b, root, 'material:binding', '/Root/PlyMaterial');
+    expect(r.emitted).toBe(true);
+  });
+
+  it('emits a Relationship for an array of target paths', () => {
+    const b = new UsdcLayerBuilder();
+    b.declarePrim('/Root', 'Xform');
+    b.declarePrim('/Root/A', 'Material');
+    b.declarePrim('/Root/B', 'Material');
+    const mesh = b.declarePrim('/Root/Mesh', 'Mesh');
+    const r = applyProperty(b, mesh, 'material:binding', ['</Root/A>', '</Root/B>']);
+    expect(r.emitted).toBe(true);
+  });
+
+  it('skips a relationship whose value is empty / non-absolute', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Xform');
+    expect(applyProperty(b, root, 'material:binding', '').emitted).toBe(false);
+    expect(applyProperty(b, root, 'material:binding', 'NotAbsolute').emitted).toBe(false);
+    expect(applyProperty(b, root, 'material:binding', 42).emitted).toBe(false);
   });
 
   it('emits a TokenListOp for prepend apiSchemas', () => {

@@ -1,0 +1,17 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Shared",
+  "ShardType": "TEMPORAL_METADATA",
+  "SearchComplexity": "O(1)",
+  "Timeline": {
+    "created": "2025-10-22T00:00:00Z",
+    "epochs": [
+      {
+        "epoch": 1,
+        "range": "2025-10-22 - 2026-04-27",
+        "changes": ["USD geometry builder", "USD material builder", "USD packaging", "USDZ ZIP writer", "USDC encoder", "Debug writer"]
+      }
+    ]
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

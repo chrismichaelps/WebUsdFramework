@@ -11,5 +11,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - `getMeshTriangles(mesh: Mesh): number`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/gltf/helpers/.contract.json"
+- logic: "@root/hashes.md/converters/gltf/helpers/.logic.md"
+- chronos: "@root/hashes.md/converters/gltf/helpers/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

@@ -1,0 +1,30 @@
+{
+  "ForensicShard": "WebUsdFramework.Root",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "defineConfig": {
+      "input": "FrameworkOptions",
+      "output": "FrameworkInstance",
+      "guarantees": ["type-safe", "immutable-config"],
+      "dependencies": ["@root/hashes.md/schemas/index.hash.md"]
+    },
+    "convert": {
+      "input": "string (inputPath)",
+      "output": "Promise<Blob> (USDZ binary)",
+      "guarantees": ["streaming-capable", "memory-bounded"],
+      "dependencies": ["@root/hashes.md/converters/gltf/index.hash.md", "@root/hashes.md/converters/ply/ply-converter.hash.md", "@root/hashes.md/converters/obj/index.hash.md", "@root/hashes.md/converters/stl/index.hash.md"]
+    }
+  },
+  "Interfaces": {
+    "IConverter": {
+      "methods": ["convert(input: string, options: IConverterOptions): Promise<IConversionResult>"],
+      "implementors": ["GltfConverter", "ObjConverter", "StlConverter", "PlyConverter"]
+    },
+    "IConverterOptions": {
+      "fields": ["debug", "debugOutputDir", "upAxis", "metersPerUnit"]
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

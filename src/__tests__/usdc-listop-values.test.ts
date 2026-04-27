@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   encodeTokenListOp,
+  encodePathListOp,
   decodeTokenListOp,
   SdfListOpSubListType,
   listOpValueRep,
@@ -116,6 +117,26 @@ describe('listOpValueRep', () => {
     expect(fields.isArray).toBe(false);
     expect(fields.isInlined).toBe(false);
     expect(fields.payload).toBe(1024n);
+  });
+});
+
+describe('encodePathListOp', () => {
+  it('produces a PathListOp-typed ValueRep', () => {
+    const enc = encodePathListOp({ explicit: [3] });
+    expect(enc.type).toBe(CrateDataType.PathListOp);
+    expect(enc.isArray).toBe(false);
+  });
+
+  it('shares the wire format with TokenListOp (only the type tag differs)', () => {
+    const tokenOp = encodeTokenListOp({ prepended: [1, 2, 3] });
+    const pathOp = encodePathListOp({ prepended: [1, 2, 3] });
+    expect(pathOp.bytes).toEqual(tokenOp.bytes);
+    expect(pathOp.type).not.toBe(tokenOp.type);
+  });
+
+  it('round-trips through decodeTokenListOp (the decoder is type-agnostic)', () => {
+    const enc = encodePathListOp({ explicit: [42] });
+    expect(decodeTokenListOp(enc.bytes).explicit).toEqual([42]);
   });
 });
 

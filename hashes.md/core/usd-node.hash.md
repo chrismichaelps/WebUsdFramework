@@ -16,6 +16,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Governance]
 - Acts as the singular intermediary between input parser and USDA output formatting
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/core/.contract.json"
+- logic: "@root/hashes.md/core/.logic.md"
+- chronos: "@root/hashes.md/core/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/utils/logger.hash.md"

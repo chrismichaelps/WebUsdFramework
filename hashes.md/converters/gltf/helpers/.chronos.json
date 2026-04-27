@@ -1,0 +1,17 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Gltf.Helpers",
+  "ShardType": "TEMPORAL_METADATA",
+  "SearchComplexity": "O(1)",
+  "Timeline": {
+    "created": "2025-11-04T00:00:00Z",
+    "epochs": [
+      {
+        "epoch": 1,
+        "range": "2025-11-04 - 2025-11-13",
+        "changes": ["Animation processor", "Skeleton processor", "Geometry processor", "Hierarchy builder"]
+      }
+    ]
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

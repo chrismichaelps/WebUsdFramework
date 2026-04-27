@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/bash.hash.md"
 ### [Signatures]
 - `$ scripts/validate-usdz.sh [input-model] [out-dir]`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/scripts/.contract.json"
+- logic: "@root/hashes.md/scripts/.logic.md"
+- chronos: "@root/hashes.md/scripts/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/bash.hash.md"
 - depends_on: "@root/hashes.md/scripts/convert.hash.md"

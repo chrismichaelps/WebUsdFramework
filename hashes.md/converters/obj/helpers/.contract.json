@@ -1,0 +1,20 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Obj.Helpers",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "ObjToUsdAdapter": {
+      "input": "ParsedObjData, ObjConverterConfig",
+      "output": "UsdNode (root)",
+      "guarantees": ["group-to-mesh", "material-binding", "uv-mapping"]
+    }
+  },
+  "Interfaces": {
+    "IObjToUsdAdapter": {
+      "methods": ["adapt(objData, config): UsdNode"],
+      "implementors": ["ObjToUsdAdapter"]
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

@@ -94,6 +94,9 @@ export function applyProperty(
   if (parsed.kind === 'list-op') {
     return applyListOp(builder, prim, parsed.name, parsed.opcode, value, key);
   }
+  if (parsed.kind === 'relationship') {
+    return applyRelationship(builder, prim, parsed.name, value, key);
+  }
   return applyTypedAttribute(builder, prim, parsed, value, key);
 }
 
@@ -287,6 +290,66 @@ const TOKEN_LIST_OP_NAMES = new Set([
  * shapes (PathListOp / ReferenceListOp / etc.) fall into the unsupported
  * bucket so the packager can fall back to USDA cleanly.
  */
+/**
+ * Dispatch a relationship key (`material:binding`, `rel xxx`, ...) to the
+ * layer-builder's `addRelationship`.
+ *
+ * The value can arrive in any of these shapes (depending on which converter
+ * built the source UsdNode):
+ *
+ *   "/Root/Materials/Foo"        — bare path, no decorators
+ *   "</Root/Materials/Foo>"       — USDA-style path literal with brackets
+ *   ["/Root/A", "/Root/B"]        — multiple targets
+ *
+ * The adapter strips the optional `<...>` brackets and routes empty values
+ * to the unsupported bucket (so the packager falls back rather than
+ * emitting an unbound relationship).
+ */
+function applyRelationship(
+  builder: UsdcLayerBuilder,
+  prim: PrimHandle,
+  name: string,
+  value: unknown,
+  rawKey: string
+): AdaptedProperty {
+  const targets = coerceTargetPaths(value);
+  if (!targets || targets.length === 0) {
+    return skipped(rawKey, `relationship "${name}": expected one or more target paths`);
+  }
+  for (const t of targets) {
+    if (!t.startsWith('/')) {
+      return skipped(rawKey, `relationship "${name}" target "${t}" is not absolute`);
+    }
+  }
+  builder.addRelationship(prim, name, targets);
+  return { rawKey, emitted: true };
+}
+
+function coerceTargetPaths(value: unknown): string[] | null {
+  if (typeof value === 'string') {
+    const stripped = stripPathLiteral(value);
+    return stripped.length > 0 ? [stripped] : null;
+  }
+  if (Array.isArray(value)) {
+    const out: string[] = [];
+    for (const v of value) {
+      if (typeof v !== 'string') return null;
+      const s = stripPathLiteral(v);
+      if (s.length === 0) return null;
+      out.push(s);
+    }
+    return out;
+  }
+  return null;
+}
+
+/** Strip optional `<...>` USDA brackets from a path literal. */
+function stripPathLiteral(s: string): string {
+  const t = s.trim();
+  if (t.startsWith('<') && t.endsWith('>')) return t.slice(1, -1).trim();
+  return t;
+}
+
 function applyListOp(
   builder: UsdcLayerBuilder,
   prim: PrimHandle,

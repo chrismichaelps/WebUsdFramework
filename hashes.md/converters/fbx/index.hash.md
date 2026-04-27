@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - `class FbxConverter implements IConverter`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/fbx/.contract.json"
+- logic: "@root/hashes.md/converters/fbx/.logic.md"
+- chronos: "@root/hashes.md/converters/fbx/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/converters/fbx/fbx-to-gltf-via-tool.hash.md"

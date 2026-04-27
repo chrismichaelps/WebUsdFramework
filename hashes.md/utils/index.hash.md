@@ -14,5 +14,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Governance]
 - Export_Law: Single internal barrel for utils
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/utils/.contract.json"
+- logic: "@root/hashes.md/utils/.logic.md"
+- chronos: "@root/hashes.md/utils/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

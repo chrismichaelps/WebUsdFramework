@@ -12,6 +12,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `class ObjToUsdAdapter`
 - `adapt(scene: ObjScene, builder: UsdGeometryBuilder): UsdNode[]`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/obj/helpers/.contract.json"
+- logic: "@root/hashes.md/converters/obj/helpers/.logic.md"
+- chronos: "@root/hashes.md/converters/obj/helpers/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/converters/shared/usd-geometry-builder.hash.md"

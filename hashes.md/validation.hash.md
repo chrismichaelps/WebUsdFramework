@@ -19,6 +19,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - Inputs: raw user-supplied strings and option objects
 - Outputs: validated typed values or ValidationError
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/.contract.json"
+- logic: "@root/hashes.md/.logic.md"
+- chronos: "@root/hashes.md/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/errors.hash.md"

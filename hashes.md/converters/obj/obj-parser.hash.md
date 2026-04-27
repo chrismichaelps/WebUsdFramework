@@ -12,6 +12,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `class ObjParser`
 - `parse(buffer: Uint8Array): Promise<ObjScene>`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/obj/.contract.json"
+- logic: "@root/hashes.md/converters/obj/.logic.md"
+- chronos: "@root/hashes.md/converters/obj/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/converters/obj/obj-mesh-parser.hash.md"

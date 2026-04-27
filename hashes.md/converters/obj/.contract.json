@@ -1,0 +1,13 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Obj",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "module": {
+      "description": "OBJ to USDZ conversion",
+      "exports": "See .hash.md files in this directory"
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

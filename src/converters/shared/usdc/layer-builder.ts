@@ -53,15 +53,21 @@ import {
   encodeTokenArray,
   arrayValueRep,
 } from './array-values';
-import { encodeTokenListOp, type TokenListOpInput } from './listop-values';
+import {
+  encodePathListOp,
+  encodeTokenListOp,
+  type TokenListOpInput,
+} from './listop-values';
 import {
   CrateDataType,
   SdfSpecType,
   SdfSpecifier,
+  SdfVariability,
   inlineFloat,
   inlineInt,
   inlineToken,
   inlineSpecifier,
+  inlineVariability,
 } from './value-rep';
 
 /** Opaque handle returned by `declarePrim`; pass back to `add*Attribute`. */
@@ -93,6 +99,18 @@ interface SpecBuilder {
   fields: PendingField[];
 }
 
+/**
+ * Pending relationship — full resolution happens at `serialize()` time
+ * because target paths often reference prims that haven't been declared
+ * yet when `addRelationship` is called.
+ */
+interface PendingRelationship {
+  /** Index into `specBuilders` of this relationship's spec. */
+  specBuilderIndex: number;
+  /** Stringly-typed target paths to resolve at serialize time. */
+  targetPaths: string[];
+}
+
 export class UsdcLayerBuilder {
   private readonly tokens = new TokenTable();
   private readonly strings = new StringTable();
@@ -101,18 +119,26 @@ export class UsdcLayerBuilder {
   private readonly pendingArrays: PendingArray[] = [];
   /** Built-up prim/attribute spec list. Pseudo-root is index 0. */
   private readonly specBuilders: SpecBuilder[] = [];
+  /** Relationships awaiting target-path resolution at serialize time. */
+  private readonly pendingRelationships: PendingRelationship[] = [];
+  /** Maps a USD path string ("/Root/Materials/Foo") to its PathIndex. */
+  private readonly pathStringToIndex = new Map<string, number>();
   /** PATHS root, with children attached as prims/attributes are declared. */
   private readonly pseudoRoot: PathNode;
 
   /** Cached token indices for builtin field names. */
   private readonly tok_specifier: number;
   private readonly tok_typeName: number;
+  private readonly tok_targetPaths: number;
+  private readonly tok_variability: number;
 
   constructor() {
     // Pre-intern the builtin field tokens so they get small indices and are
     // available to every prim spec without re-checking.
     this.tok_specifier = this.tokens.intern('specifier');
     this.tok_typeName = this.tokens.intern('typeName');
+    this.tok_targetPaths = this.tokens.intern('targetPaths');
+    this.tok_variability = this.tokens.intern('variability');
 
     // Pseudo-root (path "/", spec type 7, no parent).
     this.pseudoRoot = {
@@ -126,6 +152,7 @@ export class UsdcLayerBuilder {
       specType: SdfSpecType.PseudoRoot,
       fields: [],
     });
+    this.pathStringToIndex.set('/', 0);
   }
 
   /**
@@ -174,6 +201,7 @@ export class UsdcLayerBuilder {
       children: [],
     };
     parent.children.push(node);
+    this.pathStringToIndex.set(path, newPathIndex);
     void parentSpec; // The builder doesn't need to update parent's fields here.
 
     const fields: PendingField[] = [
@@ -349,6 +377,59 @@ export class UsdcLayerBuilder {
   }
 
   /**
+   * Declare a relationship attached to `prim` whose targets are USD prim
+   * paths. Examples:
+   *
+   *   b.addRelationship(meshPrim, 'material:binding', ['/Root/Materials/Foo'])
+   *   b.addRelationship(prim, 'rel:proxyPrim', ['/Root/Proxy'])
+   *
+   * The relationship gets its own path entry under the prim (a property-
+   * typed child whose element name is `name`) and its own SPECS row with
+   * `SdfSpecType.Relationship`.
+   *
+   * Target paths are not resolved against the path table until
+   * `serialize()` runs — they may legally refer to prims declared later
+   * in the build sequence.
+   */
+  addRelationship(
+    prim: PrimHandle,
+    name: string,
+    targetPaths: ReadonlyArray<string>
+  ): void {
+    if (targetPaths.length === 0) {
+      throw new RangeError('addRelationship: targetPaths is empty');
+    }
+    const elementToken = this.tokens.intern(name);
+    const newPathIndex = this.specBuilders.length;
+    const node: PathNode = {
+      pathIndex: newPathIndex,
+      elementTokenIndex: elementToken,
+      isProperty: true,
+      children: [],
+    };
+    prim.node.children.push(node);
+
+    this.specBuilders.push({
+      pathIndex: newPathIndex,
+      specType: SdfSpecType.Relationship,
+      // The targetPaths field is filled in at serialize time once every
+      // referenced prim has had a chance to be declared. variability is
+      // uniform per the USD spec for relationships.
+      fields: [
+        {
+          tokenIndex: this.tok_variability,
+          rep: { kind: 'inline', value: inlineVariability(SdfVariability.Uniform) },
+        },
+      ],
+    });
+
+    this.pendingRelationships.push({
+      specBuilderIndex: newPathIndex,
+      targetPaths: [...targetPaths],
+    });
+  }
+
+  /**
    * Produce the complete USDC layer bytes. After this call, the builder's
    * internal state should be considered consumed; calling it twice will
    * produce identical output but is wasteful.
@@ -361,6 +442,32 @@ export class UsdcLayerBuilder {
     //
     // Strategy: lay sections out in the order the file will contain them and
     // resolve offsets as we go.
+
+    // Resolve every pending relationship's target paths to PathIndex values
+    // and emit the corresponding `targetPaths` field. This must happen
+    // BEFORE TOKENS is closed (resolution doesn't intern any tokens, but
+    // the encoded PathListOp does sit in pendingArrays which is consumed
+    // below).
+    for (const rel of this.pendingRelationships) {
+      const indices: number[] = new Array(rel.targetPaths.length);
+      for (let i = 0; i < rel.targetPaths.length; i++) {
+        const tp = rel.targetPaths[i];
+        const idx = this.pathStringToIndex.get(tp);
+        if (idx === undefined) {
+          throw new RangeError(
+            `serialize: relationship target path "${tp}" was never declared`
+          );
+        }
+        indices[i] = idx;
+      }
+      const enc = encodePathListOp({ explicit: indices });
+      const arrayId = this.pendingArrays.length;
+      this.pendingArrays.push({ encoded: enc });
+      this.specBuilders[rel.specBuilderIndex].fields.push({
+        tokenIndex: this.tok_targetPaths,
+        rep: { kind: 'array', arrayId },
+      });
+    }
 
     // Encode TOKENS first so the byte size is known. (TokenTable closed.)
     const tokensBytes = this.tokens.encode();

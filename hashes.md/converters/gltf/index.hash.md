@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - Re-exports GltfConverter
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/gltf/.contract.json"
+- logic: "@root/hashes.md/converters/gltf/.logic.md"
+- chronos: "@root/hashes.md/converters/gltf/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/converters/gltf/gltf-converter.hash.md"

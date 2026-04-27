@@ -1,0 +1,32 @@
+{
+  "ForensicShard": "WebUsdFramework.Core",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "UsdNode": {
+      "type": "class",
+      "methods": [
+        "constructor(path: UsdPath, typeName: string)",
+        "setProperty(key: string, value: any, type?: string): this",
+        "getProperty(key: string): any",
+        "addChild(child: UsdNode): this",
+        "serializeToUsda(): string",
+        "updatePath(newPath: UsdPath): void"
+      ],
+      "properties": [
+        "_path: UsdPath",
+        "_typeName: string",
+        "_metadata: Map<string, any>",
+        "_children: Map<string, UsdNode>",
+        "_properties: USDProperty[]"
+      ],
+      "invariants": [
+        "Path must be valid USD path",
+        "TypeName must be valid USD prim type",
+        "Children paths are updated when parent path changes"
+      ]
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

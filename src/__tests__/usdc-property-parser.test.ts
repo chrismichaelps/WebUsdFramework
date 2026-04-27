@@ -150,14 +150,33 @@ describe('parsePropertyKey — list-op metadata', () => {
   });
 });
 
+describe('parsePropertyKey — relationship keys', () => {
+  it('parses material:binding as a relationship', () => {
+    const r = parsePropertyKey('material:binding');
+    expect(r).toEqual({ kind: 'relationship', name: 'material:binding' });
+  });
+
+  it('parses material:binding:collection:foo as a relationship', () => {
+    const r = parsePropertyKey('material:binding:collection:foo');
+    expect(r).toEqual({
+      kind: 'relationship',
+      name: 'material:binding:collection:foo',
+    });
+  });
+
+  it('parses an explicit `rel myRel` declaration', () => {
+    const r = parsePropertyKey('rel myRel');
+    expect(r).toEqual({ kind: 'relationship', name: 'myRel' });
+  });
+
+  it('returns unsupported when `rel` is missing a name', () => {
+    expect(parsePropertyKey('rel ').kind).toBe('unsupported');
+  });
+});
+
 describe('parsePropertyKey — non-attribute keys (unsupported)', () => {
   it('returns unsupported for connection (.connect suffix)', () => {
     const r = parsePropertyKey('token outputs:surface.connect');
-    expect(r.kind).toBe('unsupported');
-  });
-
-  it('returns unsupported for material:binding', () => {
-    const r = parsePropertyKey('material:binding');
     expect(r.kind).toBe('unsupported');
   });
 

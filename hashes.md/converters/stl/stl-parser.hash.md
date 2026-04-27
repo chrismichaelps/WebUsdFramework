@@ -12,5 +12,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `class StlParser`
 - `parse(buffer: Uint8Array): Promise<StlGeometry>`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/stl/.contract.json"
+- logic: "@root/hashes.md/converters/stl/.logic.md"
+- chronos: "@root/hashes.md/converters/stl/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
