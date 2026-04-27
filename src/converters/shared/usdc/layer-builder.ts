@@ -53,6 +53,7 @@ import {
   encodeTokenArray,
   arrayValueRep,
 } from './array-values';
+import { encodeTokenListOp, type TokenListOpInput } from './listop-values';
 import {
   CrateDataType,
   SdfSpecType,
@@ -294,6 +295,50 @@ export class UsdcLayerBuilder {
   addTokenArrayAttribute(prim: PrimHandle, name: string, tokenValues: ReadonlyArray<string>): void {
     const indices = tokenValues.map((t) => this.tokens.intern(t));
     const enc = encodeTokenArray(indices);
+    const arrayId = this.pendingArrays.length;
+    this.pendingArrays.push({ encoded: enc });
+    const fieldTok = this.tokens.intern(name);
+    this.specBuilders[prim.pathIndex].fields.push({
+      tokenIndex: fieldTok,
+      rep: { kind: 'array', arrayId },
+    });
+  }
+
+  /**
+   * Add a TokenListOp metadata attribute. The most common shape is a
+   * single `prepended` list (e.g. `prepend apiSchemas = ["MaterialBindingAPI"]`).
+   * Pass token *strings*; the builder interns them.
+   *
+   * The `name` must include the opcode prefix the adapter expects to round-
+   * trip back through the property parser (e.g. `apiSchemas` — *not*
+   * `prepend apiSchemas`); the opcode is captured in which sub-list the
+   * caller fills.
+   */
+  addTokenListOpAttribute(
+    prim: PrimHandle,
+    name: string,
+    op: {
+      isExplicit?: boolean;
+      explicit?: ReadonlyArray<string>;
+      added?: ReadonlyArray<string>;
+      deleted?: ReadonlyArray<string>;
+      ordered?: ReadonlyArray<string>;
+      prepended?: ReadonlyArray<string>;
+      appended?: ReadonlyArray<string>;
+    }
+  ): void {
+    const internAll = (xs: ReadonlyArray<string> | undefined) =>
+      xs ? xs.map((t) => this.tokens.intern(t)) : undefined;
+    const input: TokenListOpInput = {
+      ...(op.isExplicit !== undefined ? { isExplicit: op.isExplicit } : {}),
+      ...(op.explicit ? { explicit: internAll(op.explicit)! } : {}),
+      ...(op.added ? { added: internAll(op.added)! } : {}),
+      ...(op.deleted ? { deleted: internAll(op.deleted)! } : {}),
+      ...(op.ordered ? { ordered: internAll(op.ordered)! } : {}),
+      ...(op.prepended ? { prepended: internAll(op.prepended)! } : {}),
+      ...(op.appended ? { appended: internAll(op.appended)! } : {}),
+    };
+    const enc = encodeTokenListOp(input);
     const arrayId = this.pendingArrays.length;
     this.pendingArrays.push({ encoded: enc });
     const fieldTok = this.tokens.intern(name);

@@ -124,17 +124,33 @@ describe('parsePropertyKey — array attributes', () => {
   });
 });
 
-describe('parsePropertyKey — non-attribute keys (unsupported)', () => {
-  it('returns unsupported for prepend metadata', () => {
+describe('parsePropertyKey — list-op metadata', () => {
+  it('parses prepend xxx as a prepended list-op', () => {
     const r = parsePropertyKey('prepend apiSchemas');
-    expect(r.kind).toBe('unsupported');
+    expect(r).toEqual({ kind: 'list-op', name: 'apiSchemas', opcode: 'prepended' });
   });
 
-  it('returns unsupported for prepend references', () => {
+  it('parses append xxx as an appended list-op', () => {
+    const r = parsePropertyKey('append apiSchemas');
+    expect(r).toEqual({ kind: 'list-op', name: 'apiSchemas', opcode: 'appended' });
+  });
+
+  it('parses prepend references as a list-op key', () => {
     const r = parsePropertyKey('prepend references');
-    expect(r.kind).toBe('unsupported');
+    expect(r).toEqual({ kind: 'list-op', name: 'references', opcode: 'prepended' });
   });
 
+  it('parses delete xxx as a deleted list-op', () => {
+    const r = parsePropertyKey('delete apiSchemas');
+    expect(r).toEqual({ kind: 'list-op', name: 'apiSchemas', opcode: 'deleted' });
+  });
+
+  it('returns unsupported when the list-op key is missing a name', () => {
+    expect(parsePropertyKey('prepend ').kind).toBe('unsupported');
+  });
+});
+
+describe('parsePropertyKey — non-attribute keys (unsupported)', () => {
   it('returns unsupported for connection (.connect suffix)', () => {
     const r = parsePropertyKey('token outputs:surface.connect');
     expect(r.kind).toBe('unsupported');

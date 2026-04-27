@@ -113,12 +113,37 @@ describe('applyProperty — scalar dispatch', () => {
     expect(r.emitted).toBe(true);
   });
 
-  it('skips connection / relationship / list-op keys', () => {
+  it('skips connection and relationship keys', () => {
     const b = new UsdcLayerBuilder();
     const root = b.declarePrim('/Root', 'Material');
     expect(applyProperty(b, root, 'token outputs:surface.connect', '<x>').emitted).toBe(false);
     expect(applyProperty(b, root, 'material:binding', '<x>').emitted).toBe(false);
-    expect(applyProperty(b, root, 'prepend apiSchemas', ['x']).emitted).toBe(false);
+  });
+
+  it('emits a TokenListOp for prepend apiSchemas', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Xform');
+    const r = applyProperty(b, root, 'prepend apiSchemas', ['MaterialBindingAPI']);
+    expect(r.emitted).toBe(true);
+  });
+
+  it('emits a TokenListOp for append apiSchemas', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Xform');
+    const r = applyProperty(b, root, 'append apiSchemas', ['MaterialBindingAPI', 'Other']);
+    expect(r.emitted).toBe(true);
+  });
+
+  it('skips list-ops for fields that are not TokenListOp-shaped (e.g. references)', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Xform');
+    expect(applyProperty(b, root, 'prepend references', ['@asset.usd@']).emitted).toBe(false);
+  });
+
+  it('skips list-ops whose value is not a string array', () => {
+    const b = new UsdcLayerBuilder();
+    const root = b.declarePrim('/Root', 'Xform');
+    expect(applyProperty(b, root, 'prepend apiSchemas', 'not-an-array').emitted).toBe(false);
   });
 });
 
@@ -274,7 +299,7 @@ describe('adaptUsdNodeTree — properties report', () => {
     const root = new UsdNode('/Root', 'Xform');
     root.setProperty('uniform token[] xformOpOrder', ['xformOp:translate']);
     root.setProperty('material:binding', '<x>');
-    root.setProperty('prepend apiSchemas', ['MaterialBindingAPI']);
+    root.setProperty('token outputs:surface.connect', '<x>');
 
     const builder = new UsdcLayerBuilder();
     const report = adaptUsdNodeTree(root, builder);
@@ -282,5 +307,16 @@ describe('adaptUsdNodeTree — properties report', () => {
     const unsupported = report.properties.filter((p) => !p.emitted);
     expect(unsupported.length).toBe(2);
     for (const u of unsupported) expect(u.reason).toBeDefined();
+  });
+
+  it('emits TokenListOp for prepend apiSchemas during a tree walk', () => {
+    const root = new UsdNode('/Root', 'Xform');
+    root.setProperty('prepend apiSchemas', ['MaterialBindingAPI']);
+
+    const builder = new UsdcLayerBuilder();
+    const report = adaptUsdNodeTree(root, builder);
+    expect(report.skipped).toBe(0);
+    const apiSchemasReport = report.properties.find((p) => p.rawKey === 'prepend apiSchemas');
+    expect(apiSchemasReport?.emitted).toBe(true);
   });
 });
