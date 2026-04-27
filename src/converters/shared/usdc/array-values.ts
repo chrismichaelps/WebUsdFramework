@@ -45,6 +45,14 @@ export interface EncodedArrayValue {
   isCompressed: boolean;
   /** Number of elements (used for sanity checks; not embedded in this struct). */
   count: number;
+  /**
+   * Whether the resulting ValueRep should set the `isArray` flag.
+   *
+   * Most external values are arrays (`Float[]`, `Vec3f[]`, `Int[]`), but some
+   * scalar values are too large for the 48-bit inlined payload and are stored
+   * externally with `isArray: false` (a single `Vec3f`, `Vec4f`, or matrix).
+   */
+  isArray: boolean;
 }
 
 /**
@@ -53,7 +61,7 @@ export interface EncodedArrayValue {
 export function arrayValueRep(value: EncodedArrayValue, fileOffset: number | bigint): bigint {
   return externalValueRep({
     type: value.type,
-    isArray: true,
+    isArray: value.isArray,
     isCompressed: value.isCompressed,
     fileOffset,
   });
@@ -116,7 +124,7 @@ export function encodeFloatArray(
   const view = new DataView(elementBytes.buffer);
   for (let i = 0; i < count; i++) view.setFloat32(i * 4, values[i], true);
   const { bytes, isCompressed } = packArray(count, elementBytes, opts?.compress);
-  return { bytes, type: CrateDataType.Float, isCompressed, count };
+  return { bytes, type: CrateDataType.Float, isCompressed, count, isArray: true };
 }
 
 /**
@@ -137,7 +145,35 @@ export function encodeVec3fArray(
   const view = new DataView(elementBytes.buffer);
   for (let i = 0; i < flat.length; i++) view.setFloat32(i * 4, flat[i], true);
   const { bytes, isCompressed } = packArray(count, elementBytes, opts?.compress);
-  return { bytes, type: CrateDataType.Vec3f, isCompressed, count };
+  return { bytes, type: CrateDataType.Vec3f, isCompressed, count, isArray: true };
+}
+
+/**
+ * Encode a single Vec3f scalar (3 × float32 = 12 bytes). Returned with
+ * `isArray: false` so the resulting ValueRep refers to a single value, not
+ * an array.
+ *
+ * The on-disk format is identical to `encodeVec3fArray` with count=1 (so the
+ * 8-byte count prefix + 12 bytes of data, uncompressed). The `isArray` flag
+ * on the ValueRep is the bit that distinguishes scalar from 1-element array.
+ */
+export function encodeVec3fScalar(x: number, y: number, z: number): EncodedArrayValue {
+  const elementBytes = new Uint8Array(12);
+  const view = new DataView(elementBytes.buffer);
+  view.setFloat32(0, x, true);
+  view.setFloat32(4, y, true);
+  view.setFloat32(8, z, true);
+  // Always uncompressed for a single Vec3f — 12 bytes is too small to compress.
+  const out = new Uint8Array(8 + 12);
+  new DataView(out.buffer).setBigUint64(0, 1n, true);
+  out.set(elementBytes, 8);
+  return {
+    bytes: out,
+    type: CrateDataType.Vec3f,
+    isCompressed: false,
+    count: 1,
+    isArray: false,
+  };
 }
 
 /** Encode an Int[] (signed 32-bit integers). */
@@ -150,7 +186,7 @@ export function encodeInt32Array(
   const view = new DataView(elementBytes.buffer);
   for (let i = 0; i < count; i++) view.setInt32(i * 4, values[i] | 0, true);
   const { bytes, isCompressed } = packArray(count, elementBytes, opts?.compress);
-  return { bytes, type: CrateDataType.Int, isCompressed, count };
+  return { bytes, type: CrateDataType.Int, isCompressed, count, isArray: true };
 }
 
 /**
@@ -171,7 +207,7 @@ export function encodeTokenArray(
     view.setUint32(i * 4, v, true);
   }
   const { bytes, isCompressed } = packArray(count, elementBytes, opts?.compress);
-  return { bytes, type: CrateDataType.Token, isCompressed, count };
+  return { bytes, type: CrateDataType.Token, isCompressed, count, isArray: true };
 }
 
 /**
