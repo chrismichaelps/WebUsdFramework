@@ -12,6 +12,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `MAX_JOINTS_PER_SKIN: number`
 - `SKELETON_LOD_THRESHOLD: number`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/constants/.contract.json"
+- logic: "@root/hashes.md/constants/.logic.md"
+- chronos: "@root/hashes.md/constants/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - downstream: "@root/hashes.md/converters/gltf/helpers/skeleton-processor.hash.md"

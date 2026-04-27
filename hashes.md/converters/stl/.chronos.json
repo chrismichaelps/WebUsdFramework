@@ -1,0 +1,17 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Stl",
+  "ShardType": "TEMPORAL_METADATA",
+  "SearchComplexity": "O(1)",
+  "Timeline": {
+    "created": "2025-11-27T00:00:00Z",
+    "epochs": [
+      {
+        "epoch": 1,
+        "range": "2025-11-27 - 2025-11-27",
+        "changes": ["STL converter", "Binary/ASCII parsing"]
+      }
+    ]
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

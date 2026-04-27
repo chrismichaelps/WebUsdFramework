@@ -1,0 +1,13 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Gltf.Helpers",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "module": {
+      "description": "GLTF conversion helpers",
+      "exports": "See .hash.md files in this directory"
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

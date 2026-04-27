@@ -11,5 +11,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - `decomposeTRS(matrix: number[]): { t: number[], r: number[], s: number[] }`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/utils/.contract.json"
+- logic: "@root/hashes.md/utils/.logic.md"
+- chronos: "@root/hashes.md/utils/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

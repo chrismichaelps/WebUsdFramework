@@ -7,7 +7,14 @@ LSP_Discovery_Root: "@root/node_modules/effect/package.json"
 Grammar_Lock: "@root/hashes/grammar/effect.hash.md"
 ---
 
-/** [Project].Grammar.Effect - Linguistic DNA anchor for Effect Ecosystem */
+## @WebUsdFramework.Grammar.Effect
+
+/** WebUsdFramework.Grammar.Effect - Linguistic DNA anchor for Effect Ecosystem */
+
+### [Forensic Metadata]
+- contract: "@root/hashes.md/grammar/.contract.json"
+- logic: "@root/hashes.md/grammar/.logic.md"
+- chronos: "@root/hashes.md/grammar/.chronos.json"
 
 ## [SDK_Discovery_Map]
 /** === effect (Core Infrastructure) === */

@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - `convertFbxToGlb(fbxPath: string): Promise<string>`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/fbx/.contract.json"
+- logic: "@root/hashes.md/converters/fbx/.logic.md"
+- chronos: "@root/hashes.md/converters/fbx/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - downstream: "@root/hashes.md/converters/fbx/index.hash.md"

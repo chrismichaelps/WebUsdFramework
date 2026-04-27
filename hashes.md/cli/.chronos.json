@@ -1,0 +1,17 @@
+{
+  "ForensicShard": "WebUsdFramework.Cli",
+  "ShardType": "TEMPORAL_METADATA",
+  "SearchComplexity": "O(1)",
+  "Timeline": {
+    "created": "2026-04-18T00:00:00Z",
+    "epochs": [
+      {
+        "epoch": 1,
+        "range": "2026-04-18 - 2026-04-18",
+        "changes": ["CLI structure", "Effect TS integration", "Converter service"]
+      }
+    ]
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

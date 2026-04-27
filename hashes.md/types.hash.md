@@ -19,5 +19,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - Inputs: none
 - Outputs: TypeScript type aliases
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/.contract.json"
+- logic: "@root/hashes.md/.logic.md"
+- chronos: "@root/hashes.md/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

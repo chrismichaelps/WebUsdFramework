@@ -1,0 +1,17 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Gltf.Extensions",
+  "ShardType": "TEMPORAL_METADATA",
+  "SearchComplexity": "O(1)",
+  "Timeline": {
+    "created": "2025-11-13T00:00:00Z",
+    "epochs": [
+      {
+        "epoch": 1,
+        "range": "2025-11-13 - 2025-11-14",
+        "changes": ["KHR_lights_punctual", "KHR_xmp_json_ld", "EXT_mesh_gpu_instancing", "PBR extension processors"]
+      }
+    ]
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

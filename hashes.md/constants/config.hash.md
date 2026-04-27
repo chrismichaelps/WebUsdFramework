@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - `DEFAULT_CONFIG: Readonly<FrameworkOptions>`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/constants/.contract.json"
+- logic: "@root/hashes.md/constants/.logic.md"
+- chronos: "@root/hashes.md/constants/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - downstream: "@root/hashes.md/index.hash.md"

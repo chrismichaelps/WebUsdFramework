@@ -1,0 +1,17 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Gltf.Helpers.Processors",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "Animation Processors": {
+      "description": "GLTF animation channel processors for USD SkelAnimation",
+      "implementors": [
+        "node-animation-processor",
+        "skeleton-animation-processor",
+        "morph-target-animation-processor"
+      ]
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

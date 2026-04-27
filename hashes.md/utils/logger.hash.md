@@ -17,6 +17,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Governance]
 - Debug tracing only active when config.debug is true
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/utils/.contract.json"
+- logic: "@root/hashes.md/utils/.logic.md"
+- chronos: "@root/hashes.md/utils/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - downstream: "@root/hashes.md/core/usd-node.hash.md"

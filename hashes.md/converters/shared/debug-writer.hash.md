@@ -11,5 +11,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - `writeDebugUsda(path: string, content: string): void`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/shared/.contract.json"
+- logic: "@root/hashes.md/converters/shared/.logic.md"
+- chronos: "@root/hashes.md/converters/shared/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

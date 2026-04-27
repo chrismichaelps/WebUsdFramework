@@ -14,5 +14,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Governance]
 - Export_Law: Single opaque barrel; no direct deep imports from consumers
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/constants/.contract.json"
+- logic: "@root/hashes.md/constants/.logic.md"
+- chronos: "@root/hashes.md/constants/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

@@ -1,0 +1,13 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "module": {
+      "description": "Converter orchestration layer",
+      "exports": "See .hash.md files in this directory"
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

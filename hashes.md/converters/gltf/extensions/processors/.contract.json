@@ -1,0 +1,27 @@
+{
+  "ForensicShard": "WebUsdFramework.Converters.Gltf.Extensions.Processors",
+  "ShardType": "API_CONTRACT",
+  "SearchComplexity": "O(1)",
+  "Contracts": {
+    "PBR Processors": {
+      "description": "GLTF PBR extension processors for USD material translation",
+      "implementors": [
+        "pbr-anisotropy-processor",
+        "pbr-clearcoat-processor",
+        "pbr-diffuse-transmission-processor",
+        "pbr-dispersion-processor",
+        "pbr-emissive-strength-processor",
+        "pbr-ior-processor",
+        "pbr-iridescence-processor",
+        "pbr-sheen-processor",
+        "pbr-specular-processor",
+        "pbr-specular-glossiness-processor",
+        "pbr-transmission-processor",
+        "pbr-unlit-processor",
+        "pbr-volume-processor"
+      ]
+    }
+  },
+  "VersionLock": "HEAD_SHA",
+  "StateHash": "0x1"
+}

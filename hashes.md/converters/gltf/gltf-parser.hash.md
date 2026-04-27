@@ -12,5 +12,10 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `class GltfParser`
 - `parse(buffer: Uint8Array): Promise<Document>`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/gltf/.contract.json"
+- logic: "@root/hashes.md/converters/gltf/.logic.md"
+- chronos: "@root/hashes.md/converters/gltf/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"

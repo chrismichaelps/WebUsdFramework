@@ -11,6 +11,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 ### [Signatures]
 - Re-exports StlConverter
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/converters/stl/.contract.json"
+- logic: "@root/hashes.md/converters/stl/.logic.md"
+- chronos: "@root/hashes.md/converters/stl/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - depends_on: "@root/hashes.md/converters/stl/stl-converter.hash.md"

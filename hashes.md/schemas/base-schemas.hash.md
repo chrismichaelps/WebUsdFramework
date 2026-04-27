@@ -12,6 +12,11 @@ Grammar_Lock: "@root/hashes.md/grammar/typescript.hash.md"
 - `buildStageHeader(meta: StageMeta): string`
 - `buildPrimBlock(type: string, name: string, body: string): string`
 
+### [Forensic Metadata]
+- contract: "@root/hashes.md/schemas/.contract.json"
+- logic: "@root/hashes.md/schemas/.logic.md"
+- chronos: "@root/hashes.md/schemas/.chronos.json"
+
 ### [Linkage]
 - grammar_ref: "@root/hashes.md/grammar/typescript.hash.md"
 - downstream: "@root/hashes.md/schemas/obj-schemas.hash.md"
