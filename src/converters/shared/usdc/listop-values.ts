@@ -43,8 +43,17 @@ export const SdfListOpSubListType = {
 export type SdfListOpSubListType =
   (typeof SdfListOpSubListType)[keyof typeof SdfListOpSubListType];
 
-/** Mutable description of a TokenListOp before serialization. */
-export interface TokenListOpInput {
+/**
+ * Mutable description of a SdfListOp before serialization.
+ *
+ * The wire format is identical for `TokenListOp`, `StringListOp`, `IntListOp`,
+ * `Int64ListOp`, `UIntListOp`, `UInt64ListOp`, and `PathListOp` — every
+ * element is a uint32 *index* that references some other table (the
+ * TOKENS table for tokens / strings, the PATHS table for paths). This
+ * type captures all of them; concrete encoders set the appropriate
+ * `CrateDataType` tag on the resulting ValueRep.
+ */
+export interface IndexListOpInput {
   isExplicit?: boolean;
   explicit?: ReadonlyArray<number>;
   added?: ReadonlyArray<number>;
@@ -53,6 +62,9 @@ export interface TokenListOpInput {
   prepended?: ReadonlyArray<number>;
   appended?: ReadonlyArray<number>;
 }
+
+/** Backwards-compatible alias kept so existing TokenListOp callers don't break. */
+export type TokenListOpInput = IndexListOpInput;
 
 function validateTokenIndices(label: string, items: ReadonlyArray<number>): void {
   for (let i = 0; i < items.length; i++) {
@@ -66,11 +78,14 @@ function validateTokenIndices(label: string, items: ReadonlyArray<number>): void
 }
 
 /**
- * Encode a TokenListOp as the bytes that go at a file offset, plus the
- * `EncodedArrayValue` envelope the layer-builder wants. The resulting
- * ValueRep has `type: TokenListOp`, `isArray: false`, `isCompressed: false`.
+ * Shared low-level encoder for any index-based ListOp. The caller supplies
+ * the `CrateDataType` tag that should appear on the resulting ValueRep
+ * (`TokenListOp` for tokens, `PathListOp` for paths, ...).
  */
-export function encodeTokenListOp(input: TokenListOpInput): EncodedArrayValue {
+function encodeIndexListOp(
+  input: IndexListOpInput,
+  type: CrateDataType
+): EncodedArrayValue {
   const sublists: { type: SdfListOpSubListType; items: ReadonlyArray<number> }[] = [];
   if (input.explicit && input.explicit.length > 0) {
     validateTokenIndices('explicit', input.explicit);
@@ -121,11 +136,29 @@ export function encodeTokenListOp(input: TokenListOpInput): EncodedArrayValue {
 
   return {
     bytes,
-    type: CrateDataType.TokenListOp,
+    type,
     isCompressed: false,
     count: sublists.length, // metadata only; not used by anyone today
     isArray: false,
   };
+}
+
+/**
+ * Encode a TokenListOp. Items are TokenIndex values into the TOKENS table.
+ * The resulting ValueRep has `type: TokenListOp`, `isArray: false`,
+ * `isCompressed: false`.
+ */
+export function encodeTokenListOp(input: IndexListOpInput): EncodedArrayValue {
+  return encodeIndexListOp(input, CrateDataType.TokenListOp);
+}
+
+/**
+ * Encode a PathListOp. Items are PathIndex values into the PATHS table.
+ * The resulting ValueRep has `type: PathListOp`, `isArray: false`,
+ * `isCompressed: false`.
+ */
+export function encodePathListOp(input: IndexListOpInput): EncodedArrayValue {
+  return encodeIndexListOp(input, CrateDataType.PathListOp);
 }
 
 /**
